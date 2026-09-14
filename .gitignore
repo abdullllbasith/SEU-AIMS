@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Private keys and credentials
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+
+# Local / temporary file processing (not the production store)
+.local-storage/
+tmp/
+temp/
+uploads/
+backend/public/uploads/
+
+# Build and coverage
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Logs and dumps
+*.log
+npm-debug.log*
+dump.rdb
+*.mongo.dump
+*.archive
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Test artifacts
+playwright-report/
+test-results/

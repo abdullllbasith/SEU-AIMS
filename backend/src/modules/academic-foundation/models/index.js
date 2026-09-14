@@ -1,0 +1,9 @@
+export { Department } from './department.model.js';
+export { Batch } from './batch.model.js';
+export { AcademicYear } from './academic-year.model.js';
+export { Semester } from './semester.model.js';
+export { Subject } from './subject.model.js';
+export { SubjectOffering } from './subject-offering.model.js';
+export { LecturerAssignment } from './lecturer-assignment.model.js';
+export { StudentAcademicContext } from './student-academic-context.model.js';
+export { StudentAcademicHistory } from './student-academic-history.model.js';

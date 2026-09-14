@@ -1,0 +1,20 @@
+export const INCOMPLETE_CA_STATUSES = Object.freeze(['OPEN', 'IN_APPLICATION', 'RESOLVED']);
+
+export const CA_APPLICATION_STATUSES = Object.freeze([
+  'DRAFT',
+  'SUBMITTED',
+  'UNDER_VERIFICATION',
+  'APPROVED',
+  'REJECTED',
+  'SCHEDULED',
+  'COMPLETED',
+  'RESOLVED',
+]);
+
+export const PHYSICAL_VERIFICATION_STATUSES = Object.freeze([
+  'NOT_STARTED',
+  'AWAITING_PHYSICAL',
+  'PHYSICALLY_VERIFIED',
+]);
+
+export const CA_REMINDER_OFFSETS_DAYS = Object.freeze([7, 3, 1]);

@@ -1,0 +1,98 @@
+:root {
+  color-scheme: light;
+  font-family: Segoe UI, system-ui, sans-serif;
+  line-height: 1.5;
+  color: #12202a;
+  background: #f4f1ea;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-shell__header {
+  padding: 1.25rem 1.5rem;
+  background: #0f3d3e;
+  color: #f4f1ea;
+}
+
+.app-shell__title {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.app-shell__subtitle {
+  margin: 0.25rem 0 0;
+  opacity: 0.85;
+}
+
+.app-shell__nav {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.app-shell__nav a,
+.app-shell__nav button {
+  color: inherit;
+}
+
+form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 22rem;
+}
+
+label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.form-error {
+  color: #8a1f1f;
+}
+
+.admin-page {
+  max-width: 72rem;
+}
+
+.admin-page form,
+.tab-nav {
+  max-width: none;
+}
+
+.tab-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.tab-nav button.is-active {
+  font-weight: 700;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  background: #fff;
+}
+
+.data-table th,
+.data-table td {
+  border: 1px solid #d5cfc4;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  font-size: 0.9rem;
+}

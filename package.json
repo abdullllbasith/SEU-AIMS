@@ -1,0 +1,24 @@
+{
+  "name": "seu-aims",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Department-level VLE/LMS (scalable modular monolith)",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w backend",
+    "dev:worker": "npm run worker -w backend",
+    "dev:web": "npm run dev -w frontend",
+    "start:api": "npm run start -w backend",
+    "start:worker": "npm run start:worker -w backend",
+    "test": "npm run test -w backend && npm run test -w frontend",
+    "test:backend": "npm run test -w backend",
+    "test:frontend": "npm run test -w frontend",
+    "build": "npm run build -w frontend"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

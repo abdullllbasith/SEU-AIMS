@@ -1,0 +1,15 @@
+export const API_PATHS = Object.freeze({
+  health: '/api/health',
+  auth: '/api/auth',
+  academic: '/api/academic',
+  learning: '/api/learning',
+  studyRoom: '/api/study-room',
+  results: '/api/results',
+  gpa: '/api/gpa',
+  ca: '/api/ca',
+  notices: '/api/notices',
+  calendar: '/api/calendar',
+  notifications: '/api/notifications',
+  files: '/api/files',
+  audit: '/api/audit',
+});

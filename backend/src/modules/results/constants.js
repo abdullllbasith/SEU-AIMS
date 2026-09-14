@@ -1,0 +1,10 @@
+export const RESULT_IMPORT_STATUSES = Object.freeze([
+  'UPLOADED',
+  'PROCESSING',
+  'PARSED',
+  'VALIDATION_ISSUES',
+  'READY_FOR_REVIEW',
+  'CONFIRMED',
+  'COMMITTED',
+  'FAILED',
+]);
