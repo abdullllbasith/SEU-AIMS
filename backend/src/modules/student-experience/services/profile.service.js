@@ -7,7 +7,7 @@ import {
   findStudentContextByUserId,
 } from '../../academic-foundation/index.js';
 import { storeProfileImage, loadAuthorizedProfileImage } from '../../files/index.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
 import { PROFILE_DISPLAY_NAME_MAX, PROFILE_FORBIDDEN_FIELDS } from '../constants.js';
 import { normalizePhone } from '../utils/phone.js';
@@ -95,7 +95,7 @@ export async function updateOwnProfile(principal, body = {}) {
   }
   user.profileRevision = Number(user.profileRevision || 0) + 1;
   await user.save();
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'profile.update',
     entityType: 'User',
@@ -123,7 +123,7 @@ export async function uploadOwnProfileImage(principal, file, infrastructure) {
   user.profileImageFileId = stored._id;
   user.profileRevision = Number(user.profileRevision || 0) + 1;
   await user.save();
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'profile.photo.update',
     entityType: 'StoredFile',

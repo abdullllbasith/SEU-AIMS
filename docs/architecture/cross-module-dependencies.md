@@ -14,4 +14,11 @@ Avoid circular internal imports. If two domains both need a fact, put it in the 
 
 Do not move domain rules into `backend/src/shared/` to “fix” cycles.
 
-Jobs call the same domain services as HTTP handlers. Workers are not a second copy of the business rules.
+See also:
+
+- [source-of-truth.md](./source-of-truth.md)
+- [integration-contracts.md](./integration-contracts.md)
+- [job-graph.md](./job-graph.md)
+- [integration-guide.md](./integration-guide.md)
+- [integration-debt.md](./integration-debt.md)
+

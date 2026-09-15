@@ -352,6 +352,8 @@ export async function submitApplication(principal, applicationId, { config, infr
     recipientUserId: principal.userId,
     type: 'CA_APPLICATION_SUBMITTED',
     sourceId: doc.applicationId,
+    departmentId: doc.departmentId,
+    infrastructure,
   });
   if (infrastructure.queue?.enqueue) {
     await infrastructure.queue.enqueue({
@@ -424,7 +426,7 @@ export async function verifyPhysical(principal, applicationId, body) {
   return mapApplication(doc, await subjectsFor(doc));
 }
 
-export async function approveApplication(principal, applicationId) {
+export async function approveApplication(principal, applicationId, { infrastructure } = {}) {
   assertAdmin(principal);
   const doc = await loadOwnedApplication(principal, applicationId);
   if (doc.workflowStatus !== 'UNDER_VERIFICATION' || doc.physicalVerificationStatus !== 'PHYSICALLY_VERIFIED') {
@@ -446,6 +448,8 @@ export async function approveApplication(principal, applicationId) {
     recipientUserId: doc.studentUserId,
     type: 'CA_APPLICATION_APPROVED',
     sourceId: doc.applicationId,
+    departmentId: doc.departmentId,
+    infrastructure,
   });
   await recordCaAudit({
     actorUserId: principal.userId,
@@ -457,7 +461,7 @@ export async function approveApplication(principal, applicationId) {
   return mapApplication(doc, await subjectsFor(doc));
 }
 
-export async function rejectApplication(principal, applicationId, body) {
+export async function rejectApplication(principal, applicationId, body, { infrastructure } = {}) {
   assertAdmin(principal);
   const doc = await loadOwnedApplication(principal, applicationId);
   if (!['SUBMITTED', 'UNDER_VERIFICATION', 'DRAFT'].includes(doc.workflowStatus)) {
@@ -485,11 +489,13 @@ export async function rejectApplication(principal, applicationId, body) {
     recipientUserId: doc.studentUserId,
     type: 'CA_APPLICATION_REJECTED',
     sourceId: doc.applicationId,
+    departmentId: doc.departmentId,
+    infrastructure,
   });
   return mapApplication(doc, await subjectsFor(doc));
 }
 
-export async function reopenApplication(principal, applicationId, body) {
+export async function reopenApplication(principal, applicationId, body, { infrastructure } = {}) {
   assertAdmin(principal);
   const doc = await loadOwnedApplication(principal, applicationId);
   if (!['REJECTED', 'SUBMITTED'].includes(doc.workflowStatus)) {
@@ -520,6 +526,8 @@ export async function reopenApplication(principal, applicationId, body) {
     recipientUserId: doc.studentUserId,
     type: 'CA_APPLICATION_REOPENED',
     sourceId: doc.applicationId,
+    departmentId: doc.departmentId,
+    infrastructure,
   });
   return mapApplication(doc, await subjectsFor(doc));
 }

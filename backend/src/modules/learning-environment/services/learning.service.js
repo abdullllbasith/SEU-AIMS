@@ -18,7 +18,7 @@ import {
   sanitizeDisplayFilename,
 } from '../../files/index.js';
 import { User } from '../../authentication/models/user.model.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import { Notification } from '../../notifications/index.js';
 import { CalendarEvent } from '../../notices-calendar/index.js';
 import { ROLES } from '../../../shared/constants/roles.js';
@@ -38,13 +38,12 @@ import { escapeRegex, parsePagination, requireObjectId } from '../utils/http.js'
 import { mapOfferingSummary, mapResource, mapSection } from '../mappers/learning.mappers.js';
 
 async function recordAudit({ actorUserId, action, entityId, metadata }) {
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId,
     action,
     entityType: 'OfficialResource',
-    entityId: String(entityId),
+    entityId,
     metadata,
-    occurredAt: new Date(),
   });
 }
 

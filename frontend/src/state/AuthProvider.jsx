@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { apiRequest, setCsrfToken } from '../services/api-client.js';
+import { apiRequest, setCsrfToken, SESSION_EXPIRED_EVENT } from '../services/api-client.js';
 
 const AuthContext = createContext(null);
 export { AuthContext };
@@ -31,6 +31,15 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    function onExpired() {
+      setCsrfToken('');
+      applyUser(null);
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, [applyUser]);
 
   const login = useCallback(
     async ({ identifier, password }) => {

@@ -47,7 +47,7 @@ export function createCaController() {
       sendSuccess(res, await windowService.listWindows(req.principal, req.query));
     }),
     saveWindow: asyncHandler(async (req, res) => {
-      sendSuccess(res, await windowService.createOrUpdateWindow(req.principal, req.body || {}), { statusCode: 201 });
+      sendSuccess(res, await windowService.createOrUpdateWindow(req.principal, req.body || {}, deps(req)), { statusCode: 201 });
     }),
     adminList: asyncHandler(async (req, res) => {
       sendSuccess(res, await applicationService.adminListApplications(req.principal, req.query));
@@ -59,13 +59,13 @@ export function createCaController() {
       sendSuccess(res, await applicationService.verifyPhysical(req.principal, req.params.applicationId, req.body || {}));
     }),
     approve: asyncHandler(async (req, res) => {
-      sendSuccess(res, await applicationService.approveApplication(req.principal, req.params.applicationId));
+      sendSuccess(res, await applicationService.approveApplication(req.principal, req.params.applicationId, deps(req)));
     }),
     reject: asyncHandler(async (req, res) => {
-      sendSuccess(res, await applicationService.rejectApplication(req.principal, req.params.applicationId, req.body || {}));
+      sendSuccess(res, await applicationService.rejectApplication(req.principal, req.params.applicationId, req.body || {}, deps(req)));
     }),
     reopen: asyncHandler(async (req, res) => {
-      sendSuccess(res, await applicationService.reopenApplication(req.principal, req.params.applicationId, req.body || {}));
+      sendSuccess(res, await applicationService.reopenApplication(req.principal, req.params.applicationId, req.body || {}, deps(req)));
     }),
     lecturerEligible: asyncHandler(async (req, res) => {
       sendSuccess(res, await scheduleService.listApprovedForLecturer(req.principal));

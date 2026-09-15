@@ -1,6 +1,6 @@
 import { NotificationPreference } from '../models/notification-preference.model.js';
 import { SUPPORTED_LOCALES } from '../constants.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 
 export function mapPreference(doc) {
   return {
@@ -32,7 +32,7 @@ export async function updatePreferences(principal, body = {}) {
     },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'notification.preference.update',
     entityType: 'NotificationPreference',

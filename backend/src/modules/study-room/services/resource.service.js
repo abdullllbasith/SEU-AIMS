@@ -8,7 +8,7 @@ import {
   assertAllowedOfficialType,
   sanitizeDisplayFilename,
 } from '../../files/index.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import {
   PayloadTooLargeError,
   ValidationError,
@@ -26,13 +26,12 @@ import { escapeRegex, parsePagination, requireObjectId } from '../utils/http.js'
 import { REPORT_CATEGORIES } from '../constants.js';
 
 async function recordAudit({ actorUserId, action, entityId, entityType, metadata }) {
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId,
     action,
     entityType,
-    entityId: String(entityId),
+    entityId,
     metadata,
-    occurredAt: new Date(),
   });
 }
 

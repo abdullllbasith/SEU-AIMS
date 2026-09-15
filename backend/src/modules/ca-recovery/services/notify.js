@@ -1,14 +1,14 @@
 import { fanoutNotification } from '../../notifications/index.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 
-export async function recordCaAudit({ actorUserId, action, entityType, entityId, metadata }) {
-  await AuditEvent.create({
+export async function recordCaAudit({ actorUserId, action, entityType, entityId, metadata, departmentId }) {
+  await persistAudit({
     actorUserId,
     action,
     entityType,
-    entityId: String(entityId),
+    entityId,
     metadata,
-    occurredAt: new Date(),
+    departmentId,
   });
 }
 

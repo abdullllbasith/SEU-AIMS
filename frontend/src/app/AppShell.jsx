@@ -30,6 +30,7 @@ export function AppShell({ children }) {
                 <Link to="/notices">Notices</Link>
                 <Link to="/calendar">Calendar</Link>
                 <Link to="/admin/study-room">Study Room moderation</Link>
+                <Link to="/admin/ops">Operations</Link>
               </>
             ) : null}
             {user.role === ROLES.STUDENT ? (
@@ -40,7 +41,7 @@ export function AppShell({ children }) {
                 <Link to="/results/me">My results</Link>
                 <Link to="/performance">Performance</Link>
                 <Link to="/ca">CA recovery</Link>
-                <Link to="/learning">Official learning</Link>
+                <Link to="/learning">Official resources</Link>
                 <Link to="/notices">Notices</Link>
                 <Link to="/calendar">Calendar</Link>
                 <Link to="/study-room">Study Room</Link>
@@ -50,7 +51,7 @@ export function AppShell({ children }) {
               <>
                 <Link to="/lecturer/offerings">Assigned offerings</Link>
                 <Link to="/lecturer/learning">Official resources</Link>
-                <Link to="/lecturer/ca">CA scheduling</Link>
+                <Link to="/lecturer/ca">CA recovery</Link>
                 <Link to="/notices">Notices</Link>
                 <Link to="/calendar">Calendar</Link>
               </>

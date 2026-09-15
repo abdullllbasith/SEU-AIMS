@@ -13,6 +13,7 @@ import { LecturerLearningPage } from '../modules/learning/LecturerLearningPage.j
 import { OfferingLearningPage } from '../modules/learning/OfferingLearningPage.jsx';
 import { StudyRoomPage } from '../modules/study-room/StudyRoomPage.jsx';
 import { AdminStudyRoomModerationPage } from '../modules/admin/AdminStudyRoomModerationPage.jsx';
+import { AdminObservabilityPage } from '../modules/admin/AdminObservabilityPage.jsx';
 import { AdminResultsPage } from '../modules/admin/AdminResultsPage.jsx';
 import { StudentResultsPage } from '../modules/results/StudentResultsPage.jsx';
 import { StudentCaPage } from '../modules/ca-recovery/StudentCaPage.jsx';
@@ -78,6 +79,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
             <AcademicAdminPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/ops"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminObservabilityPage />
           </ProtectedRoute>
         }
       />
@@ -179,6 +188,14 @@ export function AppRoutes() {
       />
       <Route
         path="/notices"
+        element={
+          <ProtectedRoute>
+            <NoticesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notices/:noticeId"
         element={
           <ProtectedRoute>
             <NoticesPage />

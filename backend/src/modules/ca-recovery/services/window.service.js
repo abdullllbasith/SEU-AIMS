@@ -26,7 +26,7 @@ function mapWindow(doc, now = new Date()) {
   };
 }
 
-export async function createOrUpdateWindow(principal, body) {
+export async function createOrUpdateWindow(principal, body, { infrastructure } = {}) {
   assertAdmin(principal);
   requireObjectId(body.academicYearId, 'academic year');
   requireObjectId(body.semesterId, 'semester');
@@ -79,6 +79,8 @@ export async function createOrUpdateWindow(principal, body) {
           recipientUserId: studentUserId,
           type: 'CA_WINDOW_OPEN',
           sourceId: String(doc._id),
+          departmentId: principal.departmentId,
+          infrastructure,
         });
       }
     }

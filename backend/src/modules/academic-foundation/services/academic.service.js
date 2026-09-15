@@ -9,7 +9,7 @@ import { LecturerAssignment } from '../models/lecturer-assignment.model.js';
 import { StudentAcademicContext } from '../models/student-academic-context.model.js';
 import { StudentAcademicHistory } from '../models/student-academic-history.model.js';
 import { User } from '../../authentication/models/user.model.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import { ROLES } from '../../../shared/constants/roles.js';
 import {
   ConflictError,
@@ -40,13 +40,12 @@ import {
 } from '../mappers/academic.mappers.js';
 
 async function recordAudit({ actorUserId, action, entityType, entityId, metadata }) {
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId,
     action,
     entityType,
-    entityId: String(entityId),
+    entityId,
     metadata,
-    occurredAt: new Date(),
   });
 }
 

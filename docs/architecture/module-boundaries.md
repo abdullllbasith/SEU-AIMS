@@ -13,6 +13,6 @@
 | notifications | In-app/email/WhatsApp records, scheduling, retries | Deciding CA eligibility |
 | student-experience | Own-profile self-service and student dashboard/history/performance composition | Official results, GPA formula, CA workflow, notice storage |
 | files | Metadata, storage refs, quarantine, scan state, access abstraction | Domain authorization (“who may see this CA PDF”) |
-| audit-security | Audit records, security-sensitive event tracking | Every domain policy check |
+| audit-security | Audit records, webhook verification, operational counts | Domain policy checks; editing audit history |
 
 Other modules import a module’s **public `index.js` only**, never repositories or models of another module.

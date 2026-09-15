@@ -1,5 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
+export const SESSION_EXPIRED_EVENT = 'seu-aims:session-expired';
+
 let csrfToken = '';
 let refreshPromise = null;
 
@@ -41,6 +43,9 @@ export async function apiRequest(path, options = {}) {
     if (refreshed?.data?.csrfToken) {
       setCsrfToken(refreshed.data.csrfToken);
       return apiRequest(path, { ...options, _retry: true });
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
   }
 

@@ -20,3 +20,4 @@ export { createRouter };
 export { OfficialResource, ResourceSection } from './models/index.js';
 export { RESOURCE_CATEGORIES, PUBLICATION_STATES } from './constants.js';
 export { listAccessibleOfferings, listResources } from './services/learning.service.js';
+export { syncOfficialResourceAfterScan } from './services/scan-sync.service.js';

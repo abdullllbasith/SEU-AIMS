@@ -1,6 +1,8 @@
+import { currentCorrelationId } from '../observability/request-context.js';
+
 /**
- * Job queue abstraction. Redis-backed implementation is added when workers are wired.
- * In-memory fallback is for local structure tests only — not production architecture.
+ * Job queue abstraction. Redis-backed durable transport remains a later attachment
+ * when REDIS_URL is set; this in-memory adapter is used for local/dev/test drain.
  */
 export class JobQueue {
   /**
@@ -18,15 +20,35 @@ export class InMemoryJobQueue extends JobQueue {
     super();
     this.logger = logger;
     this.jobs = [];
+    this.pending = [];
+    this.failed = [];
   }
 
   async enqueue(job) {
-    this.jobs.push({ ...job, enqueuedAt: new Date().toISOString() });
+    const correlationId = job.payload?.correlationId || currentCorrelationId();
+    const payload = correlationId ? { ...job.payload, correlationId } : job.payload;
+    const record = { ...job, payload, enqueuedAt: new Date().toISOString() };
+    this.jobs.push(record);
+    this.pending.push(record);
     this.logger?.debug('Job enqueued in memory (development/test only)', {
       name: job.name,
       jobId: job.jobId,
+      correlationId,
     });
     return { id: job.jobId ?? String(this.jobs.length) };
+  }
+
+  async takePending(limit = 50) {
+    return this.pending.splice(0, Math.max(1, limit));
+  }
+
+  async markFailed(job, error) {
+    this.failed.push({
+      name: job?.name,
+      jobId: job?.jobId,
+      failedAt: new Date().toISOString(),
+      category: error?.code || 'FAILED',
+    });
   }
 }
 

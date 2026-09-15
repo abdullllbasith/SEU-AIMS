@@ -8,7 +8,7 @@ import { PasswordResetToken } from '../models/password-reset-token.model.js';
 import { UnauthorizedError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
 import { isApprovedRole, ROLES } from '../../../shared/constants/roles.js';
 import { isUsableAccount } from '../policies/authorization.policies.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import { disconnectStudyRoomSockets } from '../../study-room/index.js';
 
 const GENERIC_LOGIN_ERROR = 'Invalid credentials';
@@ -27,13 +27,12 @@ function publicUser(user, extras = {}) {
 }
 
 async function recordAudit({ actorUserId, action, entityId, metadata }) {
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId,
     action,
     entityType: 'User',
-    entityId: String(entityId),
+    entityId,
     metadata,
-    occurredAt: new Date(),
   });
 }
 

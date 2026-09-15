@@ -5,6 +5,7 @@ import { createLogger } from '../infrastructure/logging/logger.js';
 import { createInfrastructure } from '../infrastructure/create-infrastructure.js';
 import { JOB_NAMES } from '../infrastructure/queue/job-names.js';
 import { registerJobProcessors } from './processors/index.js';
+import { processQueuedJobs } from './dispatch.js';
 import { disconnectMongo } from '../infrastructure/database/mongo.js';
 import { disconnectRedis } from '../infrastructure/redis/client.js';
 
@@ -24,10 +25,24 @@ export async function startWorker() {
   });
 
   const processors = registerJobProcessors({ logger, infrastructure });
+  let running = true;
 
   logger.info('Worker ready', { jobs: Object.values(JOB_NAMES) });
 
+  const drainLoop = (async () => {
+    while (running) {
+      try {
+        await processQueuedJobs(infrastructure.queue, processors, { limit: 25 });
+      } catch (error) {
+        logger.error('Worker drain failed', { message: error.message });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  })();
+
   async function shutdown() {
+    running = false;
+    await drainLoop.catch(() => {});
     logger.info('Worker shutting down');
     await infrastructure.queue.close();
     await disconnectRedis(infrastructure.redis, { logger });

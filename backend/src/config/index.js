@@ -79,6 +79,8 @@ export function loadConfig() {
       phoneNumberId: optional('WHATSAPP_CLOUD_API_PHONE_NUMBER_ID'),
       accessToken: optional('WHATSAPP_CLOUD_API_ACCESS_TOKEN'),
       webhookVerifyToken: optional('WHATSAPP_CLOUD_API_WEBHOOK_VERIFY_TOKEN'),
+      appSecret: optional('WHATSAPP_CLOUD_API_APP_SECRET'),
+      timeoutMs: integer('PROVIDER_TIMEOUT_MS', 10_000),
     },
     malwareScanner: {
       provider: optional('MALWARE_SCANNER_PROVIDER', 'noop'),
@@ -92,6 +94,9 @@ export function loadConfig() {
     },
     files: {
       maxBytes: integer('FILE_MAX_BYTES', 20 * 1024 * 1024),
+    },
+    audit: {
+      retentionDays: integer('AUDIT_RETENTION_DAYS', 0),
     },
     studyRoom: {
       messageMaxPerMinute: integer('STUDY_ROOM_MESSAGE_MAX_PER_MINUTE', 60),

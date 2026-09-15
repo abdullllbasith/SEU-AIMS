@@ -2,6 +2,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../config/index.js';
+import { assertProductionConfig } from '../config/validate-production.js';
 import { createLogger } from '../infrastructure/logging/logger.js';
 import { createInfrastructure } from '../infrastructure/create-infrastructure.js';
 import { createApp } from '../app/create-app.js';
@@ -14,6 +15,7 @@ const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 
 export async function startApiServer() {
   const config = loadConfig();
+  assertProductionConfig(config);
   if (!config.auth.jwtSecret) {
     throw new Error('AUTH_JWT_SECRET must be set in the environment');
   }

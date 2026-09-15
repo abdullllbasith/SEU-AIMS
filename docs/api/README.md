@@ -18,6 +18,8 @@ Prefixes are reserved. Endpoints are added by later prompts. Do not document uni
 | `/api/me` | student-experience |
 | `/api/files` | files |
 | `/api/audit` | audit-security |
+| `/api/ops` | audit-security (admin operational counts) |
+| `/api/webhooks` | audit-security (provider callbacks) |
 
 No API version prefix unless a later decision requires one.
 
@@ -50,6 +52,14 @@ Mutating routes require CSRF except the public verify GET.
 `/api/notices` is the notice board. Students/lecturers see published, in-scope notices. Admins use `/admin` create/update/publish/archive.
 
 `/api/calendar` lists scoped events (`/events`, `/upcoming`). Admins manage `/admin/events`. Lecturers create assignment deadlines at `/lecturer/events` only for assigned offerings. CA_SCHEDULE events are read-only on this API.
+
+## Audit, health, and webhooks (Prompt 12)
+
+- `GET /api/health`, `/api/health/live`, `/api/health/ready`
+- Admin: `GET /api/audit/events`, `GET /api/audit/summary`, `GET /api/ops/metrics`, `GET /api/ops/integrity`
+- Audit mutation routes are rejected.
+- `GET|POST /api/webhooks/whatsapp` — verify token / HMAC; unsigned posts fail closed
+
 
 ## Student experience (Prompt 11)
 

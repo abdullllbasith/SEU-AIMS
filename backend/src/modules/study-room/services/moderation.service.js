@@ -1,6 +1,6 @@
 import { SharedResource, ResourceReport } from '../models/index.js';
 import { StoredFile } from '../../files/index.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import { ValidationError, NotFoundError } from '../../../shared/errors/app-error.js';
 import { requireModerator, getOrCreateSettings } from './access.service.js';
 import { canTransitionResource } from '../policies/study-room.policies.js';
@@ -9,13 +9,12 @@ import { parsePagination, requireObjectId } from '../utils/http.js';
 import { MODERATION_MODES, REPORT_STATUSES } from '../constants.js';
 
 async function recordAudit({ actorUserId, action, entityId, entityType, metadata }) {
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId,
     action,
     entityType,
-    entityId: String(entityId),
+    entityId,
     metadata,
-    occurredAt: new Date(),
   });
 }
 

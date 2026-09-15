@@ -141,6 +141,8 @@ export async function createSchedule(principal, body, { infrastructure }) {
     recipientUserId: application.studentUserId,
     type: 'CA_SCHEDULED',
     sourceId: String(schedule._id),
+    departmentId: application.departmentId,
+    infrastructure,
   });
   await queueRemindersForSchedule(schedule, application, infrastructure);
   await recordCaAudit({

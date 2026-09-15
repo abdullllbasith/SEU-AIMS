@@ -36,19 +36,31 @@ export class MetaWhatsAppProvider extends WhatsAppProvider {
       return { accepted: false, provider: 'meta', retryable: false, category: 'missing_recipient' };
     }
     const url = `${this.config.baseUrl}/${this.config.version}/${this.config.phoneNumberId}/messages`;
-    const response = await this.fetchImpl(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.config.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: message.to,
-        type: 'text',
-        text: { body: String(message.body || '').slice(0, 1024) },
-      }),
-    });
+    const timeoutMs = Number(this.config.timeoutMs) > 0 ? Number(this.config.timeoutMs) : 10_000;
+    let response;
+    try {
+      response = await this.fetchImpl(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: message.to,
+          type: 'text',
+          text: { body: String(message.body || '').slice(0, 1024) },
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      return {
+        accepted: false,
+        provider: 'meta',
+        retryable: true,
+        category: error?.name === 'TimeoutError' || error?.name === 'AbortError' ? 'timeout' : 'network',
+      };
+    }
     const classified = classifyWhatsAppHttpStatus(response.status);
     if (!response.ok) {
       return { accepted: false, provider: 'meta', retryable: classified.retryable, category: classified.category };

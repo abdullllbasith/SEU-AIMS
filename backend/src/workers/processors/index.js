@@ -1,33 +1,31 @@
 import { JOB_NAMES } from '../../infrastructure/queue/job-names.js';
-import { processMalwareScan } from '../modules/files/index.js';
-import { syncSharedResourceAfterScan } from '../modules/study-room/index.js';
-import { processResultParse } from '../modules/results/index.js';
-import { recalculateStudentGpa } from '../modules/gpa-cgpa/index.js';
-import { generateApplicationPdf, evaluateReminder } from '../modules/ca-recovery/index.js';
-import { processNotificationDeliver } from '../modules/notifications/index.js';
-import { evaluateCalendarReminder } from '../modules/notices-calendar/index.js';
-
-function unimplemented(name, logger) {
-  return async (job) => {
-    logger.info('Job processor reserved; domain implementation is later', {
-      name,
-      jobId: job?.jobId,
-    });
-  };
-}
+import { processMalwareScan } from '../../modules/files/index.js';
+import { syncSharedResourceAfterScan } from '../../modules/study-room/index.js';
+import { processResultParse } from '../../modules/results/index.js';
+import { recalculateStudentGpa } from '../../modules/gpa-cgpa/index.js';
+import { generateApplicationPdf, evaluateReminder, processEcaDetectJob } from '../../modules/ca-recovery/index.js';
+import { processNotificationDeliver } from '../../modules/notifications/index.js';
+import { evaluateCalendarReminder } from '../../modules/notices-calendar/index.js';
+import { syncOfficialResourceAfterScan } from '../../modules/learning-environment/index.js';
 
 /**
  * Processors delegate to module services. They do not invent academic rules.
+ * Job payloads are identifiers; services reload authoritative documents.
  */
 export function registerJobProcessors({ logger, infrastructure }) {
-  return {
+  const processors = {
     [JOB_NAMES.RESULT_PARSE]: async (job) => {
       await processResultParse({
         importId: job?.payload?.importId,
         infrastructure,
       });
     },
-    [JOB_NAMES.ECA_DETECT]: unimplemented(JOB_NAMES.ECA_DETECT, logger),
+    [JOB_NAMES.ECA_DETECT]: async (job) => {
+      await processEcaDetectJob({
+        studentUserId: job?.payload?.studentUserId,
+        importId: job?.payload?.importId,
+      });
+    },
     [JOB_NAMES.GPA_RECALCULATE]: async (job) => {
       if (job?.payload?.studentUserId) {
         await recalculateStudentGpa(job.payload.studentUserId);
@@ -70,6 +68,26 @@ export function registerJobProcessors({ logger, infrastructure }) {
         logger,
       });
       await syncSharedResourceAfterScan(job?.payload?.fileId);
+      await syncOfficialResourceAfterScan(job?.payload?.fileId);
     },
   };
+
+  const wrapped = {};
+  for (const [name, handler] of Object.entries(processors)) {
+    wrapped[name] = async (job) => {
+      try {
+        return await handler(job);
+      } catch (error) {
+        logger.error('Job failed', {
+          name,
+          jobId: job?.jobId,
+          correlationId: job?.payload?.correlationId,
+          message: error.message,
+        });
+        await infrastructure.queue?.markFailed?.(job, error);
+        throw error;
+      }
+    };
+  }
+  return wrapped;
 }

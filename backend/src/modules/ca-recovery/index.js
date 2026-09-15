@@ -25,6 +25,7 @@ export { CaApplicationEvent } from './models/ca-application-event.model.js';
 export { CaSchedule } from './models/ca-schedule.model.js';
 export { createPublicApplicationId, createQrVerificationToken } from './public-ids.js';
 export { syncIncompleteCaFromResult } from './services/eca-from-results.js';
+export { processEcaDetectJob } from './services/eca-detect.service.js';
 export { generateApplicationPdf } from './services/pdf.service.js';
 export { evaluateReminder } from './services/reminder.service.js';
 export { listOwnApplications } from './services/application.service.js';

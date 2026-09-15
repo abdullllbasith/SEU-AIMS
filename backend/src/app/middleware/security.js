@@ -1,22 +1,33 @@
 import helmet from 'helmet';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
+import { createSharedRateLimiter } from '../../infrastructure/security/shared-rate-limit.js';
 
-export function applySecurityMiddleware(app, { config }) {
+export function applySecurityMiddleware(app, { config, logger, redis } = {}) {
   app.disable('x-powered-by');
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      referrerPolicy: { policy: 'no-referrer' },
+    }),
+  );
+  const origin = config.api.corsOrigin;
   app.use(
     cors({
-      origin: config.api.corsOrigin,
+      origin: origin === '*' ? false : origin,
       credentials: true,
     }),
   );
   app.use(
-    rateLimit({
-      windowMs: config.api.rateLimitWindowMs,
-      max: config.api.rateLimitMax,
-      standardHeaders: true,
-      legacyHeaders: false,
+    createSharedRateLimiter({
+      config,
+      redis,
+      logger,
+      prefix: 'rl:api:',
     }),
   );
 }

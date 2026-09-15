@@ -32,7 +32,17 @@ function sanitize(meta) {
     'plaintext',
     'ciphertext',
     'encryptedPayload',
+    'cookie',
+    'privateKey',
+    'plaintext',
+    'ciphertext',
+    'encryptedPayload',
     'wrappedKey',
+    'email',
+    'phone',
+    'whatsappNumber',
+    'resultCode',
+    'registrationNumber',
   ]);
 
   const out = {};

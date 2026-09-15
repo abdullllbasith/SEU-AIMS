@@ -28,5 +28,6 @@ export async function createInfrastructure({ config, logger, backendRoot, connec
     email,
     whatsapp,
     malwareScanner,
+    config,
   };
 }

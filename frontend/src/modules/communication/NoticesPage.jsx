@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { communicationApi } from './communication-api.js';
 import { useAuth } from '../../state/AuthProvider.jsx';
 import { ROLES } from '../../constants/roles.js';
 
 export function NoticesPage() {
   const { user } = useAuth();
+  const { noticeId } = useParams();
   const [error, setError] = useState('');
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ title: '', body: '' });
@@ -19,7 +21,7 @@ export function NoticesPage() {
 
   return (
     <section>
-      <h1>Notice board</h1>
+      <h1>Notices</h1>
       {error ? <p className="form-error">{error}</p> : null}
       {user?.role === ROLES.DEPARTMENT_ADMINISTRATOR ? (
         <form
@@ -46,8 +48,9 @@ export function NoticesPage() {
       {items.length === 0 ? <p>No published notices for your scope.</p> : null}
       <ul>
         {items.map((item) => (
-          <li key={item.id}>
+          <li key={item.id} id={`notice-${item.id}`}>
             <strong>{item.title}</strong>
+            {noticeId === item.id ? ' (opened from notification)' : ''}
             {item.priority === 'HIGH' ? ' (high)' : ''}
             <p>{item.body}</p>
           </li>

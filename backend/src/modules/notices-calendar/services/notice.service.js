@@ -7,7 +7,7 @@ import {
 import { ROLES } from '../../../shared/constants/roles.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
 import { fanoutNotification } from '../../notifications/index.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import { parsePagination, requireObjectId } from '../../notifications/utils/http.js';
 
 function assertAdmin(principal) {
@@ -113,7 +113,7 @@ export async function createNotice(principal, body) {
       role: body.targeting?.role,
     },
   });
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'notice.create',
     entityType: 'Notice',
@@ -141,7 +141,7 @@ export async function updateNotice(principal, noticeId, body) {
     notice.priority = body.priority === 'HIGH' ? 'HIGH' : 'NORMAL';
   }
   await notice.save();
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'notice.update',
     entityType: 'Notice',
@@ -161,7 +161,7 @@ export async function publishNotice(principal, noticeId, { infrastructure }) {
   notice.publicationState = 'PUBLISHED';
   notice.publishedAt = new Date();
   await notice.save();
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'notice.publish',
     entityType: 'Notice',
@@ -194,7 +194,7 @@ export async function archiveNotice(principal, noticeId) {
   notice.publicationState = 'ARCHIVED';
   notice.archivedAt = new Date();
   await notice.save();
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'notice.archive',
     entityType: 'Notice',

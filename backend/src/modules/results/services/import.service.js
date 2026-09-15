@@ -23,9 +23,9 @@ import {
   SubjectOffering,
   findStudentByRegistrationNumber,
 } from '../../academic-foundation/index.js';
-import { AuditEvent } from '../../audit-security/index.js';
-import { Notification } from '../../notifications/index.js';
 import { JOB_NAMES } from '../../../infrastructure/queue/job-names.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
+import { fanoutNotification } from '../../notifications/index.js';
 import { ROLES } from '../../../shared/constants/roles.js';
 import {
   ConflictError,
@@ -43,14 +43,14 @@ function assertAdmin(principal) {
   }
 }
 
-async function recordAudit({ actorUserId, action, entityId, metadata }) {
-  await AuditEvent.create({
+async function recordAudit({ actorUserId, action, entityId, metadata, departmentId }) {
+  await persistAudit({
     actorUserId,
     action,
     entityType: 'ResultImport',
-    entityId: String(entityId),
+    entityId,
     metadata,
-    occurredAt: new Date(),
+    departmentId,
   });
 }
 
@@ -355,6 +355,7 @@ export async function createResultImport(principal, file, body, { config, infras
     actorUserId: principal.userId,
     action: 'results.import.create',
     entityId: importDoc._id,
+    departmentId: importDoc.departmentId,
     metadata: { sourceType, checksumSha256 },
   });
 
@@ -471,19 +472,18 @@ export async function commitResultImport(principal, importId, { infrastructure }
       previousResultCode,
       newResultCode: row.resultCode,
     });
-    await AuditEvent.create({
+    await persistAudit({
       actorUserId: principal.userId,
       action: 'results.commit.row',
       entityType: 'AcademicResult',
-      entityId: String(official._id),
+      entityId: official._id,
+      departmentId: importDoc.departmentId,
       metadata: {
-        registrationNumber: row.registrationNumber,
         subjectCode: row.subjectCode,
         previousResultCode,
         newResultCode: row.resultCode,
         importId: String(importDoc._id),
       },
-      occurredAt: new Date(),
     });
     await syncIncompleteCaFromResult(official);
     row.committedAt = new Date();
@@ -499,14 +499,14 @@ export async function commitResultImport(principal, importId, { infrastructure }
 
   for (const studentUserId of affectedStudents) {
     try {
-      await Notification.create({
+      await fanoutNotification({
         recipientUserId: studentUserId,
         type: 'RESULTS_UPDATED',
         sourceModule: 'results',
         sourceId: String(importDoc._id),
-        channel: 'IN_APP',
-        status: 'PENDING',
-        idempotencyKey: `results.updated:${studentUserId}:${importDoc._id}`,
+        actionPath: '/results/me',
+        departmentId: importDoc.departmentId,
+        infrastructure,
       });
     } catch (error) {
       if (error?.code !== 11000) {
@@ -532,6 +532,7 @@ export async function commitResultImport(principal, importId, { infrastructure }
     actorUserId: principal.userId,
     action: 'results.import.commit',
     entityId: importDoc._id,
+    departmentId: importDoc.departmentId,
     metadata: { committedRows: rows.length, students: affectedStudents.size },
   });
 

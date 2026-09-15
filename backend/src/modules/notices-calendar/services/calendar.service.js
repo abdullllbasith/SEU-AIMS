@@ -9,7 +9,7 @@ import { ROLES } from '../../../shared/constants/roles.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
 import { JOB_NAMES } from '../../../infrastructure/queue/job-names.js';
 import { fanoutNotification } from '../../notifications/index.js';
-import { AuditEvent } from '../../audit-security/index.js';
+import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import { parsePagination, requireObjectId } from '../../notifications/utils/http.js';
 import { LecturerAssignment } from '../../academic-foundation/index.js';
 import { StudentAcademicContext } from '../../academic-foundation/index.js';
@@ -180,7 +180,7 @@ export async function createAdminEvent(principal, body, { config, infrastructure
     sourceModule: 'notices-calendar',
   });
   await queueReminders(event, infrastructure);
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'calendar.create',
     entityType: 'CalendarEvent',
@@ -217,7 +217,7 @@ export async function createLecturerEvent(principal, body, { config, infrastruct
     sourceModule: 'notices-calendar',
   });
   await queueReminders(event, infrastructure);
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'calendar.lecturer.create',
     entityType: 'CalendarEvent',
@@ -260,7 +260,7 @@ export async function updateEvent(principal, eventId, body, { infrastructure }) 
   }
   await event.save();
   await queueReminders(event, infrastructure);
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'calendar.update',
     entityType: 'CalendarEvent',
@@ -282,7 +282,7 @@ export async function publishEvent(principal, eventId) {
   }
   event.publicationState = 'PUBLISHED';
   await event.save();
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'calendar.publish',
     entityType: 'CalendarEvent',
@@ -311,7 +311,7 @@ export async function cancelEvent(principal, eventId) {
   event.reminderEnabled = false;
   event.reminderGeneration = (event.reminderGeneration || 0) + 1;
   await event.save();
-  await AuditEvent.create({
+  await persistAudit({
     actorUserId: principal.userId,
     action: 'calendar.cancel',
     entityType: 'CalendarEvent',
