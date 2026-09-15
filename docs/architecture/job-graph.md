@@ -31,6 +31,4 @@ File upload
   → study-room scan state / official resource file row
 ```
 
-Retry: notification delivery uses `NOTIFICATION_RETRY_MAX` (default 5). Other jobs: fail, `markFailed`, rethrow. Duplicate `jobId` is not enforced in the in-memory adapter; domain uniqueness is.
-
-The in-memory queue is drained by `src/workers/worker-entry.js`. Redis durable transport is **not** claimed here even when `REDIS_URL` is set.
+The in-memory queue is used when Redis is not connected. With Redis connected, API and worker share Redis lists (`seu-aims:queue:{high,normal,low}`). Failed jobs are capped at 1000 entries. Duplicate `jobId` is still enforced in domain uniqueness, not as a Redis lock.

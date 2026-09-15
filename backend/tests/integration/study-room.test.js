@@ -64,7 +64,7 @@ before(async () => {
       },
     });
     httpServer = http.createServer(app);
-    io = createRealtimeServer(httpServer, { corsOrigin: true });
+    io = await createRealtimeServer(httpServer, { corsOrigin: true });
     attachStudyRoomRealtime(io, { config, logger });
     await new Promise((resolve) => httpServer.listen(0, resolve));
   } catch (error) {

@@ -47,7 +47,8 @@ export function createApp({ config, logger, infrastructure = {} }) {
   const app = express();
   app.set('config', config);
   app.set('infrastructure', infrastructure);
-  app.set('trust proxy', 1);
+  const trustProxy = Number(config.api?.trustProxy);
+  app.set('trust proxy', Number.isFinite(trustProxy) && trustProxy > 0 ? trustProxy : false);
   applySecurityMiddleware(app, { config, logger, redis: infrastructure.redis });
   app.use(
     express.json({

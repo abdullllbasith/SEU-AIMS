@@ -46,11 +46,11 @@ export async function auditSummary(principal) {
   };
 }
 
-export function operationalSnapshot(principal, { infrastructure } = {}) {
+export async function operationalSnapshot(principal, { infrastructure } = {}) {
   assertAdmin(principal);
   return {
     metrics: snapshotMetrics(),
-    queue: queueSnapshot(infrastructure?.queue),
+    queue: await queueSnapshot(infrastructure?.queue),
     providers: {
       email: infrastructure?.email ? 'present' : 'missing',
       whatsapp: infrastructure?.whatsapp ? 'present' : 'missing',

@@ -15,6 +15,8 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      - name: Secret pattern scan
+        run: npm run check:secrets
       - name: Unit tests
         run: npm run test:unit
       - name: Integration tests

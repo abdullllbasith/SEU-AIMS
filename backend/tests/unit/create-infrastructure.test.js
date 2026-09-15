@@ -19,6 +19,7 @@ test('createInfrastructure imports and bootstraps with connect: false', async ()
   });
 
   assert.ok(infrastructure.queue);
+  assert.equal(infrastructure.queue.adapter, 'memory');
   assert.ok(infrastructure.storage);
   assert.ok(infrastructure.email);
   assert.ok(infrastructure.whatsapp);

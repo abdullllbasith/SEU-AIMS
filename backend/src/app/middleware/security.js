@@ -13,6 +13,9 @@ export function applySecurityMiddleware(app, { config, logger, redis } = {}) {
         },
       },
       referrerPolicy: { policy: 'no-referrer' },
+      hsts: config.isProduction
+        ? { maxAge: 15_552_000, includeSubDomains: false, preload: false }
+        : false,
     }),
   );
   const origin = config.api.corsOrigin;

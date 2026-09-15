@@ -9,17 +9,28 @@ import { registerModels } from './database/register-models.js';
 
 export async function createInfrastructure({ config, logger, backendRoot, connect = true }) {
   const redis = createRedisClient({ url: config.redis.url, logger });
-  const queue = createJobQueue({ redisUrl: config.redis.url, logger });
   const storage = createFileStorage({ config, backendRoot });
   const email = createEmailProvider({ config });
   const whatsapp = createWhatsAppProvider({ config });
   const malwareScanner = createMalwareScanner({ config });
 
   if (connect) {
-    await connectMongo({ uri: config.mongo.uri, logger });
+    await connectMongo({
+      uri: config.mongo.uri,
+      logger,
+      maxPoolSize: config.mongo.maxPoolSize,
+      serverSelectionTimeoutMS: config.mongo.serverSelectionTimeoutMS,
+    });
     registerModels();
     await connectRedis(redis, { logger });
   }
+
+  const queue = createJobQueue({
+    redis: connect && redis ? redis : null,
+    redisUrl: config.redis.url,
+    logger,
+    prefix: config.redis.queuePrefix,
+  });
 
   return {
     redis,

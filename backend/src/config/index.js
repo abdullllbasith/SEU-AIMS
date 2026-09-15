@@ -37,6 +37,7 @@ export function loadConfig() {
       jsonBodyLimit: optional('JSON_BODY_LIMIT', '1mb'),
       rateLimitWindowMs: integer('RATE_LIMIT_WINDOW_MS', 60_000),
       rateLimitMax: integer('RATE_LIMIT_MAX', 120),
+      trustProxy: integer('TRUST_PROXY', 1),
     },
     auth: {
       jwtSecret: optional('AUTH_JWT_SECRET'),
@@ -55,9 +56,12 @@ export function loadConfig() {
     mongo: {
       uri: nodeEnv === 'test' ? optional('MONGODB_TEST_URI', optional('MONGODB_URI')) : optional('MONGODB_URI'),
       testUri: optional('MONGODB_TEST_URI'),
+      maxPoolSize: integer('MONGODB_MAX_POOL_SIZE', 20),
+      serverSelectionTimeoutMS: integer('MONGODB_SERVER_SELECTION_TIMEOUT_MS', 5000),
     },
     redis: {
       url: optional('REDIS_URL'),
+      queuePrefix: optional('REDIS_QUEUE_PREFIX', 'seu-aims:queue'),
     },
     storage: {
       driver: optional('FILE_STORAGE_DRIVER', 'local_dev'),

@@ -14,7 +14,7 @@ export function createAuditController() {
       sendSuccess(res, await query.auditSummary(req.principal));
     }),
     ops: asyncHandler(async (req, res) => {
-      sendSuccess(res, query.operationalSnapshot(req.principal, { infrastructure: req.app.get('infrastructure') }));
+      sendSuccess(res, await query.operationalSnapshot(req.principal, { infrastructure: req.app.get('infrastructure') }));
     }),
     integrity: asyncHandler(async (req, res) => {
       sendSuccess(res, await runIntegrityChecks(req.principal));

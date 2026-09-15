@@ -1,5 +1,6 @@
 {
   "name": "seu-aims",
+  "type": "module",
   "private": true,
   "version": "0.1.0",
   "description": "Department-level VLE/LMS (scalable modular monolith)",
@@ -22,8 +23,10 @@
     "test:smoke": "npm run test:smoke -w backend",
     "build": "npm run build -w frontend",
     "check:bundle": "node scripts/check-frontend-bundle.js",
-    "ci": "npm run test:unit && npm run test:integration && npm run test:security && npm run test:frontend && npm run build && npm run check:bundle",
-    "audit:prod": "npm audit --omit=dev"
+    "ci": "npm run check:secrets && npm run test:unit && npm run test:integration && npm run test:security && npm run test:frontend && npm run build && npm run check:bundle",
+    "audit:prod": "npm audit --omit=dev",
+    "check:secrets": "node scripts/check-secrets.js",
+    "seed": "npm run seed -w backend"
   },
   "engines": {
     "node": ">=20"

@@ -20,10 +20,17 @@ export function validateProductionConfig(config) {
     problems.push('MONGODB_URI is required in production');
   }
   if (!config.redis?.url) {
-    problems.push('REDIS_URL is required in production so rate limits and sessions can be shared');
+    problems.push('REDIS_URL is required in production so rate limits and the job queue can be shared');
   }
   if (config.storage?.driver === 'local_dev') {
     problems.push('FILE_STORAGE_DRIVER=local_dev is not acceptable for production object storage');
+  }
+  const publicUrl = String(config.api?.publicUrl || '');
+  if (!publicUrl || publicUrl.includes('localhost')) {
+    problems.push('API_PUBLIC_URL must be a public origin in production (not localhost)');
+  }
+  if (String(config.api?.corsOrigin || '').includes('localhost')) {
+    problems.push('CORS_ORIGIN must not use localhost in production');
   }
   if (config.logLevel === 'debug') {
     problems.push('LOG_LEVEL=debug is not recommended in production');

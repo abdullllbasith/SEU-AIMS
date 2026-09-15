@@ -29,9 +29,10 @@ export async function startApiServer() {
 
   const app = createApp({ config, logger, infrastructure });
   const server = http.createServer(app);
-  const io = createRealtimeServer(server, {
+  const io = await createRealtimeServer(server, {
     corsOrigin: config.api.corsOrigin,
     redis: infrastructure.redis,
+    logger,
   });
   attachStudyRoomRealtime(io, { config, logger, infrastructure });
   app.set('io', io);
@@ -44,6 +45,10 @@ export async function startApiServer() {
 
   async function shutdown() {
     logger.info('API server shutting down');
+    io.close();
+    if (io.redisSubClient && typeof io.redisSubClient.quit === 'function') {
+      await io.redisSubClient.quit().catch(() => {});
+    }
     await new Promise((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });

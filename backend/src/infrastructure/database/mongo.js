@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
  * Central MongoDB lifecycle. Do not open per-request connections.
  * Never log credentials or the raw connection string.
  */
-export async function connectMongo({ uri, logger }) {
+export async function connectMongo({ uri, logger, maxPoolSize = 20, serverSelectionTimeoutMS = 5000 }) {
   if (!uri) {
     logger?.warn('MongoDB URI is not configured; database remains disconnected');
     return null;
@@ -21,7 +21,10 @@ export async function connectMongo({ uri, logger }) {
 
   mongoose.set('strictQuery', true);
 
-  await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
+  await mongoose.connect(uri, {
+    maxPoolSize,
+    serverSelectionTimeoutMS,
+  });
   logger?.info('MongoDB connected', { database: mongoose.connection.name });
   return mongoose;
 }

@@ -18,9 +18,17 @@ export async function processQueuedJobs(queue, processors, { limit = 50 } = {}) 
   }
   const jobs = await queue.takePending(limit);
   let processed = 0;
+  let failed = 0;
   for (const job of jobs) {
-    await dispatchJob(processors, job);
-    processed += 1;
+    try {
+      await dispatchJob(processors, job);
+      processed += 1;
+    } catch (error) {
+      failed += 1;
+      if (queue.markFailed) {
+        await queue.markFailed(job, error);
+      }
+    }
   }
-  return { processed };
+  return { processed, failed };
 }

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../config/index.js';
+import { assertProductionConfig } from '../config/validate-production.js';
 import { createLogger } from '../infrastructure/logging/logger.js';
 import { createInfrastructure } from '../infrastructure/create-infrastructure.js';
 import { JOB_NAMES } from '../infrastructure/queue/job-names.js';
@@ -16,6 +17,7 @@ const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
  */
 export async function startWorker() {
   const config = loadConfig();
+  assertProductionConfig(config);
   const logger = createLogger({ service: 'seu-aims-worker', level: config.logLevel });
   const infrastructure = await createInfrastructure({
     config,
