@@ -29,5 +29,6 @@ Items are checked only when evidenced in-repo. Target-environment deployment was
 ## QA
 - [x] Unit / integration / security / frontend
 - [x] API smoke
+- [x] Prompt 17 final audit recorded (`final-audit.md`)
 - [ ] Human UAT
 - [ ] Performance at department scale

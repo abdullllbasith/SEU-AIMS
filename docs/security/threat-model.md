@@ -10,4 +10,4 @@ This is an engineering threat model, not a claim of compliance or penetration-te
 | Department admin | Cross-department access | `departmentId` on principal vs resource |
 | Worker/job | Stale or injected payloads | Reload authoritative documents; do not trust job body as current authorization |
 
-Residual risk: in-memory rate limits and queues when Redis is unset (development/test only).
+Residual risk: in-memory rate limits and queues when Redis is **not** connected (tests / misconfigured local). Production requires Redis. Socket.IO cross-instance fan-out is wired, not load-tested.

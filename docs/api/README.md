@@ -1,6 +1,8 @@
 # API route ownership
 
-Prefixes are reserved. Endpoints are added by later prompts. Do not document unimplemented behavior as complete.
+Prefixes are implemented by the modules below. Unversioned `/api`. Do not treat this list as OpenAPI completeness; see owning module routers.
+
+See also [frontend-routes.md](./frontend-routes.md).
 
 | Prefix | Owner |
 |---|---|

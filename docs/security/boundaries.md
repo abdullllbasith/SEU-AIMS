@@ -2,7 +2,7 @@
 
 - Backend RBAC and object-level checks are authoritative. Hidden UI is not security.
 - Roles: Student, Lecturer, Department Administrator only. No HOD application role.
-- Study Room is student-only (enforced later in the Study Room module, not only in the UI).
+- Study Room ordinary APIs and sockets are **student-only** (backend + `/study-room` route). Administrators may moderate shared files only.
 - Configuration and secrets come from environment variables. Frontend must not contain server secrets.
 - Uploaded files are untrusted until validation, quarantine, and malware scan complete.
 - Persistent files use the storage interface (object storage in production).

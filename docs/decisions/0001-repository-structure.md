@@ -17,7 +17,7 @@ Backend layout:
 - `shared/` — technical helpers only
 - `workers/` — separate process entry for queued jobs
 
-Frontend layout mirrors domain ownership for discoverability. Pages and workflows are not implemented in this prompt.
+Frontend layout mirrors domain ownership. Pages for the three roles exist under `frontend/src/routes/index.jsx` (implemented in later prompts; this ADR’s structural decision still holds).
 
 ## Consequences
 

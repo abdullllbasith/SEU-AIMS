@@ -4,6 +4,4 @@
 
 **Must not own:** Domain authorization such as who may download a CA PDF. A URL is not the full file model.
 
-**Implementation:** V2/V4 file prompts. This prompt only establishes ownership and a public module API.
-
-Import `index.js` from other modules. Do not reach into future repositories, models, or private helpers.
+Production `FILE_STORAGE_DRIVER=local_dev` is rejected at startup. Non-local drivers are not implemented yet (put/get fail closed).

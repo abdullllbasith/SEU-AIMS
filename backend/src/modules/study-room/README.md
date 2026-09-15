@@ -33,6 +33,4 @@ Uploads use the files module (allowlist, magic bytes, opaque keys `study-room/{f
 
 ## Scaling
 
-API instances are stateless for persistence (MongoDB). Socket.IO currently uses the in-process adapter unless Redis is later wired as a Socket.IO adapter. Message durability does not depend on which instance received the HTTP POST.
-
-Implementation: Prompt 07.
+API instances are stateless for Mongo persistence. With Redis connected, Socket.IO uses `@socket.io/redis-adapter`. That path is **not** load-tested across multiple API processes. Message durability is Mongo, not which instance accepted the POST.

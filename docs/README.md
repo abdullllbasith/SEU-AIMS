@@ -1,10 +1,27 @@
-# Repository documentation
+# SEU-AIMS documentation
 
-These notes describe **this codebase**. Official project requirements remain in the Architecture prompt pack.
+This tree describes **this repository**. Product decisions in the Architecture prompt pack win if a draft elsewhere conflicts.
 
-- `ops/` — topology, environments, secrets, deployment, runbooks
-- `architecture/` — modular monolith layout and dependencies
-- `security/` — security boundaries visible in the repo
-- `qa/` — test inventory, gates, UAT, risks, release notes
-- `api/` — route ownership (endpoints appear when implemented)
-- `decisions/` — repository decisions
+| Path | Use |
+|---|---|
+| [handbook.md](./handbook.md) | How to learn the system |
+| [terminology.md](./terminology.md) | Words we do and do not use |
+| [limitations.md](./limitations.md) | What is not claimed |
+| [future-work.md](./future-work.md) | Backlog, not current features |
+| [changelog.md](./changelog.md) | What landed, by phase |
+| [evaluation.md](./evaluation.md) | Supervisor / evaluator path |
+| [handoff.md](./handoff.md) | New maintainer checklist |
+| [architecture/](./architecture/) | Monolith, ownership, jobs, diagrams |
+| [modules/](./modules/) | Index of domain READMEs |
+| [api/](./api/) | HTTP prefixes and auth |
+| [database/](./database/) | Collections, enums |
+| [security/](./security/) | Auth, files, threats |
+| [ops/](./ops/) | Deploy, env, runbooks |
+| [development/](./development/) | Local setup, standards |
+| [testing/](./testing/) | Automated tests, UAT, demo |
+| [troubleshooting/](./troubleshooting/) | Developer + ops links |
+| [integrations/](./integrations/) | Providers and webhooks |
+| [decisions/](./decisions/) | ADRs |
+| [qa/](./qa/) | Prompt 14–17 evidence, including [final-audit.md](./qa/final-audit.md) |
+
+Unresolved institutional policy is labeled **unconfirmed** — do not treat those notes as academic law.

@@ -14,7 +14,7 @@ Repeat students keep the same registration number. A later import updates the ex
 
 `UPLOADED` → scan → `PROCESSING` → `READY_FOR_REVIEW` / `VALIDATION_ISSUES` / `PARSE_FAILED` / `REJECTED_FILE` → admin `COMMITTED`.
 
-PDF and XLSX only. Untrusted uploads go through `StoredFile` (`RESULT_IMPORT`) and must be `SAFE` before parse. In-memory queues still process parse and GPA jobs in-request after enqueue (same pattern as official resources).
+PDF and XLSX only. Untrusted uploads go through `StoredFile` (`RESULT_IMPORT`) and must be `SAFE` before parse. Parse and GPA jobs are enqueued for the **worker** (Redis lists when Redis is connected).
 
 ## E(CA)
 

@@ -23,8 +23,6 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.api
     restart: unless-stopped
-    env_file:
-      - ../.env
     environment:
       NODE_ENV: production
       API_HOST: 0.0.0.0
@@ -41,8 +39,6 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.worker
     restart: unless-stopped
-    env_file:
-      - ../.env
     environment:
       NODE_ENV: production
     depends_on:

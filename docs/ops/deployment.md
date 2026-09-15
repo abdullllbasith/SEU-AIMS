@@ -35,6 +35,8 @@ Compose file: `deploy/docker-compose.yml`. Dockerfiles: `deploy/Dockerfile.api`,
 
 Prompt 15 did **not** claim a successful `docker compose up` against a live host unless that command was run in the same session.
 
+Compose does **not** load `.env` automatically from this file. Pass secrets at run time, for example `docker compose --env-file .env -f deploy/docker-compose.yml up --build`. Do not commit that file.
+
 ## Migrations
 
 There is no separate migration runner. Mongoose `syncIndexes` runs when models register on process start. Do not run destructive index drops from two API instances as a custom script — none is provided.

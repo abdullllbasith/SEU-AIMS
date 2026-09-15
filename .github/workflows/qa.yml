@@ -17,6 +17,8 @@ jobs:
       - run: npm ci
       - name: Secret pattern scan
         run: npm run check:secrets
+      - name: Documentation links
+        run: npm run check:docs
       - name: Unit tests
         run: npm run test:unit
       - name: Integration tests

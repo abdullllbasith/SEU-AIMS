@@ -26,7 +26,7 @@ npm run build
 
 ## Jobs
 
-`registerJobProcessors` maps job names to domain services. `processQueuedJobs` drains the in-memory queue (tests and the worker loop).
+`registerJobProcessors` maps job names to domain services. `processQueuedJobs` drains memory or Redis lists. API and worker share jobs only when Redis is connected.
 
 Do not put academic rules in the worker.
 
