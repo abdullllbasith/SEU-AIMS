@@ -85,5 +85,20 @@ export function loadConfig() {
       url: optional('MALWARE_SCANNER_URL'),
       apiKey: optional('MALWARE_SCANNER_API_KEY'),
     },
+    timezone: optional('TZ', 'Asia/Colombo'),
+    notifications: {
+      retryMax: integer('NOTIFICATION_RETRY_MAX', 5),
+      defaultLocale: optional('NOTIFICATION_DEFAULT_LOCALE', 'en'),
+    },
+    files: {
+      maxBytes: integer('FILE_MAX_BYTES', 20 * 1024 * 1024),
+    },
+    studyRoom: {
+      messageMaxPerMinute: integer('STUDY_ROOM_MESSAGE_MAX_PER_MINUTE', 60),
+      typingMaxPerMinute: integer('STUDY_ROOM_TYPING_MAX_PER_MINUTE', 30),
+      searchMaxPerMinute: integer('STUDY_ROOM_SEARCH_MAX_PER_MINUTE', 30),
+      ciphertextMaxChars: integer('STUDY_ROOM_CIPHERTEXT_MAX_CHARS', 16_000),
+      historyPageSize: integer('STUDY_ROOM_HISTORY_PAGE_SIZE', 50),
+    },
   };
 }

@@ -8,6 +8,7 @@ const subjectSchema = new mongoose.Schema(
     code: { type: String, required: true, trim: true, uppercase: true },
     name: { type: String, required: true, trim: true },
     credits: { type: Number, required: true, min: 0 },
+    countsForGpa: { type: Boolean, required: true, default: true },
     status: { type: String, required: true, enum: ENTITY_STATUSES, default: 'ACTIVE' },
   },
   persistenceOptions,

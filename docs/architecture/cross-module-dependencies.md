@@ -3,9 +3,10 @@
 Allowed direction (conceptual):
 
 ```text
-academic-foundation  ←  learning-environment, study-room, results, ca-recovery, notices-calendar
-results              ←  gpa-cgpa, ca-recovery (E(CA) / resolution via public API or jobs)
+academic-foundation  ←  learning-environment, study-room, results, ca-recovery, notices-calendar, student-experience
+results              ←  gpa-cgpa, ca-recovery (E(CA) / resolution via public API or jobs), student-experience (read)
 ca-recovery          →  notifications, notices-calendar (request capabilities)
+student-experience   →  academic-foundation, results, gpa-cgpa, notices-calendar, notifications, ca-recovery, learning-environment, files, authentication, audit-security
 *                    →  files, authentication (identity), audit-security
 ```
 

@@ -18,3 +18,13 @@ export function createFilesModule() {
 
 export { createRouter };
 export { StoredFile } from './models/stored-file.model.js';
+export { processMalwareScan, enqueueMalwareScan } from './services/scan.service.js';
+export {
+  detectOfficialContentType,
+  assertAllowedOfficialType,
+  sanitizeDisplayFilename,
+  detectResultImportContentType,
+  assertAllowedResultImportType,
+  detectProfileImageType,
+} from './services/content-inspection.js';
+export { storeProfileImage, loadAuthorizedProfileImage } from './services/profile-image.service.js';

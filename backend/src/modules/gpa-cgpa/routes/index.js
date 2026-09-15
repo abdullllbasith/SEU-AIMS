@@ -1,9 +1,11 @@
 import { Router } from 'express';
+import { requireRole } from '../../../shared/auth/authorize.js';
+import { ROLES } from '../../../shared/constants/roles.js';
+import { createGpaController } from '../controllers/gpa.controller.js';
 
-/**
- * HTTP surface for gpa-cgpa.
- * Domain endpoints are added in Prompt 08 / 11. Routes stay thin.
- */
 export function createRouter() {
-  return Router();
+  const router = Router();
+  const controller = createGpaController();
+  router.get('/me', requireRole(ROLES.STUDENT), controller.me);
+  return router;
 }

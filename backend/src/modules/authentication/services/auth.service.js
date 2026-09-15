@@ -3,11 +3,13 @@ import { hashPassword, verifyPassword } from '../security/passwords.js';
 import { createSession, rotateSession, revokeSessionByRefreshToken, revokeUserSessions } from './session.service.js';
 import { findUserByLoginIdentifier } from './identity-lookup.service.js';
 import { User } from '../models/user.model.js';
+import { AuthSession } from '../models/auth-session.model.js';
 import { PasswordResetToken } from '../models/password-reset-token.model.js';
 import { UnauthorizedError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
 import { isApprovedRole, ROLES } from '../../../shared/constants/roles.js';
 import { isUsableAccount } from '../policies/authorization.policies.js';
 import { AuditEvent } from '../../audit-security/index.js';
+import { disconnectStudyRoomSockets } from '../../study-room/index.js';
 
 const GENERIC_LOGIN_ERROR = 'Invalid credentials';
 
@@ -85,7 +87,17 @@ export async function refresh({ refreshToken, userAgent, ip, config }) {
 }
 
 export async function logout({ refreshToken }) {
+  let session = null;
+  if (refreshToken) {
+    session = await AuthSession.findOne({ refreshTokenHash: hashSecret(refreshToken) });
+  }
   await revokeSessionByRefreshToken(refreshToken);
+  if (session) {
+    disconnectStudyRoomSockets({
+      sessionId: String(session._id),
+      userId: String(session.userId),
+    });
+  }
 }
 
 export async function changePassword({ userId, currentPassword, nextPassword, config }) {
@@ -98,6 +110,7 @@ export async function changePassword({ userId, currentPassword, nextPassword, co
   user.authVersion += 1;
   await user.save();
   await revokeUserSessions(user._id);
+  disconnectStudyRoomSockets({ userId: String(user._id) });
   await recordAudit({ actorUserId: user._id, action: 'auth.password-change', entityId: user._id });
 }
 
@@ -135,6 +148,7 @@ export async function resetPassword({ token, nextPassword, config }) {
   await user.save();
   await record.save();
   await revokeUserSessions(user._id);
+  disconnectStudyRoomSockets({ userId: String(user._id) });
   await recordAudit({ actorUserId: user._id, action: 'auth.password-reset', entityId: user._id });
 }
 
@@ -186,6 +200,7 @@ export async function setAccountStatus({ actor, userId, accountStatus }) {
   if (accountStatus !== 'ACTIVE') {
     await revokeUserSessions(user._id);
   }
+  disconnectStudyRoomSockets({ userId: String(user._id) });
   await recordAudit({
     actorUserId: actor.userId,
     action: 'auth.account-status',

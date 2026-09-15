@@ -10,7 +10,7 @@ export class EmailProvider {
 
 export class NoopEmailProvider extends EmailProvider {
   async send(message) {
-    return { accepted: false, provider: 'noop', to: message.to };
+    return { accepted: false, provider: 'noop', to: message.to, retryable: false, category: 'not_configured' };
   }
 }
 

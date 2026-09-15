@@ -17,7 +17,18 @@ export function createStudyRoomModule() {
 }
 
 export { createRouter };
-export { Conversation } from './models/conversation.model.js';
-export { Message } from './models/message.model.js';
-export { SharedFolder } from './models/shared-folder.model.js';
-export { SharedResource } from './models/shared-resource.model.js';
+export {
+  Conversation,
+  Message,
+  SharedFolder,
+  SharedResource,
+  StudyRoomSettings,
+  CryptoPublicKey,
+  ConversationKeyEnvelope,
+  MessageReceipt,
+  ResourceReport,
+} from './models/index.js';
+export { attachStudyRoomRealtime } from './realtime/attach-study-room.js';
+export { disconnectStudyRoomSockets } from './realtime/socket-registry.js';
+export { syncSharedResourceAfterScan } from './services/resource.service.js';
+export { CRYPTO_PROTOCOL, MODERATION_MODES } from './constants.js';

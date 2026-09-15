@@ -31,6 +31,51 @@ test('unauthenticated academic administration is denied', async () => {
   assert.equal(response.status, 401);
 });
 
+test('unauthenticated result import is denied', async () => {
+  const config = loadConfig();
+  config.auth.jwtSecret = process.env.AUTH_JWT_SECRET;
+  const app = createApp({
+    config,
+    logger: createLogger({ service: 'seu-aims-test', level: 'error' }),
+  });
+  const list = await request(app).get('/api/results/imports');
+  assert.equal(list.status, 401);
+  const mine = await request(app).get('/api/results/me');
+  assert.equal(mine.status, 401);
+  const dashboard = await request(app).get('/api/me/dashboard');
+  assert.equal(dashboard.status, 401);
+  const profile = await request(app).get('/api/me/profile');
+  assert.equal(profile.status, 401);
+});
+
+test('unauthenticated communication routes are denied', async () => {
+  const config = loadConfig();
+  config.auth.jwtSecret = process.env.AUTH_JWT_SECRET;
+  const app = createApp({
+    config,
+    logger: createLogger({ service: 'seu-aims-test', level: 'error' }),
+  });
+  const notices = await request(app).get('/api/notices');
+  assert.equal(notices.status, 401);
+  const calendar = await request(app).get('/api/calendar/events');
+  assert.equal(calendar.status, 401);
+  const notifications = await request(app).get('/api/notifications');
+  assert.equal(notifications.status, 401);
+});
+
+test('unauthenticated CA recovery routes are denied', async () => {
+  const config = loadConfig();
+  config.auth.jwtSecret = process.env.AUTH_JWT_SECRET;
+  const app = createApp({
+    config,
+    logger: createLogger({ service: 'seu-aims-test', level: 'error' }),
+  });
+  const list = await request(app).get('/api/ca/admin/applications');
+  assert.equal(list.status, 401);
+  const mine = await request(app).get('/api/ca/applications');
+  assert.equal(mine.status, 401);
+});
+
 test('unconfigured malware scanner does not mark files clean', async () => {
   const scanner = createMalwareScanner({ config: {} });
   const result = await scanner.scan({ key: 'quarantine/example.bin' });

@@ -6,6 +6,7 @@ export const FILE_OWNING_DOMAINS = Object.freeze([
   'STUDY_ROOM_RESOURCE',
   'RESULT_IMPORT',
   'CA_APPLICATION_PDF',
+  'PROFILE_IMAGE',
 ]);
 
 const storedFileSchema = new mongoose.Schema(
@@ -36,6 +37,7 @@ const storedFileSchema = new mongoose.Schema(
       enum: ['UNAVAILABLE', 'AVAILABLE'],
       default: 'UNAVAILABLE',
     },
+    checksumSha256: { type: String, trim: true },
   },
   persistenceOptions,
 );

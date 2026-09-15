@@ -16,8 +16,9 @@ async function parseBody(response) {
 }
 
 export async function apiRequest(path, options = {}) {
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = {
-    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(options.body && !isForm ? { 'Content-Type': 'application/json' } : {}),
     ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
     ...(options.headers || {}),
   };

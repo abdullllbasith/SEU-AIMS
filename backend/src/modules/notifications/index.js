@@ -18,3 +18,9 @@ export function createNotificationsModule() {
 
 export { createRouter };
 export { Notification } from './models/notification.model.js';
+export { NotificationPreference } from './models/notification-preference.model.js';
+export { NotificationTemplate } from './models/notification-template.model.js';
+export { fanoutNotification, isMandatoryType } from './services/fanout.service.js';
+export { processNotificationDeliver } from './services/delivery.service.js';
+export { renderTemplate } from './utils/templates.js';
+export { listInbox, unreadCount } from './services/inbox.service.js';

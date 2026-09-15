@@ -35,3 +35,4 @@ export {
   findAssignment,
   findOfferingsForBatchSemester,
 } from './repositories/academic-foundation.repository.js';
+export { getMyContext, getMyOfferings } from './services/academic.service.js';

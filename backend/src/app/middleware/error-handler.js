@@ -9,9 +9,14 @@ export function notFoundHandler(_req, _res, next) {
 export function errorHandler(logger) {
   return (error, _req, res, _next) => {
     const mapped = mapMongoError(error);
-    const statusCode = mapped.statusCode || 500;
-    const code = mapped.code || 'INTERNAL_ERROR';
-    const message = statusCode >= 500 ? 'Internal error' : mapped.message;
+    const multerTooLarge = error?.code === 'LIMIT_FILE_SIZE';
+    const statusCode = multerTooLarge ? 413 : mapped.statusCode || 500;
+    const code = multerTooLarge ? 'PAYLOAD_TOO_LARGE' : mapped.code || 'INTERNAL_ERROR';
+    const message = multerTooLarge
+      ? 'File too large'
+      : statusCode >= 500
+        ? 'Internal error'
+        : mapped.message;
 
     logger.error('Request failed', {
       code,

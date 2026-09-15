@@ -31,6 +31,25 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    phone: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    whatsappNumber: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    profileImageFileId: {
+      type: objectId,
+      ref: 'StoredFile',
+    },
+    profileRevision: {
+      type: Number,
+      required: true,
+      default: 0,
+    },
     departmentId: {
       type: objectId,
       ref: 'Department',

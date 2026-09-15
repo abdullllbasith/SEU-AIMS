@@ -3,12 +3,16 @@ import { defineModel, objectId, persistenceOptions } from '../../../infrastructu
 
 const caScheduleSchema = new mongoose.Schema(
   {
+    departmentId: { type: objectId, ref: 'Department', required: true },
     applicationId: { type: objectId, ref: 'CaApplication', required: true },
     incompleteCaId: { type: objectId, ref: 'IncompleteCa', required: true },
     subjectOfferingId: { type: objectId, ref: 'SubjectOffering', required: true },
     lecturerUserId: { type: objectId, ref: 'User', required: true },
     calendarEventId: { type: objectId, ref: 'CalendarEvent', required: true },
     scheduledAt: { type: Date, required: true },
+    endsAt: Date,
+    venue: { type: String, trim: true, default: '' },
+    cancelledAt: Date,
   },
   persistenceOptions,
 );

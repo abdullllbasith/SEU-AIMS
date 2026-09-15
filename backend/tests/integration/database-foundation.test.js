@@ -205,6 +205,7 @@ dbTest('progressing a student keeps academic history rows', async () => {
 
 dbTest('repeat-student result updates the same registration number + subject code record', async () => {
   await AcademicResult.create({
+    departmentId: fixtures.department._id,
     studentUserId: fixtures.student._id,
     registrationNumber: 'SEU/IS/22/ICT/024',
     subjectId: fixtures.subject._id,
@@ -213,6 +214,7 @@ dbTest('repeat-student result updates the same registration number + subject cod
     studentSemesterId: fixtures.sem1._id,
     sourceBatchId: fixtures.batch._id,
     resultCode: 'E(CA)',
+    isEca: true,
   });
 
   const existing = await findOfficialResult('SEU/IS/22/ICT/024', 'ICT1233');
@@ -231,6 +233,7 @@ dbTest('repeat-student result updates the same registration number + subject cod
 
 dbTest('duplicate official results for the same student and subject code are rejected', async () => {
   const payload = {
+    departmentId: fixtures.department._id,
     studentUserId: fixtures.student._id,
     registrationNumber: 'SEU/IS/22/ICT/024',
     subjectId: fixtures.subject._id,
@@ -245,6 +248,7 @@ dbTest('duplicate official results for the same student and subject code are rej
 
 dbTest('E(CA) incomplete records are idempotent per student-subject-semester', async () => {
   const result = await AcademicResult.create({
+    departmentId: fixtures.department._id,
     studentUserId: fixtures.student._id,
     registrationNumber: 'SEU/IS/22/ICT/024',
     subjectId: fixtures.subject._id,
@@ -252,6 +256,7 @@ dbTest('E(CA) incomplete records are idempotent per student-subject-semester', a
     studentAcademicYearId: fixtures.year1._id,
     studentSemesterId: fixtures.sem1._id,
     resultCode: 'E(CA)',
+    isEca: true,
   });
   const payload = {
     studentUserId: fixtures.student._id,
@@ -274,7 +279,9 @@ dbTest('CA application IDs are unique public identifiers, not sequential counter
 
   await CaApplication.create({
     applicationId: first,
+    departmentId: fixtures.department._id,
     studentUserId: fixtures.student._id,
+    registrationNumber: 'SEU/IS/22/ICT/024',
     academicYearId: fixtures.year1._id,
     semesterId: fixtures.sem1._id,
     windowOpensAt: new Date('2026-01-01T00:00:00Z'),
@@ -284,7 +291,9 @@ dbTest('CA application IDs are unique public identifiers, not sequential counter
     () =>
       CaApplication.create({
         applicationId: first,
+        departmentId: fixtures.department._id,
         studentUserId: new mongoose.Types.ObjectId(),
+        registrationNumber: 'SEU/IS/22/ICT/099',
         academicYearId: fixtures.year1._id,
         semesterId: fixtures.sem1._id,
         windowOpensAt: new Date('2026-01-01T00:00:00Z'),

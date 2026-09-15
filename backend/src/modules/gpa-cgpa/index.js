@@ -18,3 +18,4 @@ export function createGpaCgpaModule() {
 
 export { createRouter };
 export { GpaSnapshot } from './models/gpa-snapshot.model.js';
+export { recalculateStudentGpa, getStudentGpaSummary } from './services/gpa.service.js';

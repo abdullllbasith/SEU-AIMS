@@ -30,6 +30,9 @@ function sanitize(meta) {
     'cookie',
     'privateKey',
     'plaintext',
+    'ciphertext',
+    'encryptedPayload',
+    'wrappedKey',
   ]);
 
   const out = {};

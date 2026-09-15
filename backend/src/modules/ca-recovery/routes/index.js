@@ -1,9 +1,45 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
+import { requireDepartmentAdmin, requireRole } from '../../../shared/auth/authorize.js';
+import { ROLES } from '../../../shared/constants/roles.js';
+import { requireCsrf } from '../../authentication/middleware/csrf.js';
+import { createCaController } from '../controllers/ca.controller.js';
 
-/**
- * HTTP surface for ca-recovery.
- * Domain endpoints are added in Prompt 09. Routes stay thin.
- */
+const verifyLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export function createRouter() {
-  return Router();
+  const router = Router();
+  const controller = createCaController();
+
+  router.get('/verify/:token', verifyLimiter, controller.verifyToken);
+
+  router.get('/conditions', requireRole(ROLES.STUDENT), controller.conditions);
+  router.get('/windows/me', requireRole(ROLES.STUDENT), controller.windowsMe);
+  router.get('/applications', requireRole(ROLES.STUDENT), controller.listMine);
+  router.post('/applications', requireRole(ROLES.STUDENT), requireCsrf, controller.createApplication);
+  router.get('/applications/:applicationId', requireRole(ROLES.STUDENT, ROLES.DEPARTMENT_ADMINISTRATOR), controller.getMine);
+  router.patch('/applications/:applicationId', requireRole(ROLES.STUDENT), requireCsrf, controller.patchMine);
+  router.post('/applications/:applicationId/submit', requireRole(ROLES.STUDENT), requireCsrf, controller.submitMine);
+  router.get('/applications/:applicationId/pdf', requireRole(ROLES.STUDENT, ROLES.DEPARTMENT_ADMINISTRATOR), controller.pdfMine);
+
+  router.get('/admin/windows', requireDepartmentAdmin(), controller.adminWindows);
+  router.post('/admin/windows', requireDepartmentAdmin(), requireCsrf, controller.saveWindow);
+  router.get('/admin/applications', requireDepartmentAdmin(), controller.adminList);
+  router.post('/admin/applications/:applicationId/verify', requireDepartmentAdmin(), requireCsrf, controller.verifyPhysical);
+  router.post('/admin/applications/:applicationId/approve', requireDepartmentAdmin(), requireCsrf, controller.approve);
+  router.post('/admin/applications/:applicationId/reject', requireDepartmentAdmin(), requireCsrf, controller.reject);
+  router.post('/admin/applications/:applicationId/reopen', requireDepartmentAdmin(), requireCsrf, controller.reopen);
+
+  router.get('/lecturer/eligible-students', requireRole(ROLES.LECTURER), controller.lecturerEligible);
+  router.get('/lecturer/schedules', requireRole(ROLES.LECTURER), controller.lecturerSchedules);
+  router.post('/lecturer/schedules', requireRole(ROLES.LECTURER), requireCsrf, controller.createSchedule);
+  router.post('/lecturer/schedules/:scheduleId/cancel', requireRole(ROLES.LECTURER), requireCsrf, controller.cancelSchedule);
+  router.post('/lecturer/applications/:applicationId/complete', requireRole(ROLES.LECTURER), requireCsrf, controller.complete);
+
+  return router;
 }

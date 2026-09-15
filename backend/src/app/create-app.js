@@ -27,6 +27,9 @@ function defaultDenyApi(req, res, next) {
   if (PUBLIC_API.has(key)) {
     return next();
   }
+  if (req.method === 'GET' && req.path.startsWith('/api/ca/verify/')) {
+    return next();
+  }
 
   return requireAuthenticated(req, res, next);
 }
@@ -34,6 +37,7 @@ function defaultDenyApi(req, res, next) {
 export function createApp({ config, logger, infrastructure = {} }) {
   const app = express();
   app.set('config', config);
+  app.set('infrastructure', infrastructure);
   app.set('trust proxy', 1);
   applySecurityMiddleware(app, { config });
   app.use(express.json({ limit: config.api.jsonBodyLimit }));

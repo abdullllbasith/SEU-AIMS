@@ -4,6 +4,7 @@ import { StudentAcademicContext } from '../../src/modules/academic-foundation/in
 import { SubjectOffering } from '../../src/modules/academic-foundation/index.js';
 import { AcademicResult } from '../../src/modules/results/index.js';
 import { IncompleteCa, CaApplication } from '../../src/modules/ca-recovery/index.js';
+import { CA_ACTIVE_APPLICATION_STATUSES } from '../../src/modules/ca-recovery/constants.js';
 import { Notification } from '../../src/modules/notifications/index.js';
 import { LecturerAssignment } from '../../src/modules/academic-foundation/index.js';
 
@@ -55,6 +56,17 @@ test('incomplete CA and CA application have distinct unique identities', () => {
     ),
   );
   assert.ok(uniqueIndexKeys(CaApplication).some((fields) => fields.applicationId === 1));
+  const semesterUnique = CaApplication.schema.indexes().find(
+    ([fields, options]) =>
+      fields.studentUserId === 1 &&
+      fields.academicYearId === 1 &&
+      fields.semesterId === 1 &&
+      options?.unique,
+  );
+  assert.ok(semesterUnique);
+  assert.deepEqual(semesterUnique[1].partialFilterExpression.workflowStatus.$in, [
+    ...CA_ACTIVE_APPLICATION_STATUSES,
+  ]);
 });
 
 test('notification idempotency key is unique', () => {

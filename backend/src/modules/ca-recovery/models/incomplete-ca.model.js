@@ -11,6 +11,7 @@ const incompleteCaSchema = new mongoose.Schema(
     academicYearId: { type: objectId, ref: 'AcademicYear', required: true },
     semesterId: { type: objectId, ref: 'Semester', required: true },
     academicResultId: { type: objectId, ref: 'AcademicResult', required: true },
+    departmentId: { type: objectId, ref: 'Department' },
     status: { type: String, required: true, enum: INCOMPLETE_CA_STATUSES, default: 'OPEN' },
   },
   persistenceOptions,

@@ -6,6 +6,7 @@ import { createLogger } from '../infrastructure/logging/logger.js';
 import { createInfrastructure } from '../infrastructure/create-infrastructure.js';
 import { createApp } from '../app/create-app.js';
 import { createRealtimeServer } from '../infrastructure/realtime/socket-server.js';
+import { attachStudyRoomRealtime } from '../modules/study-room/index.js';
 import { disconnectMongo } from '../infrastructure/database/mongo.js';
 import { disconnectRedis } from '../infrastructure/redis/client.js';
 
@@ -26,7 +27,12 @@ export async function startApiServer() {
 
   const app = createApp({ config, logger, infrastructure });
   const server = http.createServer(app);
-  createRealtimeServer(server, { corsOrigin: config.api.corsOrigin });
+  const io = createRealtimeServer(server, {
+    corsOrigin: config.api.corsOrigin,
+    redis: infrastructure.redis,
+  });
+  attachStudyRoomRealtime(io, { config, logger, infrastructure });
+  app.set('io', io);
 
   await new Promise((resolve) => {
     server.listen(config.api.port, config.api.host, resolve);

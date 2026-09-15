@@ -17,9 +17,14 @@ export function createCaRecoveryModule() {
 }
 
 export { createRouter };
+export { CaApplicationWindow } from './models/ca-application-window.model.js';
 export { IncompleteCa } from './models/incomplete-ca.model.js';
 export { CaApplication } from './models/ca-application.model.js';
 export { CaApplicationSubject } from './models/ca-application-subject.model.js';
 export { CaApplicationEvent } from './models/ca-application-event.model.js';
 export { CaSchedule } from './models/ca-schedule.model.js';
 export { createPublicApplicationId, createQrVerificationToken } from './public-ids.js';
+export { syncIncompleteCaFromResult } from './services/eca-from-results.js';
+export { generateApplicationPdf } from './services/pdf.service.js';
+export { evaluateReminder } from './services/reminder.service.js';
+export { listOwnApplications } from './services/application.service.js';

@@ -7,7 +7,7 @@ import { createRouter } from './routes/index.js';
 export const MODULE_ID = 'learning-environment';
 export const API_PREFIX = '/api/learning';
 
-export function createLearningEnvironmentModule() {
+export function createLearningEnvironmentModule(_deps = {}) {
   const router = createRouter();
   return {
     id: MODULE_ID,
@@ -17,4 +17,6 @@ export function createLearningEnvironmentModule() {
 }
 
 export { createRouter };
-export { OfficialResource } from './models/official-resource.model.js';
+export { OfficialResource, ResourceSection } from './models/index.js';
+export { RESOURCE_CATEGORIES, PUBLICATION_STATES } from './constants.js';
+export { listAccessibleOfferings, listResources } from './services/learning.service.js';

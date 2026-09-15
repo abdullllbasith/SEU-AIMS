@@ -7,6 +7,7 @@ import { GpaSnapshot } from '../../src/modules/gpa-cgpa/index.js';
 import { StoredFile } from '../../src/modules/files/index.js';
 import { Notification } from '../../src/modules/notifications/index.js';
 import { User } from '../../src/modules/authentication/index.js';
+import { OfficialResource } from '../../src/modules/learning-environment/index.js';
 import { Department, Subject, SubjectOffering, StudentAcademicContext } from '../../src/modules/academic-foundation/index.js';
 import { ROLES } from '../../src/shared/constants/roles.js';
 import { CA_APPLICATION_STATUSES } from '../../src/modules/ca-recovery/constants.js';
@@ -26,6 +27,11 @@ test('official results are distinct from result imports', () => {
   assert.ok(AcademicResult.schema.paths.registrationNumber);
   assert.ok(AcademicResult.schema.paths.subjectCode);
   assert.ok(ResultImport.schema.paths.processingStatus);
+});
+
+test('subjects expose credits and a GPA inclusion flag defaulting to true', () => {
+  assert.ok(Subject.schema.paths.credits);
+  assert.equal(Subject.schema.paths.countsForGpa.defaultValue, true);
 });
 
 test('incomplete CA is distinct from CA application and is not a boolean', () => {
@@ -61,6 +67,12 @@ test('academic entities keep an active/archived lifecycle', () => {
   assert.equal(StudentAcademicContext.schema.paths.registrationNumber.options.uppercase, true);
 });
 
+test('official resources belong to a subject offering, not a reusable subject alone', () => {
+  assert.ok(OfficialResource.schema.paths.subjectOfferingId);
+  assert.equal(OfficialResource.schema.paths.subjectId, undefined);
+  assert.ok(OfficialResource.schema.paths.fileId);
+});
+
 test('user roles remain the approved set', () => {
   assert.deepEqual(User.schema.paths.role.enumValues.sort(), [
     ROLES.DEPARTMENT_ADMINISTRATOR,
@@ -69,4 +81,7 @@ test('user roles remain the approved set', () => {
   ]);
   assert.ok(User.schema.paths.accountStatus);
   assert.equal(User.schema.paths.isActive, undefined);
+  assert.ok(User.schema.paths.phone);
+  assert.ok(User.schema.paths.whatsappNumber);
+  assert.ok(User.schema.paths.profileRevision);
 });

@@ -1,9 +1,9 @@
 # notifications
 
-**Owns:** Notification records, channel selection, scheduling, delivery status, retries; coordinates email and WhatsApp adapters.
+**Owns:** In-app inbox, channel fan-out, preferences, templates (interpolation only), delivery attempts, retries, admin delivery counts.
 
-**Must not own:** Recipient invention from untrusted frontend payloads; Meta request construction belongs in infrastructure.
+**Must not own:** Academic facts, CA workflow, official results, Meta request construction details outside the infrastructure adapter, recipient lists from the client.
 
-**Implementation:** Prompt 10. This prompt only establishes ownership and a public module API.
+Source modules call `fanoutNotification`. Email/WhatsApp are queued; API acceptance is `SENT`, not `DELIVERED`. Noop/unconfigured providers fail closed without retry.
 
-Import `index.js` from other modules. Do not reach into future repositories, models, or private helpers.
+Mandatory types cannot be disabled. Optional types honour email/WhatsApp preference flags. In-app remains on for mandatory events.

@@ -1,5 +1,5 @@
 # Study Room realtime
 
-This folder will own room authorization, conversation rules, message handling, and encrypted payload workflow.
+This folder owns Study Room socket authentication, room-join authorization, encrypted message events, and typing fan-out.
 
-Socket.IO server construction belongs in `infrastructure/realtime`. Lecturers are not Study Room participants.
+Socket.IO *server construction* belongs in `infrastructure/realtime`. Lecturers are not Study Room participants. The server must not decrypt chat payloads.

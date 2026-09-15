@@ -1,9 +1,25 @@
 # ca-recovery
 
-**Owns:** Incomplete CA records, semester-specific application, deadlines, application ID, PDF/QR jobs, physical verification states, approval/rejection, lecturer visibility, scheduling, resolution.
+**Owns:** Incomplete CA conditions (from official E(CA)), application windows, at most one *active* application per student+year+semester, PDF/QR, physical verification, approval/rejection/reopen, lecturer-scoped scheduling, reminder records. A COMPLETED/RESOLVED cycle may be followed by a new application if E(CA) returns; historical rows are kept.
 
-**Must not own:** Email/WhatsApp provider implementation, the calendar model, or a HOD portal. CA is not a boolean flag.
+**Must not own:** Official results, GPA formulas, email/WhatsApp provider delivery, calendar storage, or a HOD portal. Completing a CA does **not** write a grade.
 
-**Implementation:** Prompt 09. This prompt only establishes ownership and a public module API.
+## State machine
 
-Import `index.js` from other modules. Do not reach into future repositories, models, or private helpers.
+`DRAFT` → `SUBMITTED` → `UNDER_VERIFICATION` (after physical verify) → `APPROVED` or `REJECTED`.  
+`APPROVED` → `SCHEDULED` → `COMPLETED`.  
+`REJECTED`/`SUBMITTED` may be reopened to `DRAFT`.  
+`RESOLVED` only after official result import clears linked `IncompleteCa` rows.  
+Cancelled CA schedules set `CalendarEvent.cancelledAt` so they are not active calendar events; the row remains for audit.
+
+Physical signature is recorded as `AWAITING_PHYSICAL` / `PHYSICALLY_VERIFIED` / `VERIFICATION_FAILED`. The PDF is not a digital HOD signature.
+
+## Notifications
+
+Lifecycle events write `Notification` rows on `IN_APP`, `EMAIL`, and `WHATSAPP` with unique idempotency keys. Channel adapters are not invoked here; failed delivery must not roll back the application.
+
+Reminders: 7 / 3 / 1 days before `scheduledAt`. Cancelled schedules do not send.
+
+## PDF / QR
+
+Template version `ca-application-v1`. QR encodes a verification URL with an opaque token. `GET /api/ca/verify/:token` returns application ID and workflow/physical status only — no grades.

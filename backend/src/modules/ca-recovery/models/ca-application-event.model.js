@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { CA_APPLICATION_EVENT_TYPES } from '../constants.js';
 import { defineModel, objectId, persistenceOptions } from '../../../infrastructure/database/define-model.js';
 
 const caApplicationEventSchema = new mongoose.Schema(
@@ -7,11 +8,12 @@ const caApplicationEventSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ['SUBMITTED', 'REOPENED', 'VERIFIED', 'APPROVED', 'REJECTED', 'SCHEDULED'],
+      enum: CA_APPLICATION_EVENT_TYPES,
     },
     actorUserId: { type: objectId, ref: 'User', required: true },
     fromStatus: String,
     toStatus: String,
+    reason: { type: String, trim: true, default: '' },
     occurredAt: { type: Date, required: true, default: Date.now },
   },
   persistenceOptions,

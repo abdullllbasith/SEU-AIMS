@@ -38,8 +38,85 @@ body {
 .app-shell__nav {
   margin-top: 0.75rem;
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
   align-items: center;
+}
+
+.app-shell__main {
+  padding: 1rem 1.25rem 2rem;
+  max-width: 72rem;
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+}
+
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  z-index: 10;
+  background: #fff;
+  color: #12202a;
+  padding: 0.4rem 0.6rem;
+}
+
+.student-dashboard .dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+.student-dashboard article {
+  background: #fff;
+  border: 1px solid #d5cfc4;
+  padding: 0.85rem 1rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.profile-photo {
+  border-radius: 0.4rem;
+  object-fit: cover;
+}
+
+.bar-chart {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.bar-chart li {
+  display: grid;
+  grid-template-columns: 5rem 1fr 2rem;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.35rem 0;
+}
+
+.bar-chart__track {
+  display: block;
+  background: #e7e1d6;
+  height: 0.7rem;
+}
+
+.bar-chart__fill {
+  display: block;
+  height: 100%;
+  background: #0f3d3e;
+}
+
+@media (max-width: 640px) {
+  .app-shell__nav {
+    font-size: 0.9rem;
+  }
+
+  form {
+    max-width: none;
+  }
 }
 
 .app-shell__nav a,
@@ -95,4 +172,25 @@ label {
   padding: 0.4rem 0.6rem;
   text-align: left;
   font-size: 0.9rem;
+}
+
+.study-room {
+  max-width: 52rem;
+}
+
+.study-room__messages {
+  min-height: 12rem;
+  background: #fff;
+  border: 1px solid #d5cfc4;
+  padding: 0.75rem;
+  margin: 1rem 0;
+}
+
+.study-room textarea {
+  width: 100%;
+  min-height: 4rem;
+}
+
+.study-room form {
+  max-width: none;
 }

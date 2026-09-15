@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 
 /**
  * Persistent files go through this interface.
@@ -27,6 +27,12 @@ export class LocalDevFileStorage extends FileStorage {
     await writeFile(fullPath, body);
     return { key, contentType, driver: 'local_dev' };
   }
+
+  async getObject(key) {
+    const fullPath = path.join(this.rootPath, key);
+    const body = await readFile(fullPath);
+    return { key, body, driver: 'local_dev' };
+  }
 }
 
 export class UnconfiguredObjectStorage extends FileStorage {
@@ -36,6 +42,10 @@ export class UnconfiguredObjectStorage extends FileStorage {
   }
 
   async putObject() {
+    throw new Error(`Object storage driver "${this.driver}" is not configured`);
+  }
+
+  async getObject() {
     throw new Error(`Object storage driver "${this.driver}" is not configured`);
   }
 }

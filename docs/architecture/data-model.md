@@ -19,6 +19,7 @@ Subject
 Conversation / Message (encrypted payload)
 StoredFile (scan vs review; binary in object storage)
 AuditEvent
+User (displayName, phone/whatsappNumber, profile image file; registration number stays on StudentAcademicContext)
 ResultImport / ResultImportRow  ≠  AcademicResult
 ```
 

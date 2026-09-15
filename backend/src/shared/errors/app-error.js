@@ -41,3 +41,21 @@ export class ConflictError extends AppError {
     super(message, { statusCode: 409, code: 'CONFLICT' });
   }
 }
+
+export class PayloadTooLargeError extends AppError {
+  constructor(message = 'File too large') {
+    super(message, { statusCode: 413, code: 'PAYLOAD_TOO_LARGE' });
+  }
+}
+
+export class UnsupportedMediaError extends AppError {
+  constructor(message = 'Unsupported media type') {
+    super(message, { statusCode: 415, code: 'UNSUPPORTED_MEDIA' });
+  }
+}
+
+export class TooManyRequestsError extends AppError {
+  constructor(message = 'Too many requests') {
+    super(message, { statusCode: 429, code: 'TOO_MANY_REQUESTS' });
+  }
+}
