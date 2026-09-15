@@ -12,4 +12,6 @@ export const API_PATHS = Object.freeze({
   notifications: '/api/notifications',
   files: '/api/files',
   audit: '/api/audit',
+  admin: '/api/admin',
+  lecturer: '/api/lecturer',
 });

@@ -17,6 +17,7 @@ Status reflects **automated** evidence in this repository. Human UAT is separate
 | Notices → notifications | notices-calendar / notifications | fanout | communication.test.js | notification IDOR | smoke notices | Verified |
 | Calendar representation | notices-calendar | CalendarEvent source ids | ca-recovery + communication | calendar event IDOR | smoke calendar | Verified |
 | Dashboard composition | student-experience | getStudentDashboard | student-experience.test.js | dashboard isolation | smoke dashboard | Verified |
+| Lecturer workspace | lecturer-workspace | getLecturerDashboard | lecturer-workspace.test.js | offering IDOR | API integration | Verified |
 | Profile forbidden fields | student-experience | PROFILE_FORBIDDEN_FIELDS | mass-assignment-injection | same | — | Verified |
 | Audit append-only | audit-security | hooks + recordAudit | audit-security.test.js | mutation 400 | ops smoke | Verified |
 | WhatsApp HMAC | audit-security | webhook.service | observability-webhooks | unsigned 401 | — | Verified |

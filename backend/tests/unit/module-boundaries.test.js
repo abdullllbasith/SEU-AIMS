@@ -12,6 +12,7 @@ import { createNotificationsModule } from '../../src/modules/notifications/index
 import { createStudentExperienceModule } from '../../src/modules/student-experience/index.js';
 import { createFilesModule } from '../../src/modules/files/index.js';
 import { createAuditSecurityModule } from '../../src/modules/audit-security/index.js';
+import { createAdminOperationsModule } from '../../src/modules/admin-operations/index.js';
 import { JOB_NAMES } from '../../src/infrastructure/queue/job-names.js';
 
 test('each logical module exposes a public id, prefix, and router', () => {
@@ -28,12 +29,14 @@ test('each logical module exposes a public id, prefix, and router', () => {
     createStudentExperienceModule(),
     createFilesModule(),
     createAuditSecurityModule(),
+    createAdminOperationsModule(),
   ];
 
-  assert.equal(modules.length, 12);
+  assert.equal(modules.length, 13);
   const ids = modules.map((module) => module.id).sort();
   assert.deepEqual(ids, [
     'academic-foundation',
+    'admin-operations',
     'audit-security',
     'authentication',
     'ca-recovery',

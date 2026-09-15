@@ -5,12 +5,17 @@ import { communicationApi } from './communication-api.js';
 export function NotificationsPage() {
   const [error, setError] = useState('');
   const [items, setItems] = useState([]);
+  const [prefs, setPrefs] = useState(null);
 
   useEffect(() => {
     communicationApi
       .notifications()
       .then((body) => setItems(body.data.items || []))
       .catch((caught) => setError(caught.message));
+    communicationApi
+      .preferences()
+      .then((body) => setPrefs(body.data))
+      .catch(() => {});
   }, []);
 
   return (
@@ -36,6 +41,41 @@ export function NotificationsPage() {
           </li>
         ))}
       </ul>
+      {prefs ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            communicationApi
+              .savePreferences({
+                locale: prefs.locale,
+                emailEnabled: prefs.emailEnabled,
+                whatsappEnabled: prefs.whatsappEnabled,
+              })
+              .then((body) => setPrefs(body.data))
+              .catch((caught) => setError(caught.message));
+          }}
+        >
+          <h2>Optional channels</h2>
+          <p>In-app notices stay on. Mandatory academic types cannot be turned off.</p>
+          <label>
+            <input
+              type="checkbox"
+              checked={prefs.emailEnabled}
+              onChange={(event) => setPrefs({ ...prefs, emailEnabled: event.target.checked })}
+            />
+            Email (optional types)
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={prefs.whatsappEnabled}
+              onChange={(event) => setPrefs({ ...prefs, whatsappEnabled: event.target.checked })}
+            />
+            WhatsApp (optional types)
+          </label>
+          <button type="submit">Save preferences</button>
+        </form>
+      ) : null}
     </section>
   );
 }

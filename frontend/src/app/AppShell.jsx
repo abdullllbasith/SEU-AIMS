@@ -23,6 +23,7 @@ export function AppShell({ children }) {
             <Link to="/profile">Profile</Link>
             {user.role === ROLES.DEPARTMENT_ADMINISTRATOR ? (
               <>
+                <Link to="/admin">Operations dashboard</Link>
                 <Link to="/admin/academic">Academic admin</Link>
                 <Link to="/admin/resources">Official resources</Link>
                 <Link to="/admin/results">Result imports</Link>
@@ -36,6 +37,7 @@ export function AppShell({ children }) {
             {user.role === ROLES.STUDENT ? (
               <>
                 <Link to="/">Dashboard</Link>
+                <Link to="/search">Search</Link>
                 <Link to="/academic/me">My academic context</Link>
                 <Link to="/academic/history">Academic history</Link>
                 <Link to="/results/me">My results</Link>
@@ -49,6 +51,8 @@ export function AppShell({ children }) {
             ) : null}
             {user.role === ROLES.LECTURER ? (
               <>
+                <Link to="/">Workspace</Link>
+                <Link to="/lecturer/search">Search</Link>
                 <Link to="/lecturer/offerings">Assigned offerings</Link>
                 <Link to="/lecturer/learning">Official resources</Link>
                 <Link to="/lecturer/ca">CA recovery</Link>

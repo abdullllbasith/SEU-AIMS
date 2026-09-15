@@ -12,3 +12,5 @@ Not implemented. Do not document these as shipping features.
 - Faculty-confirmed GPA/CA/retention policy encoded only after the owner decides
 - Login identifier other than email, if required
 - Group chat key rotation and device recovery for Study Room
+- Asynchronous admin report jobs beyond the 500-row student CSV
+- Department-scoped file-storage totals (`StoredFile` has no departmentId)

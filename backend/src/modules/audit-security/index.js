@@ -24,4 +24,6 @@ export function createAuditSecurityModule() {
 export { createRouter };
 export { AuditEvent } from './models/audit-event.model.js';
 export { recordAudit } from './services/record-audit.service.js';
+export { listAuditEvents } from './services/audit-query.service.js';
+export { runIntegrityChecks } from './services/integrity.service.js';
 export { verifyWhatsAppWebhookGet, verifyWhatsAppWebhookSignature } from './services/webhook.service.js';

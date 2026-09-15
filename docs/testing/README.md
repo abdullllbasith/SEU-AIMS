@@ -24,3 +24,7 @@ Human scripts: [qa/uat-scenarios.md](../qa/uat-scenarios.md). **Not passed** fro
 Demo narrative: [qa/demonstration-scenario.md](../qa/demonstration-scenario.md). Prefer noop providers.
 
 CI: `.github/workflows/qa.yml` (`npm ci`, secrets scan, tests, build, bundle check, `audit:prod`).
+
+Admin dashboard coverage is API integration tests in `backend/tests/integration/admin-operations.test.js`, not a browser driver.
+
+Lecturer workspace coverage is API integration tests in `backend/tests/integration/lecturer-workspace.test.js`, not a browser driver.

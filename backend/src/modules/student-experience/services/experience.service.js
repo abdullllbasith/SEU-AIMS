@@ -1,5 +1,6 @@
+import mongoose from 'mongoose';
 import { ROLES } from '../../../shared/constants/roles.js';
-import { ForbiddenError } from '../../../shared/errors/app-error.js';
+import { ForbiddenError, ValidationError } from '../../../shared/errors/app-error.js';
 import {
   getMyContext,
   getMyOfferings,
@@ -10,12 +11,25 @@ import { getOwnResults } from '../../results/index.js';
 import { getStudentGpaSummary, GpaSnapshot } from '../../gpa-cgpa/index.js';
 import { listNotices, upcomingEvents } from '../../notices-calendar/index.js';
 import { listInbox, unreadCount } from '../../notifications/index.js';
-import { listOwnApplications, IncompleteCa, CaSchedule } from '../../ca-recovery/index.js';
-import { listAccessibleOfferings, listResources } from '../../learning-environment/index.js';
+import {
+  listOwnApplications,
+  listEligibleConditions,
+  IncompleteCa,
+  CaSchedule,
+} from '../../ca-recovery/index.js';
+import { OfficialResource, listAccessibleOfferings, isStudentVisibleResource } from '../../learning-environment/index.js';
+import { StoredFile } from '../../files/index.js';
 import { User } from '../../authentication/index.js';
 import { presentGpaSummary } from '../utils/gpa-presentation.js';
 import { dashboardCacheKey, getDashboardCache, setDashboardCache } from './dashboard-cache.js';
 import { getOwnProfile } from './profile.service.js';
+import {
+  buildAttentionItems,
+  groupUpcomingEvents,
+  prefixRegex,
+  publicSection,
+  sanitizeWorkspaceSearch,
+} from './workspace.js';
 
 function assertStudent(principal) {
   if (!principal || principal.role !== ROLES.STUDENT) {
@@ -51,6 +65,7 @@ async function caSummary(principal) {
       };
     }
   }
+  const eligible = await listEligibleConditions(principal).catch(() => ({ window: null }));
   return {
     unresolvedConditions: open.map((item) => ({
       subjectCode: item.subjectCode,
@@ -64,31 +79,68 @@ async function caSummary(principal) {
         }
       : null,
     upcomingSchedule,
+    window: eligible.window
+      ? {
+          lifecycle: eligible.window.lifecycle,
+          closesAt: eligible.window.closesAt,
+        }
+      : null,
     caPath: '/ca',
   };
 }
 
-async function resourceSummary(principal) {
-  const offerings = await listAccessibleOfferings(principal, {});
-  const resources = [];
-  for (const offering of offerings.items.slice(0, 6)) {
-    const listed = await listResources(principal, offering.id, { pageSize: 3 });
-    for (const item of listed.items) {
-      resources.push({
-        id: item.id,
-        title: item.title,
-        offeringId: offering.id,
-        subjectCode: offering.subjectCode,
-      });
-    }
+async function publishedResourcesForOfferings(offerings) {
+  const offeringIds = offerings.map((item) => item.id).filter(Boolean);
+  if (!offeringIds.length) {
+    return { latestResources: [], countByOffering: new Map() };
   }
+  const objectIds = offeringIds.map((id) => new mongoose.Types.ObjectId(id));
+  const docs = await OfficialResource.find({
+    subjectOfferingId: { $in: objectIds },
+    publicationState: 'PUBLISHED',
+    $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+  })
+    .sort({ publishedAt: -1 })
+    .limit(40)
+    .lean();
+  const files = await StoredFile.find({ _id: { $in: docs.map((item) => item.fileId) } }).lean();
+  const fileById = new Map(files.map((file) => [String(file._id), file]));
+  const offeringById = new Map(offerings.map((item) => [String(item.id), item]));
+  const visible = [];
+  const countByOffering = new Map();
+  for (const doc of docs) {
+    const file = fileById.get(String(doc.fileId));
+    if (!isStudentVisibleResource(doc, file)) {
+      continue;
+    }
+    const offeringId = String(doc.subjectOfferingId);
+    countByOffering.set(offeringId, (countByOffering.get(offeringId) || 0) + 1);
+    const offering = offeringById.get(offeringId);
+    visible.push({
+      id: String(doc._id),
+      title: doc.title,
+      offeringId,
+      subjectCode: offering?.subjectCode || null,
+      publishedAt: doc.publishedAt || null,
+      version: doc.version,
+      mimeType: file?.mimeType || null,
+      sizeBytes: file?.sizeBytes || null,
+      learningPath: `/learning/offerings/${offeringId}`,
+    });
+  }
+  return { latestResources: visible.slice(0, 8), countByOffering };
+}
+
+async function resourceSummary(principal, offerings) {
+  const published = await publishedResourcesForOfferings(offerings);
   return {
-    offerings: offerings.items.map((item) => ({
+    offerings: offerings.map((item) => ({
       id: item.id,
       subjectCode: item.subjectCode,
       subjectName: item.subjectName,
     })),
-    latestResources: resources.slice(0, 8),
+    latestResources: published.latestResources,
+    countByOffering: published.countByOffering,
   };
 }
 
@@ -130,7 +182,12 @@ export async function getStudentDashboard(principal, { refresh = false } = {}) {
   }
 
   const offeringsResult = await getMyOfferings(principal).catch(() => ({ items: [] }));
-  const lecturers = await lecturerNames(offeringsResult.items.map((item) => item.id));
+  const offeringItems = offeringsResult.items;
+  const lecturers = await lecturerNames(offeringItems.map((item) => item.id));
+  const subjects = await Subject.find({
+    code: { $in: offeringItems.map((item) => item.subjectCode).filter(Boolean) },
+  }).select('code credits');
+  const creditsByCode = new Map(subjects.map((item) => [item.code, item.credits]));
   const [
     profile,
     notices,
@@ -150,8 +207,42 @@ export async function getStudentDashboard(principal, { refresh = false } = {}) {
     settle('Results', () => getOwnResults(principal)),
     settle('GPA', () => getStudentGpaSummary(principal.userId)),
     settle('CA recovery', () => caSummary(principal)),
-    settle('Learning', () => resourceSummary(principal)),
+    settle('Learning', () => resourceSummary(principal, offeringItems)),
   ]);
+
+  const eventItems = events.ok ? events.data.items : [];
+  const noticeItems = notices.ok ? notices.data.items : [];
+  const inboxItems = inbox.ok ? inbox.data.items : [];
+  const latestResources = learning.ok ? learning.data.latestResources : [];
+  const counts = learning.ok ? learning.data.countByOffering : new Map();
+  const now = new Date();
+  const currentSubjects = offeringItems.map((item) => {
+    const related = eventItems
+      .filter((event) => String(event.subjectOfferingId || '') === String(item.id))
+      .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+    return {
+      id: item.id,
+      subjectCode: item.subjectCode,
+      subjectName: item.subjectName,
+      credits: creditsByCode.get(item.subjectCode) ?? null,
+      lecturers: lecturers.get(item.id) || [],
+      publishedResourceCount: counts.get(String(item.id)) || 0,
+      nextEvent: related[0]
+        ? { title: related[0].title, startsAt: related[0].startsAt }
+        : null,
+      learningPath: `/learning/offerings/${item.id}`,
+    };
+  });
+
+  const attention = buildAttentionItems({
+    caRecovery: ca.ok ? ca.data : null,
+    windowLifecycle: ca.ok ? ca.data.window?.lifecycle : null,
+    upcomingEvents: eventItems,
+    notices: noticeItems,
+    notifications: inboxItems,
+    recentResources: latestResources,
+    now,
+  });
 
   const payload = {
     generatedAt: new Date().toISOString(),
@@ -166,18 +257,14 @@ export async function getStudentDashboard(principal, { refresh = false } = {}) {
           status: contextBundle.context.status,
         }
       : null,
-    currentSubjects: offeringsResult.items.map((item) => ({
-      id: item.id,
-      subjectCode: item.subjectCode,
-      subjectName: item.subjectName,
-      lecturers: lecturers.get(item.id) || [],
-      learningPath: `/learning/offerings/${item.id}`,
-    })),
-    notices: notices.ok ? notices.data.items : [],
-    upcomingEvents: events.ok ? events.data.items : [],
+    attention,
+    deadlineGroups: groupUpcomingEvents(eventItems, now),
+    currentSubjects,
+    notices: noticeItems,
+    upcomingEvents: eventItems,
     notifications: {
       unreadCount: unread.ok ? unread.data.count : null,
-      recent: inbox.ok ? inbox.data.items : [],
+      recent: inboxItems,
     },
     performance: gpaRaw.ok ? presentGpaSummary(gpaRaw.data) : { available: false, gpa: null, cgpa: null },
     results: results.ok
@@ -187,18 +274,31 @@ export async function getStudentDashboard(principal, { refresh = false } = {}) {
         }
       : null,
     caRecovery: ca.ok ? ca.data : null,
-    resources: learning.ok ? learning.data : null,
-    sections: {
-      profile,
-      notices,
-      calendar: events,
-      notifications: unread.ok && inbox.ok ? { ok: true } : { ok: false, error: 'Notifications are temporarily unavailable.' },
-      results,
-      gpa: gpaRaw,
-      ca,
-      learning,
+    resources: learning.ok
+      ? { offerings: learning.data.offerings, latestResources }
+      : null,
+    shortcuts: {
+      history: '/academic/history',
+      studyRoom: '/study-room',
+      learning: '/learning',
+      results: '/results/me',
+      ca: '/ca',
+      search: '/search',
     },
-    cache: { hit: false },
+    sections: {
+      profile: publicSection(profile),
+      notices: publicSection(notices),
+      calendar: publicSection(events),
+      notifications:
+        unread.ok && inbox.ok
+          ? { ok: true }
+          : { ok: false, error: 'Notifications are temporarily unavailable.' },
+      results: publicSection(results),
+      gpa: publicSection(gpaRaw),
+      ca: publicSection(ca),
+      learning: publicSection(learning),
+    },
+    cache: { hit: false, ttlMs: 15_000, note: 'Student-scoped in-process cache. Refresh with ?refresh=true.' },
   };
   setDashboardCache(key, payload);
   return payload;
@@ -256,5 +356,80 @@ export async function getPerformance(principal, query = {}) {
     })),
     completedCount: results.all.filter((item) => !item.isEca).length,
     pendingEcaCount: results.all.filter((item) => item.isEca).length,
+    explanation:
+      'GPA and classification come from the official GPA service using counted credits. E(CA) and unlisted markers are excluded there. This page does not recalculate grade points.',
+  };
+}
+
+export async function getUpcoming(principal) {
+  assertStudent(principal);
+  const events = await upcomingEvents(principal);
+  return {
+    generatedAt: new Date().toISOString(),
+    deadlineGroups: groupUpcomingEvents(events.items),
+    items: events.items,
+  };
+}
+
+export async function searchStudentWorkspace(principal, query = {}) {
+  assertStudent(principal);
+  let q;
+  try {
+    q = sanitizeWorkspaceSearch(query.q);
+  } catch (error) {
+    if (error.message === 'SEARCH_TOO_LONG') {
+      throw new ValidationError('Search is limited to 64 characters');
+    }
+    throw new ValidationError('Search does not accept pattern characters');
+  }
+  if (!q) {
+    return { q, offerings: [], resources: [], notes: 'Enter a subject code, subject name, or official resource title.' };
+  }
+  const current = await listAccessibleOfferings(principal, {});
+  const history = await listAccessibleOfferings(principal, { scope: 'history' });
+  const offerings = [...current.items, ...history.items];
+  const offeringHits = offerings.filter(
+    (item) =>
+      prefixRegex(q).test(item.subjectCode || '') || prefixRegex(q).test(item.subjectName || ''),
+  );
+  const offeringIds = offerings.map((item) => item.id);
+  const objectIds = offeringIds.filter(Boolean).map((id) => new mongoose.Types.ObjectId(id));
+  const resourceDocs = objectIds.length
+    ? await OfficialResource.find({
+        subjectOfferingId: { $in: objectIds },
+        publicationState: 'PUBLISHED',
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+        title: prefixRegex(q),
+      })
+        .limit(20)
+        .lean()
+    : [];
+  const files = await StoredFile.find({ _id: { $in: resourceDocs.map((item) => item.fileId) } }).lean();
+  const fileById = new Map(files.map((file) => [String(file._id), file]));
+  const offeringById = new Map(offerings.map((item) => [String(item.id), item]));
+  const resources = [];
+  for (const doc of resourceDocs) {
+    const file = fileById.get(String(doc.fileId));
+    if (!isStudentVisibleResource(doc, file)) {
+      continue;
+    }
+    const offering = offeringById.get(String(doc.subjectOfferingId));
+    resources.push({
+      id: String(doc._id),
+      title: doc.title,
+      subjectCode: offering?.subjectCode || null,
+      learningPath: `/learning/offerings/${doc.subjectOfferingId}`,
+    });
+  }
+  return {
+    q,
+    offerings: offeringHits.slice(0, 20).map((item) => ({
+      id: item.id,
+      subjectCode: item.subjectCode,
+      subjectName: item.subjectName,
+      learningPath: `/learning/offerings/${item.id}`,
+    })),
+    resources,
+    notes: 'Official resources only. Study Room files are not searched.',
   };
 }

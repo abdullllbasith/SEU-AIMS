@@ -32,6 +32,8 @@ flowchart TB
   NC[notices-calendar]
   NT[notifications]
   SE[student-experience]
+  AO[admin-operations]
+  LW[lecturer-workspace]
   AF --> LE
   AF --> SR
   AF --> RS
@@ -46,6 +48,15 @@ flowchart TB
   SE --> CA
   SE --> NC
   SE --> NT
+  AO --> AF
+  AO --> RS
+  AO --> CA
+  AO --> NT
+  LW --> AF
+  LW --> LE
+  LW --> CA
+  LW --> NC
+  LW --> NT
 ```
 
 ## Result → CA → GPA

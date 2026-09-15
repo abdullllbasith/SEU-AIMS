@@ -240,6 +240,8 @@ test('profile IDOR and lecturer student-only routes are denied', async () => {
   assert.equal(stolenPerf.status, 403);
   const lecturerDash = await lecturer.agent.get('/api/me/dashboard');
   assert.equal(lecturerDash.status, 403);
+  const lecturerSearch = await lecturer.agent.get('/api/me/search?q=ICT');
+  assert.equal(lecturerSearch.status, 403);
   const lecturerPerf = await lecturer.agent.get('/api/me/performance');
   assert.equal(lecturerPerf.status, 403);
   const lecturerProfile = await lecturer.agent.get('/api/me/profile');
@@ -298,6 +300,10 @@ test('dashboard composes current context, notices, events, CA, and does not fake
   assert.equal(emptyGpa.body.data.performance.available, false);
   assert.equal(emptyGpa.body.data.performance.gpa, null);
   assert.equal(emptyGpa.body.data.caRecovery.unresolvedConditions[0].subjectCode, 'ICT1233');
+  assert.ok(emptyGpa.body.data.attention.some((item) => item.code === 'CA_CONDITION'));
+  assert.ok(emptyGpa.body.data.deadlineGroups);
+  assert.equal(emptyGpa.body.data.sections.notices.ok, true);
+  assert.equal(emptyGpa.body.data.sections.notices.data, undefined);
   assert.ok(offering);
 });
 
@@ -365,4 +371,18 @@ test('profile image uses the file pipeline and rejects executables', async () =>
   const other = await login('other@example.test');
   const stolen = await other.agent.get('/api/me/profile/photo');
   assert.equal(stolen.status, 404);
+});
+
+test('student search is scoped to authorized offerings and rejects regex', async () => {
+  await seed();
+  const student = await login('student@example.test');
+  const hit = await student.agent.get('/api/me/search?q=ICT');
+  assert.equal(hit.status, 200);
+  assert.ok(hit.body.data.offerings.some((item) => item.subjectCode === 'ICT1233'));
+  const abuse = await student.agent.get('/api/me/search?q=.*');
+  assert.equal(abuse.status, 400);
+  const other = await login('mgt-student@example.test');
+  const empty = await other.agent.get('/api/me/search?q=ICT');
+  assert.equal(empty.status, 200);
+  assert.equal(empty.body.data.offerings.length, 0);
 });

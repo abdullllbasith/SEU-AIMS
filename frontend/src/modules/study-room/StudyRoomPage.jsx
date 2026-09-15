@@ -246,6 +246,11 @@ export function StudyRoomPage() {
         your device before they are stored.
       </p>
       <p aria-live="polite">Connection: {socketState}</p>
+      {socketState !== 'connected' ? (
+        <p className="reconnect-banner" role="status">
+          Real-time delivery is {socketState}. You can still send; if send fails, stay on this page and retry.
+        </p>
+      ) : null}
       {error ? <p className="form-error">{error}</p> : null}
       <div className="tab-nav" role="tablist">
         <button type="button" className={tab === 'common' ? 'tab-nav__tab is-active' : 'tab-nav__tab'} onClick={() => setTab('common')}>

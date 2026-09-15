@@ -8,7 +8,9 @@ export const experienceApi = {
     data.append('file', file);
     return apiRequest('/me/profile/photo', { method: 'POST', body: data });
   },
-  dashboard: () => apiRequest('/me/dashboard'),
+  dashboard: (refresh = false) => apiRequest(`/me/dashboard${refresh ? '?refresh=true' : ''}`),
+  upcoming: () => apiRequest('/me/upcoming'),
+  search: (q = '') => apiRequest(`/me/search?q=${encodeURIComponent(q)}`),
   history: (params = '') => apiRequest(`/me/academic-history${params}`),
   performance: () => apiRequest('/me/performance'),
 };

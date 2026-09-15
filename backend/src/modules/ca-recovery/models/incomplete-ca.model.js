@@ -23,5 +23,6 @@ incompleteCaSchema.index(
 );
 incompleteCaSchema.index({ academicResultId: 1 }, { unique: true });
 incompleteCaSchema.index({ studentUserId: 1, status: 1 });
+incompleteCaSchema.index({ departmentId: 1, status: 1 });
 
 export const IncompleteCa = defineModel('IncompleteCa', incompleteCaSchema);

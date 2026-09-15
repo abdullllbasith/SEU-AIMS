@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../state/AuthProvider.jsx';
 import { ROLES } from '../constants/roles.js';
 import { StudentDashboardPage } from '../modules/student-experience/StudentDashboardPage.jsx';
+import { LecturerDashboardPage } from '../modules/lecturer/LecturerDashboardPage.jsx';
 
 export function FoundationHome() {
   const { user } = useAuth();
@@ -10,29 +11,7 @@ export function FoundationHome() {
   }
 
   if (user?.role === ROLES.LECTURER) {
-    return (
-      <section>
-        <h1>Workspace</h1>
-        <p>Signed in as Lecturer. Study Room is student-only.</p>
-        <ul>
-          <li>
-            <Link to="/lecturer/offerings">Assigned offerings</Link>
-          </li>
-          <li>
-            <Link to="/lecturer/learning">Official resources</Link>
-          </li>
-          <li>
-            <Link to="/lecturer/ca">CA recovery</Link>
-          </li>
-          <li>
-            <Link to="/notices">Notices</Link>
-          </li>
-          <li>
-            <Link to="/calendar">Academic calendar</Link>
-          </li>
-        </ul>
-      </section>
-    );
+    return <LecturerDashboardPage />;
   }
 
   return (
@@ -40,6 +19,9 @@ export function FoundationHome() {
       <h1>Workspace</h1>
       <p>Signed in as Department Administrator. Study Room is student-only except moderation.</p>
       <ul>
+        <li>
+          <Link to="/admin">Operations dashboard</Link>
+        </li>
         <li>
           <Link to="/admin/academic">Academic foundation</Link>
         </li>

@@ -14,5 +14,7 @@
 | student-experience | Own-profile self-service and student dashboard/history/performance composition | Official results, GPA formula, CA workflow, notice storage |
 | files | Metadata, storage refs, quarantine, scan state, access abstraction | Domain authorization (“who may see this CA PDF”) |
 | audit-security | Audit records, webhook verification, operational counts | Domain policy checks; editing audit history |
+| admin-operations | Department-scoped operational aggregation and bounded exports | Official results, CA decisions, Study Room content, job force-success |
+| lecturer-workspace | Lecturer dashboard/search composition over assigned subject offerings | Official results, CA approval, Study Room, department-wide admin KPIs |
 
 Other modules import a module’s **public `index.js` only**, never repositories or models of another module.

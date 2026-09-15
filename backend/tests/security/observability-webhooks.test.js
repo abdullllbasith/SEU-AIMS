@@ -33,6 +33,7 @@ test('unauthenticated audit and ops routes are denied', async () => {
   const client = request(app());
   assert.equal((await client.get('/api/audit/events')).status, 401);
   assert.equal((await client.get('/api/ops/metrics')).status, 401);
+  assert.equal((await client.get('/api/admin/dashboard')).status, 401);
 });
 
 test('unsigned WhatsApp webhook is rejected', async () => {

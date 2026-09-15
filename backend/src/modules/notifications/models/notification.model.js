@@ -50,6 +50,7 @@ notificationSchema.index({ recipientUserId: 1, channel: 1, createdAt: -1 });
 notificationSchema.index({ recipientUserId: 1, channel: 1, readAt: 1, createdAt: -1 });
 notificationSchema.index({ recipientUserId: 1, category: 1, createdAt: -1 });
 notificationSchema.index({ channel: 1, status: 1, scheduledAt: 1 });
+notificationSchema.index({ departmentId: 1, status: 1 });
 notificationSchema.index({ providerMessageId: 1 }, { sparse: true });
 
 export const Notification = defineModel('Notification', notificationSchema);

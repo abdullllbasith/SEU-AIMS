@@ -28,4 +28,6 @@ export { syncIncompleteCaFromResult } from './services/eca-from-results.js';
 export { processEcaDetectJob } from './services/eca-detect.service.js';
 export { generateApplicationPdf } from './services/pdf.service.js';
 export { evaluateReminder } from './services/reminder.service.js';
-export { listOwnApplications } from './services/application.service.js';
+export { listOwnApplications, listEligibleConditions } from './services/application.service.js';
+export { listApprovedForLecturer, listSchedules } from './services/schedule.service.js';
+export { windowLifecycle } from './utils/http.js';

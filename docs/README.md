@@ -23,5 +23,8 @@ This tree describes **this repository**. Product decisions in the Architecture p
 | [integrations/](./integrations/) | Providers and webhooks |
 | [decisions/](./decisions/) | ADRs |
 | [qa/](./qa/) | Prompt 14–17 evidence, including [final-audit.md](./qa/final-audit.md) |
+| [ops/admin-operations.md](./ops/admin-operations.md) | Prompt 18 admin dashboard |
+| [qa/student-experience-map.md](./qa/student-experience-map.md) | Prompt 19 student workspace map |
+| [ops/lecturer-workspace.md](./ops/lecturer-workspace.md) | Prompt 20 lecturer workspace |
 
 Unresolved institutional policy is labeled **unconfirmed** — do not treat those notes as academic law.

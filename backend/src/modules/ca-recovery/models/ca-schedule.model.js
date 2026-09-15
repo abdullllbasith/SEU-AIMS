@@ -20,5 +20,6 @@ const caScheduleSchema = new mongoose.Schema(
 caScheduleSchema.index({ applicationId: 1, incompleteCaId: 1 }, { unique: true });
 caScheduleSchema.index({ subjectOfferingId: 1, lecturerUserId: 1 });
 caScheduleSchema.index({ calendarEventId: 1 }, { unique: true });
+caScheduleSchema.index({ departmentId: 1, scheduledAt: 1, cancelledAt: 1 });
 
 export const CaSchedule = defineModel('CaSchedule', caScheduleSchema);

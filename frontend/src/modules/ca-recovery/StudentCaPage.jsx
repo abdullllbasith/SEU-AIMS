@@ -61,11 +61,13 @@ export function StudentCaPage() {
           You have unresolved incomplete CA conditions. Window:{' '}
           {windowInfo?.lifecycle || 'not published'}
           {windowInfo?.closesAt ? ` (closes ${new Date(windowInfo.closesAt).toLocaleString()})` : ''}.
+          Print the PDF, obtain the physical HOD signature, and submit the paper copy. The system does not
+          replace that step.
         </p>
       ) : (
         <p>No unresolved incomplete CA conditions.</p>
       )}
-      <h2>Eligible subjects</h2>
+      <h2>Choose subjects for this application</h2>
       {openConditions.length === 0 ? <p>No eligible subjects for the current window.</p> : null}
       <ul>
         {openConditions.map((item) => (

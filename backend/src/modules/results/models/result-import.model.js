@@ -41,5 +41,6 @@ const resultImportSchema = new mongoose.Schema(
 resultImportSchema.index({ processingStatus: 1, createdAt: 1 });
 resultImportSchema.index({ uploadedByUserId: 1 });
 resultImportSchema.index({ departmentId: 1, checksumSha256: 1 });
+resultImportSchema.index({ departmentId: 1, processingStatus: 1, createdAt: -1 });
 
 export const ResultImport = defineModel('ResultImport', resultImportSchema);

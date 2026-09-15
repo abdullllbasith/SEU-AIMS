@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { communicationApi } from './communication-api.js';
+import { experienceApi } from '../student-experience/experience-api.js';
 import { useAuth } from '../../state/AuthProvider.jsx';
 import { ROLES } from '../../constants/roles.js';
 import { academicApi } from '../admin/academic-api.js';
@@ -9,13 +10,23 @@ export function CalendarPage() {
   const [error, setError] = useState('');
   const [items, setItems] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
+  const [groups, setGroups] = useState(null);
   const [offerings, setOfferings] = useState([]);
   const [form, setForm] = useState({ title: '', startsAt: '', subjectOfferingId: '' });
 
   function reload() {
-    return Promise.all([communicationApi.events(), communicationApi.upcoming()]).then(([events, soon]) => {
+    const upcomingLoad =
+      user?.role === ROLES.STUDENT
+        ? experienceApi.upcoming().then((soon) => {
+            setUpcoming(soon.data.items || []);
+            setGroups(soon.data.deadlineGroups || null);
+          })
+        : communicationApi.upcoming().then((soon) => {
+            setUpcoming(soon.data.items || []);
+            setGroups(null);
+          });
+    return Promise.all([communicationApi.events(), upcomingLoad]).then(([events]) => {
       setItems(events.data.items || []);
-      setUpcoming(soon.data.items || []);
     });
   }
 
@@ -32,15 +43,53 @@ export function CalendarPage() {
   return (
     <section>
       <h1>Academic calendar</h1>
+      <p>Agenda list of dated events. There is no external calendar sync.</p>
       {error ? <p className="form-error">{error}</p> : null}
       <h2>Upcoming</h2>
-      <ul>
-        {upcoming.map((item) => (
-          <li key={item.id}>
-            {item.title} — {new Date(item.startsAt).toLocaleString()} ({item.eventType})
-          </li>
-        ))}
-      </ul>
+      {groups ? (
+        <>
+          <h3>Today</h3>
+          <ul>
+            {groups.today.map((item) => (
+              <li key={item.id}>
+                {item.title} — {new Date(item.startsAt).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+          <h3>Next few days</h3>
+          <ul>
+            {groups.nextFewDays.map((item) => (
+              <li key={item.id}>
+                {item.title} — {new Date(item.startsAt).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+          <h3>This week</h3>
+          <ul>
+            {groups.nextWeek.map((item) => (
+              <li key={item.id}>
+                {item.title} — {new Date(item.startsAt).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+          <h3>Later</h3>
+          <ul>
+            {groups.later.map((item) => (
+              <li key={item.id}>
+                {item.title} — {new Date(item.startsAt).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <ul>
+          {upcoming.map((item) => (
+            <li key={item.id}>
+              {item.title} — {new Date(item.startsAt).toLocaleString()} ({item.eventType})
+            </li>
+          ))}
+        </ul>
+      )}
       {user?.role === ROLES.DEPARTMENT_ADMINISTRATOR ? (
         <form
           onSubmit={(event) => {

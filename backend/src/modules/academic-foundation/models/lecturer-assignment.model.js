@@ -17,5 +17,6 @@ const lecturerAssignmentSchema = new mongoose.Schema(
 lecturerAssignmentSchema.index({ lecturerUserId: 1, subjectOfferingId: 1 }, { unique: true });
 lecturerAssignmentSchema.index({ subjectOfferingId: 1, isActive: 1 });
 lecturerAssignmentSchema.index({ lecturerUserId: 1, isActive: 1 });
+lecturerAssignmentSchema.index({ departmentId: 1, isActive: 1 });
 
 export const LecturerAssignment = defineModel('LecturerAssignment', lecturerAssignmentSchema);

@@ -25,6 +25,8 @@ MongoDB only. Field lists are the important identities, not every schema path.
 | StoredFile | files | opaque key | Scan vs review states |
 | AuditEvent | audit-security | append-only | No in-place edit |
 
+Admin dashboard KPIs are **not** a collection. See [admin-operations.md](../ops/admin-operations.md). Lecturer workspace summaries are also derived, not stored. See [lecturer-workspace.md](../ops/lecturer-workspace.md).
+
 ## Enums (code constants)
 
 See `backend/src/modules/*/constants.js` and `backend/src/shared/constants/roles.js`.

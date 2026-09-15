@@ -41,6 +41,8 @@ export function createRouter() {
   router.get('/academic-history', students, controller.academicHistory);
   router.get('/performance', students, controller.performance);
   router.get('/dashboard', students, controller.dashboard);
+  router.get('/upcoming', students, controller.upcoming);
+  router.get('/search', students, controller.search);
 
   return router;
 }

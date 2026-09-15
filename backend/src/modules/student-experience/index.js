@@ -19,3 +19,4 @@ export function createStudentExperienceModule() {
 export { createRouter };
 export { presentGpaSummary } from './utils/gpa-presentation.js';
 export { normalizePhone } from './utils/phone.js';
+export { buildAttentionItems, groupUpcomingEvents, sanitizeWorkspaceSearch } from './services/workspace.js';

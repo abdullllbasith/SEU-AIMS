@@ -2,6 +2,8 @@
 
 Escalate to the infrastructure operator, not to a Department Administrator session. Do not paste student data into public tickets.
 
+Department-admin dashboard runbooks: [admin-analytics.md](./admin-analytics.md).
+
 ## API outage
 
 - **Symptoms:** proxy 502/504; `/api/health/live` fails.

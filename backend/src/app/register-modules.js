@@ -10,6 +10,8 @@ import { createNotificationsModule } from '../modules/notifications/index.js';
 import { createStudentExperienceModule } from '../modules/student-experience/index.js';
 import { createFilesModule } from '../modules/files/index.js';
 import { createAuditSecurityModule } from '../modules/audit-security/index.js';
+import { createAdminOperationsModule } from '../modules/admin-operations/index.js';
+import { createLecturerWorkspaceModule } from '../modules/lecturer-workspace/index.js';
 
 export function registerModules(app, { config, logger, infrastructure }) {
   const modules = [
@@ -25,6 +27,8 @@ export function registerModules(app, { config, logger, infrastructure }) {
     createStudentExperienceModule(),
     createFilesModule(),
     createAuditSecurityModule(),
+    createAdminOperationsModule(),
+    createLecturerWorkspaceModule(),
   ];
 
   for (const module of modules) {

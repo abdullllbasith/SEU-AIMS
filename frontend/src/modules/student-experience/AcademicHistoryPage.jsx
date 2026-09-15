@@ -44,7 +44,9 @@ export function AcademicHistoryPage() {
   return (
     <section>
       <h1>Academic history</h1>
-      <p>Official results are read-only. Current semester remains {state.data?.current?.registrationNumber}.</p>
+      <p>
+        Official results are read-only. Repeat updates keep the same registration number and subject code.
+      </p>
       <label>
         Semester
         <select value={semesterId} onChange={(event) => setSemesterId(event.target.value)}>

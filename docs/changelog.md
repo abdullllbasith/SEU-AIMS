@@ -19,5 +19,8 @@ This is an implementation log, not marketing. Dates are engineering session date
 - **15** Redis job lists, Socket.IO Redis adapter wiring, compose/nginx samples, ops docs.
 - **16** Developer handbook, ADRs, diagrams, env reference, doc link check.
 - **17** Final audit: automated 189 tests + production frontend build on 2026-09-15. Decision: ready with known limitations. See `docs/qa/final-audit.md`.
+- **18** Department admin operational dashboard (`/api/admin`), bounded student CSV, KPI catalog. No rankings, no job force-success.
+- **19** Student academic workspace: attention list, deadline groups, official search, composed dashboard. GPA still server-side.
+- **20** Lecturer teaching workspace (`/api/lecturer`): assignment-scoped dashboard, offering workspace, prefix search. Resource/CA/calendar writes stay in owning modules. No CA approval, result mutation, Study Room, or invented workload policy.
 
 GPA class bands and grade map: copied from the inspected DICT-SEUSL GPA Calculator (`gpa-engine.js`), not invented in this changelog.

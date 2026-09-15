@@ -23,4 +23,7 @@ Rules that must stay visible:
 - Official result identity = **registration number + subject code**.
 - Dashboard **composes**; it does not own results or GPA.
 - Completing a CA **does not write a grade**.
+- The `/admin` dashboard **aggregates**; it does not edit official results or force jobs.
+- The lecturer workspace **composes** assigned offerings, resources, CA scheduling lists, and calendar; it does not own those records or approve CA.
+- Student home **composes** CA, results, GPA, learning, and calendar; it does not own those records.
 - Do not invent CA1/CA2, D+, or extra grade letters.

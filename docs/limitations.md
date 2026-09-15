@@ -17,4 +17,4 @@ These are current facts, not a promise they will be fixed in this prompt.
 | Login id | Email is the implemented login identifier; **unconfirmed** if the institution requires registration-number login |
 | Retention | `AUDIT_RETENTION_DAYS=0` means no auto-delete; legal retention **unconfirmed** |
 | Backups | Documented, restore not demonstrated |
-| Vitest 3.x | Moderate advisory, test-only |
+| Admin analytics | Derived counts only; export capped at 500; queue/file totals not department-split |

@@ -40,5 +40,11 @@ export function createStudentExperienceController() {
     dashboard: asyncHandler(async (req, res) => {
       sendSuccess(res, await experienceService.getStudentDashboard(req.principal, { refresh: req.query.refresh === 'true' }));
     }),
+    upcoming: asyncHandler(async (req, res) => {
+      sendSuccess(res, await experienceService.getUpcoming(req.principal));
+    }),
+    search: asyncHandler(async (req, res) => {
+      sendSuccess(res, await experienceService.searchStudentWorkspace(req.principal, req.query));
+    }),
   };
 }

@@ -65,11 +65,30 @@ export function StudentResultsPage() {
       <p>GPA is calculated on the server from official results. E(CA) is excluded from the average.</p>
       <h2>Current semester</h2>
       {current.length === 0 ? <p>No official results for the current semester.</p> : null}
+      <ResultCards rows={current} />
       <ResultTable rows={current} />
       <h2>Academic history</h2>
       {history.length === 0 ? <p>No earlier official results.</p> : null}
+      <ResultCards rows={history} />
       <ResultTable rows={history} />
     </section>
+  );
+}
+
+function ResultCards({ rows }) {
+  if (!rows.length) {
+    return null;
+  }
+  return (
+    <ul className="result-cards">
+      {rows.map((row) => (
+        <li key={row.id}>
+          <strong>{row.subjectCode}</strong> {row.resultCode}
+          {row.isEca ? ' (incomplete CA)' : ''}
+          {row.version > 1 ? ' (updated)' : ''}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -78,7 +97,7 @@ function ResultTable({ rows }) {
     return null;
   }
   return (
-    <table className="data-table">
+    <table className="data-table result-table">
       <thead>
         <tr>
           <th>Subject</th>

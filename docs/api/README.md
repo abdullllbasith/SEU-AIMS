@@ -22,6 +22,8 @@ See also [frontend-routes.md](./frontend-routes.md).
 | `/api/audit` | audit-security |
 | `/api/ops` | audit-security (admin operational counts) |
 | `/api/webhooks` | audit-security (provider callbacks) |
+| `/api/admin` | admin-operations (department operational reads) |
+| `/api/lecturer` | lecturer-workspace (assignment-scoped teaching composition) |
 
 No API version prefix unless a later decision requires one.
 
@@ -59,6 +61,8 @@ Mutating routes require CSRF except the public verify GET.
 
 - `GET /api/health`, `/api/health/live`, `/api/health/ready`
 - Admin: `GET /api/audit/events`, `GET /api/audit/summary`, `GET /api/ops/metrics`, `GET /api/ops/integrity`
+- Department operations (Prompt 18): `GET /api/admin/dashboard` and related reads under `/api/admin`. See [admin-operations.md](../ops/admin-operations.md).
+- Lecturer workspace (Prompt 20): `GET /api/lecturer/dashboard`, `/subject-offerings`, `/subject-offerings/:id`, `/search`, `/upcoming`, `/assignments`, `/ca-recovery/eligible-students`, `/ca-recovery/schedules`. Mutating aliases for CA approval, results, and resource writes are rejected. See [lecturer-workspace.md](../ops/lecturer-workspace.md).
 - Audit mutation routes are rejected.
 - `GET|POST /api/webhooks/whatsapp` — verify token / HMAC; unsigned posts fail closed
 
@@ -69,7 +73,7 @@ Authenticated self-service under `/api/me`. There is no student-id path paramete
 
 - `GET|PATCH /api/me/profile` — display name and phone/WhatsApp. Registration number, email, department, batch, and role cannot be changed here.
 - `POST /api/me/profile/photo` and `GET /api/me/profile/photo` — JPEG/PNG/WebP through the files scan pipeline.
-- Student-only: `GET /api/me/dashboard`, `/academic-context`, `/academic-history`, `/performance`.
+- Student-only: `GET /api/me/dashboard`, `/upcoming`, `/search`, `/academic-context`, `/academic-history`, `/performance`.
 
-Dashboard composes notices, calendar, notifications, results, GPA, CA, and current offerings. GPA with no counted credits is returned as unavailable, not `0.00`.
+Dashboard composes notices, calendar, notifications, results, GPA, CA, and current offerings. GPA with no counted credits is returned as unavailable, not `0.00`. Search is prefix-only over authorized offerings and published official resources.
 

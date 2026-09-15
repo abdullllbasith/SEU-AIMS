@@ -14,15 +14,24 @@ import { OfferingLearningPage } from '../modules/learning/OfferingLearningPage.j
 import { StudyRoomPage } from '../modules/study-room/StudyRoomPage.jsx';
 import { AdminStudyRoomModerationPage } from '../modules/admin/AdminStudyRoomModerationPage.jsx';
 import { AdminObservabilityPage } from '../modules/admin/AdminObservabilityPage.jsx';
+import { AdminDashboardPage } from '../modules/admin/AdminDashboardPage.jsx';
+import { AdminPeoplePage } from '../modules/admin/AdminPeoplePage.jsx';
+import { AdminStudentDetailPage } from '../modules/admin/AdminStudentDetailPage.jsx';
+import { AdminLecturerDetailPage } from '../modules/admin/AdminLecturerDetailPage.jsx';
+import { AdminOfferingHealthPage } from '../modules/admin/AdminOfferingHealthPage.jsx';
 import { AdminResultsPage } from '../modules/admin/AdminResultsPage.jsx';
 import { StudentResultsPage } from '../modules/results/StudentResultsPage.jsx';
 import { StudentCaPage } from '../modules/ca-recovery/StudentCaPage.jsx';
 import { AdminCaPage } from '../modules/admin/AdminCaPage.jsx';
 import { LecturerCaPage } from '../modules/ca-recovery/LecturerCaPage.jsx';
+import { LecturerDashboardPage } from '../modules/lecturer/LecturerDashboardPage.jsx';
+import { LecturerSearchPage } from '../modules/lecturer/LecturerSearchPage.jsx';
+import { LecturerOfferingWorkspacePage } from '../modules/lecturer/LecturerOfferingWorkspacePage.jsx';
 import { NotificationsPage } from '../modules/communication/NotificationsPage.jsx';
 import { NoticesPage } from '../modules/communication/NoticesPage.jsx';
 import { CalendarPage } from '../modules/communication/CalendarPage.jsx';
 import { StudentDashboardPage } from '../modules/student-experience/StudentDashboardPage.jsx';
+import { StudentSearchPage } from '../modules/student-experience/StudentSearchPage.jsx';
 import { ProfilePage } from '../modules/student-experience/ProfilePage.jsx';
 import { AcademicHistoryPage } from '../modules/student-experience/AcademicHistoryPage.jsx';
 import { PerformancePage } from '../modules/student-experience/PerformancePage.jsx';
@@ -39,6 +48,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <FoundationHome />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/search"
+        element={
+          <ProtectedRoute roles={[ROLES.STUDENT]}>
+            <StudentSearchPage />
           </ProtectedRoute>
         }
       />
@@ -75,6 +92,46 @@ export function AppRoutes() {
         }
       />
       <Route
+        path="/admin"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/people"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminPeoplePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/people/students/:userId"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminStudentDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/people/lecturers/:userId"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminLecturerDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/offerings-health"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminOfferingHealthPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/academic"
         element={
           <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
@@ -99,10 +156,34 @@ export function AppRoutes() {
         }
       />
       <Route
+        path="/lecturer"
+        element={
+          <ProtectedRoute roles={[ROLES.LECTURER]}>
+            <LecturerDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lecturer/search"
+        element={
+          <ProtectedRoute roles={[ROLES.LECTURER]}>
+            <LecturerSearchPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/lecturer/offerings"
         element={
           <ProtectedRoute roles={[ROLES.LECTURER]}>
             <LecturerOfferingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lecturer/offerings/:offeringId"
+        element={
+          <ProtectedRoute roles={[ROLES.LECTURER]}>
+            <LecturerOfferingWorkspacePage />
           </ProtectedRoute>
         }
       />

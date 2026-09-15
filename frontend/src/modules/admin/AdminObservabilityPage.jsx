@@ -1,18 +1,33 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { adminApi } from './admin-api.js';
 import { apiRequest } from '../../services/api-client.js';
 
 export function AdminObservabilityPage() {
   const [error, setError] = useState('');
   const [summary, setSummary] = useState(null);
   const [ops, setOps] = useState(null);
+  const [jobs, setJobs] = useState(null);
+  const [notify, setNotify] = useState(null);
+  const [calendar, setCalendar] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([apiRequest('/audit/summary'), apiRequest('/ops/metrics'), apiRequest('/ops/integrity')])
-      .then(([audit, metrics, integrity]) => {
+    Promise.all([
+      apiRequest('/audit/summary'),
+      apiRequest('/ops/metrics'),
+      apiRequest('/ops/integrity'),
+      adminApi.jobs(),
+      adminApi.notificationHealth(),
+      adminApi.calendarHealth(),
+    ])
+      .then(([audit, metrics, integrity, jobPayload, notification, cal]) => {
         if (!cancelled) {
           setSummary(audit.data);
           setOps({ ...metrics.data, integrity: integrity.data });
+          setJobs(jobPayload.data);
+          setNotify(notification.data);
+          setCalendar(cal.data);
         }
       })
       .catch((caught) => {
@@ -29,6 +44,9 @@ export function AdminObservabilityPage() {
     <section>
       <h1>Operational summary</h1>
       <p>Counts only. This view does not show student names, results, or chat content.</p>
+      <p>
+        <Link to="/admin">Department dashboard</Link>
+      </p>
       {error ? (
         <p className="form-error" role="alert">
           {error}
@@ -46,10 +64,23 @@ export function AdminObservabilityPage() {
           {ops.queue.failed}.
         </p>
       ) : null}
+      {jobs?.retry ? <p>{jobs.retry.reason}</p> : null}
       {ops?.integrity ? (
         <p>
           Integrity issues {ops.integrity.issueCount}. Diagnostic only; this view does not repair
           records.
+        </p>
+      ) : null}
+      {notify ? (
+        <p>
+          Notification groups {notify.byStatusAndChannel.length}. Recent failures{' '}
+          {notify.recentFailures.length}.
+        </p>
+      ) : null}
+      {calendar ? (
+        <p>
+          Upcoming published events {calendar.upcomingPublishedEvents}. Draft notices{' '}
+          {calendar.draftNotices}.
         </p>
       ) : null}
     </section>

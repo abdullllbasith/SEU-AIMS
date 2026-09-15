@@ -66,6 +66,7 @@ SEU-AIMS is a MERN **scalable modular monolith** for a department VLE/LMS: three
 | Notices | Yes | Notices pages | Notice | fanout on publish | via notifications | communication | Yes | Implemented |
 | Calendar | Yes | Calendar page | CalendarEvent | reminders | yes | communication | Yes | Implemented |
 | Student Experience | Yes | Dashboard/profile/history | none (compose) | cache invalidation | — | student-experience | Yes | Implemented |
+| Lecturer Workspace | Yes | Dashboard/search/offering | none (compose) | assignment-version cache | — | lecturer-workspace | Yes | Implemented |
 | Audit/Security | Yes | Admin ops | AuditEvent | — | — | audit + webhooks | Yes | Implemented |
 | File Management | Library yes; `/api/files` empty | via domains | StoredFile | malware-scan | yes | file/scan tests | Yes | Partial HTTP |
 | Background Processing | worker-entry | — | Redis lists | JOB_NAMES | drain loop | job-queue + orchestration | Yes | Implemented |

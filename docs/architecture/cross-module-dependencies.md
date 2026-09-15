@@ -7,6 +7,8 @@ academic-foundation  ←  learning-environment, study-room, results, ca-recovery
 results              ←  gpa-cgpa, ca-recovery (E(CA) / resolution via public API or jobs), student-experience (read)
 ca-recovery          →  notifications, notices-calendar (request capabilities)
 student-experience   →  academic-foundation, results, gpa-cgpa, notices-calendar, notifications, ca-recovery, learning-environment, files, authentication, audit-security
+admin-operations     →  authentication, academic-foundation, learning-environment, results, gpa-cgpa, ca-recovery, notices-calendar, notifications, audit-security (reads)
+lecturer-workspace   →  authentication, academic-foundation, learning-environment, ca-recovery, notices-calendar, notifications (reads; writes stay in owning modules)
 *                    →  files, authentication (identity), audit-security
 ```
 

@@ -16,6 +16,8 @@ Each domain has a README next to the code. Import only `backend/src/modules/<nam
 | student-experience | [student-experience/README.md](../../backend/src/modules/student-experience/README.md) | dashboard, profile, history |
 | files | [files/README.md](../../backend/src/modules/files/README.md) | no standalone UI |
 | audit-security | [audit-security/README.md](../../backend/src/modules/audit-security/README.md) | admin ops |
+| admin-operations | [admin-operations/README.md](../../backend/src/modules/admin-operations/README.md) | `/admin` dashboard |
+| lecturer-workspace | [lecturer-workspace/README.md](../../backend/src/modules/lecturer-workspace/README.md) | `/lecturer` workspace |
 
 Frontend must not re-implement GPA or authorization.
 

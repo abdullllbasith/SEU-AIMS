@@ -100,7 +100,8 @@ export function ProfilePage() {
         <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onPhoto} />
       </label>
       <p>
-        Notification preferences stay in the <Link to="/notifications">notifications</Link> area.
+        Notification preferences stay in the <Link to="/notifications">notifications</Link> area. Registration
+        number and role cannot be edited here.
       </p>
     </section>
   );

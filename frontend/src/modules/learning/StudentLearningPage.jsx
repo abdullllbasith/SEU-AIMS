@@ -7,6 +7,7 @@ export function StudentLearningPage() {
   const [loading, setLoading] = useState(true);
   const [current, setCurrent] = useState([]);
   const [history, setHistory] = useState([]);
+  const [filter, setFilter] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -39,14 +40,26 @@ export function StudentLearningPage() {
     return <p className="form-error">{error}</p>;
   }
 
+  const visibleCurrent = current.filter((item) => {
+    const hay = `${item.subjectCode} ${item.subjectName}`.toLowerCase();
+    return !filter.trim() || hay.includes(filter.trim().toLowerCase());
+  });
+
   return (
     <section>
-      <h1>Learning</h1>
-      <p>Official course materials for your current semester. Historical offerings stay available below.</p>
+      <h1>Official learning resources</h1>
+      <p>
+        Course materials for your current semester from the learning environment. Historical offerings stay
+        available below. This is not the Student Study Room.
+      </p>
+      <label>
+        Filter current subjects
+        <input value={filter} onChange={(event) => setFilter(event.target.value)} />
+      </label>
       <h2>Current semester</h2>
-      {current.length === 0 ? <p>No subject offerings in your current semester.</p> : null}
+      {visibleCurrent.length === 0 ? <p>No subject offerings match this filter.</p> : null}
       <ul>
-        {current.map((item) => (
+        {visibleCurrent.map((item) => (
           <li key={item.id}>
             <Link to={`/learning/offerings/${item.id}`}>
               {item.subjectCode} — {item.subjectName}
