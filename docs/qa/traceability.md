@@ -15,7 +15,7 @@ Status reflects **automated** evidence in this repository. Human UAT is separate
 | E(CA) → incomplete CA | ca-recovery | syncIncompleteCaFromResult | results + ca-recovery | — | orchestration ECA job | Verified |
 | CA workflow + physical verify | ca-recovery | application.service | ca-recovery.test.js | application IDOR | — | Verified |
 | Notices → notifications | notices-calendar / notifications | fanout | communication.test.js | notification IDOR | smoke notices | Verified |
-| Calendar representation | notices-calendar | CalendarEvent source ids | ca-recovery + communication | — | smoke calendar | Verified |
+| Calendar representation | notices-calendar | CalendarEvent source ids | ca-recovery + communication | calendar event IDOR | smoke calendar | Verified |
 | Dashboard composition | student-experience | getStudentDashboard | student-experience.test.js | dashboard isolation | smoke dashboard | Verified |
 | Profile forbidden fields | student-experience | PROFILE_FORBIDDEN_FIELDS | mass-assignment-injection | same | — | Verified |
 | Audit append-only | audit-security | hooks + recordAudit | audit-security.test.js | mutation 400 | ops smoke | Verified |

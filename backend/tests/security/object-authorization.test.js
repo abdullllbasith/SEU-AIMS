@@ -56,6 +56,12 @@ test('student_cannot_read_another_students_result_or_dashboard', async () => {
   assert.ok(bResults.body.data.all.some((item) => item.isEca === true));
   const steal = await b.agent.get('/api/results/me').query({ studentId: String(world.studentA._id) });
   assert.equal(steal.status, 403);
+  const byReg = await b.agent.get('/api/results/me').query({ registrationNumber: 'SEU/IS/21/ICT/A01' });
+  assert.equal(byReg.status, 200);
+  assert.equal(
+    byReg.body.data.all.some((item) => item.resultCode === 'B' && item.isEca === false),
+    false,
+  );
   const aDash = await a.agent.get('/api/me/dashboard');
   const bDash = await b.agent.get('/api/me/dashboard');
   assert.equal(aDash.status, 200);
@@ -82,6 +88,33 @@ test('student_cannot_read_another_students_ca_application', async () => {
   const a = await login(QA_IDS.STUDENT_A);
   const hidden = await a.agent.get(`/api/ca/applications/${world.applicationB.applicationId}`);
   assert.equal(hidden.status, 404);
+  const pdf = await a.agent.get(`/api/ca/applications/${world.applicationB.applicationId}/pdf`);
+  assert.equal(pdf.status, 404);
+});
+
+test('profile_query_userId_cannot_switch_to_another_account', async () => {
+  const a = await login(QA_IDS.STUDENT_A);
+  const profile = await a.agent.get('/api/me/profile').query({ userId: String(world.studentB._id) });
+  assert.equal(profile.status, 200);
+  assert.equal(profile.body.data.email, QA_IDS.STUDENT_A);
+});
+
+test('student_cannot_read_other_department_calendar_event', async () => {
+  const a = await login(QA_IDS.STUDENT_A);
+  const listed = await a.agent.get('/api/calendar/events').query({ departmentId: String(world.departmentB._id) });
+  assert.equal(listed.status, 200);
+  assert.equal(
+    (listed.body.data.items || []).some((item) => item.id === String(world.eventDeptB._id)),
+    false,
+  );
+  const direct = await a.agent.get(`/api/calendar/events/${world.eventDeptB._id}`);
+  assert.equal(direct.status, 404);
+});
+
+test('student_cannot_download_unknown_learning_resource', async () => {
+  const a = await login(QA_IDS.STUDENT_A);
+  const download = await a.agent.get(`/api/learning/resources/${world.offeringB._id}/download`);
+  assert.ok([403, 404].includes(download.status));
 });
 
 test('lecturer_cannot_access_study_room_api', async () => {

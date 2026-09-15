@@ -21,8 +21,8 @@ Unchanged from Prompt 12/13. `PROVIDER_TIMEOUT_MS` optional. Production still re
 None. Indexes are created by application `syncIndexes` in tests / startup registerModels.
 
 ## Testing performed (2026-09-15, this machine)
-- Backend `npm test`: **171 pass / 0 fail / 0 skip** (~210 s)
-- Frontend `vitest run`: **9 pass / 0 fail** in 7 files (~9 s)
-- Combined automated: **180 pass**
+- Backend `npm test`: **174 pass / 0 fail / 0 skip** (~256 s)
+- Frontend `vitest run`: **9 pass / 0 fail** in 7 files (~5 s)
+- Combined automated: **183 pass**
 - Coverage: **not measured** (`test:coverage` not run)
 - Human UAT: **not executed**

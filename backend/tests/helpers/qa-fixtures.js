@@ -12,6 +12,7 @@ import { AcademicResult } from '../../src/modules/results/models/academic-result
 import { Notification } from '../../src/modules/notifications/models/notification.model.js';
 import { CaApplication } from '../../src/modules/ca-recovery/models/ca-application.model.js';
 import { IncompleteCa } from '../../src/modules/ca-recovery/models/incomplete-ca.model.js';
+import { CalendarEvent } from '../../src/modules/notices-calendar/models/calendar-event.model.js';
 import { ROLES } from '../../src/shared/constants/roles.js';
 
 export const QA_PASSWORD = 'correcthorse';
@@ -214,6 +215,16 @@ export async function seedQaWorld() {
     status: 'OPEN',
   });
 
+  const eventDeptB = await CalendarEvent.create({
+    title: 'MGT department briefing',
+    startsAt: new Date(Date.now() + 2 * 86400000),
+    createdByUserId: adminB._id,
+    departmentId: departmentB._id,
+    eventType: 'DEPARTMENT',
+    publicationState: 'PUBLISHED',
+    reminderGeneration: 0,
+  });
+
   const applicationB = await CaApplication.create({
     applicationId: 'QA-APP-B-0001',
     departmentId: departmentA._id,
@@ -253,5 +264,6 @@ export async function seedQaWorld() {
     noticeB,
     incompleteB,
     applicationB,
+    eventDeptB,
   };
 }
