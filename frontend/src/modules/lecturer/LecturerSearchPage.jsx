@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { lecturerApi } from './lecturer-api.js';
+import { PageHeader } from '../../ui/PageHeader.jsx';
 
 export function LecturerSearchPage() {
-  const [query, setQuery] = useState('');
+  const [params] = useSearchParams();
+  const [query, setQuery] = useState(params.get('q') || '');
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
 
@@ -33,11 +35,10 @@ export function LecturerSearchPage() {
 
   return (
     <section>
-      <h1>Search assigned teaching content</h1>
-      <p>
-        Searches your assigned subject offerings, official resources, offering calendar events, and CA
-        registration numbers you may schedule. Study Room and GPA are excluded.
-      </p>
+      <PageHeader
+        title="Search assigned teaching content"
+        purpose="Searches your assigned subject offerings, official resources, offering calendar events, and CA registration numbers you may schedule. Study Room and GPA are excluded."
+      />
       <label>
         Subject, resource title, event, or CA registration number
         <input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={64} />
@@ -51,7 +52,7 @@ export function LecturerSearchPage() {
       {data?.offerings?.length ? (
         <>
           <h2>Subject offerings</h2>
-          <ul>
+          <ul className="entity-list">
             {data.offerings.map((item) => (
               <li key={item.id}>
                 <Link to={item.workspacePath}>
@@ -66,7 +67,7 @@ export function LecturerSearchPage() {
       {data?.resources?.length ? (
         <>
           <h2>Official resources</h2>
-          <ul>
+          <ul className="entity-list">
             {data.resources.map((item) => (
               <li key={item.id}>
                 <Link to={item.learningPath}>
@@ -80,7 +81,7 @@ export function LecturerSearchPage() {
       {data?.events?.length ? (
         <>
           <h2>Calendar</h2>
-          <ul>
+          <ul className="entity-list">
             {data.events.map((item) => (
               <li key={item.id}>
                 <Link to="/calendar">{item.title}</Link>
@@ -92,7 +93,7 @@ export function LecturerSearchPage() {
       {data?.caStudents?.length ? (
         <>
           <h2>CA students (registration numbers)</h2>
-          <ul>
+          <ul className="entity-list">
             {data.caStudents.map((item) => (
               <li key={`${item.applicationId}-${item.subjectOfferingId}`}>
                 <Link to="/lecturer/ca">

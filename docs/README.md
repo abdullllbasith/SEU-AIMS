@@ -6,6 +6,7 @@ This tree describes **this repository**. Product decisions in the Architecture p
 |---|---|
 | [handbook.md](./handbook.md) | How to learn the system |
 | [terminology.md](./terminology.md) | Words we do and do not use |
+| [frontend/ui-contract.md](./frontend/ui-contract.md) | Academic LMS workspace UI |
 | [limitations.md](./limitations.md) | What is not claimed |
 | [future-work.md](./future-work.md) | Backlog, not current features |
 | [changelog.md](./changelog.md) | What landed, by phase |

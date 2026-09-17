@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../state/AuthProvider.jsx';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { loginErrorMessage } from './login-errors.js';
 
 export function LoginPage() {
   const { login, status, user } = useAuth();
@@ -18,15 +20,17 @@ export function LoginPage() {
     setError('');
     try {
       await login({ identifier, password });
-    } catch {
-      setError('Invalid credentials');
+    } catch (caught) {
+      setError(loginErrorMessage(caught));
     }
   }
 
   return (
-    <section>
-      <h1>Sign in</h1>
-      <p>Use your account email. Registration numbers are academic identity, not login.</p>
+    <section className="auth-card">
+      <PageHeader
+        title="Sign in"
+        purpose="Use your account email. Registration numbers are academic identity, not login."
+      />
       <form onSubmit={onSubmit}>
         <label>
           Email
@@ -49,8 +53,12 @@ export function LoginPage() {
             onChange={(event) => setPassword(event.target.value)}
             required
           />
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
         </label>
-        {error ? <p role="alert">{error}</p> : null}
         <button type="submit">Sign in</button>
       </form>
       <p>

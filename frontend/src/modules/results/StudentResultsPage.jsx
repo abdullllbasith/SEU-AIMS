@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { gpaApi, resultsApi } from './results-api.js';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { Panel } from '../../ui/Panel.jsx';
+import { EmptyState } from '../../ui/EmptyState.jsx';
 
 export function StudentResultsPage() {
   const [error, setError] = useState('');
@@ -35,42 +38,81 @@ export function StudentResultsPage() {
   }, []);
 
   if (loading) {
-    return <p>Loading your academic results…</p>;
+    return (
+      <section aria-busy="true">
+        <PageHeader title="My results" purpose="Loading your academic results…" />
+      </section>
+    );
   }
 
   if (error) {
-    return <p className="form-error">{error}</p>;
+    return (
+      <section>
+        <PageHeader title="My results" />
+        <p className="form-error">{error}</p>
+      </section>
+    );
   }
 
   const current = results?.current || [];
   const history = results?.history || [];
+  const gpaReady = gpa && Number(gpa.credits);
 
   return (
-    <section>
-      <h1>My results</h1>
-      <h2>GPA / CGPA</h2>
-      {!gpa || !Number(gpa.credits) ? <p>Performance calculation is not yet available.</p> : null}
-      {gpa && Number(gpa.credits) ? (
-        <dl>
-          <dt>CGPA</dt>
-          <dd>{gpa.cgpa}</dd>
-          <dt>Credits counted</dt>
-          <dd>{gpa.credits}</dd>
-          <dt>Classification</dt>
-          <dd>{gpa.classification}</dd>
-          <dt>Engine</dt>
-          <dd>{gpa.engine}</dd>
-        </dl>
-      ) : null}
-      <p>GPA is calculated on the server from official results. E(CA) is excluded from the average.</p>
-      <h2>Current semester</h2>
-      {current.length === 0 ? <p>No official results for the current semester.</p> : null}
-      <ResultCards rows={current} />
-      <ResultTable rows={current} />
-      <h2>Academic history</h2>
-      {history.length === 0 ? <p>No earlier official results.</p> : null}
-      <ResultCards rows={history} />
-      <ResultTable rows={history} />
+    <section className="results-page">
+      <PageHeader
+        title="My results"
+        purpose="Official marks by registration number and subject code. GPA is calculated on the server. E(CA) is excluded from the average."
+      />
+      {gpaReady ? (
+        <div className="results-hero">
+          <article className="gpa-hero">
+            <p className="gpa-hero__label">CGPA</p>
+            <p className="gpa-hero__value">{gpa.cgpa}</p>
+            <p className="gpa-hero__class">{gpa.classification}</p>
+          </article>
+          <article className="gpa-facts">
+            <p>
+              <span className="gpa-facts__label">Credits counted</span>
+              <span className="gpa-facts__value">{gpa.credits}</span>
+            </p>
+            <p>
+              <span className="gpa-facts__label">Engine</span>
+              <span className="gpa-facts__value gpa-facts__value--wrap">{gpa.engine}</span>
+            </p>
+          </article>
+        </div>
+      ) : (
+        <p className="empty-state">Performance calculation is not yet available.</p>
+      )}
+
+      <Panel title="Current semester">
+        {current.length === 0 ? (
+          <EmptyState to="/academic/me" action="Open academic context">
+            No official results for the current semester.
+          </EmptyState>
+        ) : (
+          <>
+            <ResultCards rows={current} />
+            <div className="table-scroll">
+              <ResultTable rows={current} />
+            </div>
+          </>
+        )}
+      </Panel>
+
+      <Panel title="Academic history">
+        {history.length === 0 ? (
+          <p className="empty-state">No earlier official results.</p>
+        ) : (
+          <>
+            <ResultCards rows={history} />
+            <div className="table-scroll">
+              <ResultTable rows={history} />
+            </div>
+          </>
+        )}
+      </Panel>
     </section>
   );
 }
@@ -82,10 +124,10 @@ function ResultCards({ rows }) {
   return (
     <ul className="result-cards">
       {rows.map((row) => (
-        <li key={row.id}>
-          <strong>{row.subjectCode}</strong> {row.resultCode}
-          {row.isEca ? ' (incomplete CA)' : ''}
-          {row.version > 1 ? ' (updated)' : ''}
+        <li key={row.id} className="result-card">
+          <p className="result-card__code">{row.subjectCode}</p>
+          <p className={resultMarkClass(row)}>{resultLabel(row)}</p>
+          <p className="stack-item__meta">{row.updatedAt ? new Date(row.updatedAt).toLocaleDateString() : ''}</p>
         </li>
       ))}
     </ul>
@@ -108,11 +150,11 @@ function ResultTable({ rows }) {
       <tbody>
         {rows.map((row) => (
           <tr key={row.id}>
-            <td>{row.subjectCode}</td>
             <td>
-              {row.resultCode}
-              {row.isEca ? ' (incomplete CA)' : ''}
-              {row.version > 1 ? ' (updated)' : ''}
+              <span className="result-subject">{row.subjectCode}</span>
+            </td>
+            <td>
+              <span className={resultMarkClass(row)}>{resultLabel(row)}</span>
             </td>
             <td>{row.updatedAt ? new Date(row.updatedAt).toLocaleDateString() : ''}</td>
           </tr>
@@ -120,4 +162,18 @@ function ResultTable({ rows }) {
       </tbody>
     </table>
   );
+}
+
+function resultLabel(row) {
+  if (row.isEca) {
+    return `${row.resultCode} · incomplete CA`;
+  }
+  if (row.version > 1) {
+    return `${row.resultCode} · updated`;
+  }
+  return row.resultCode;
+}
+
+function resultMarkClass(row) {
+  return row.isEca ? 'result-mark result-mark--eca' : 'result-mark';
 }

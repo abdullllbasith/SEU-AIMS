@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { experienceApi } from './experience-api.js';
+import { PageHeader } from '../../ui/PageHeader.jsx';
 
 export function StudentSearchPage() {
-  const [query, setQuery] = useState('');
+  const [params] = useSearchParams();
+  const [query, setQuery] = useState(params.get('q') || '');
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
 
@@ -25,11 +27,10 @@ export function StudentSearchPage() {
 
   return (
     <section>
-      <h1>Search official learning content</h1>
-      <p>
-        Searches your authorized subject offerings and published official resources only. Study Room
-        files are excluded.
-      </p>
+      <PageHeader
+        title="Search official learning content"
+        purpose="Searches your authorized subject offerings and published official resources only. Study Room files are excluded."
+      />
       <label>
         Subject code, name, or resource title
         <input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={64} />
@@ -45,7 +46,7 @@ export function StudentSearchPage() {
       {data?.offerings?.length ? (
         <>
           <h2>Subjects</h2>
-          <ul>
+          <ul className="entity-list">
             {data.offerings.map((item) => (
               <li key={item.id}>
                 <Link to={item.learningPath}>
@@ -59,7 +60,7 @@ export function StudentSearchPage() {
       {data?.resources?.length ? (
         <>
           <h2>Official resources</h2>
-          <ul>
+          <ul className="entity-list">
             {data.resources.map((item) => (
               <li key={item.id}>
                 <Link to={item.learningPath}>

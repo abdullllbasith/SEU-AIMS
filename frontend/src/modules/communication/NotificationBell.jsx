@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { communicationApi } from './communication-api.js';
+import { useEffect, useState } from 'react';
 
 export function NotificationBell() {
   const [count, setCount] = useState(0);
@@ -21,8 +21,9 @@ export function NotificationBell() {
   }, []);
 
   return (
-    <Link to="/notifications" aria-label="Notifications">
-      Notifications{count ? ` (${count})` : ''}
+    <Link to="/notifications" className="notice-chip" aria-label="Notifications">
+      Notifications
+      {count ? <span className="notice-chip__count">{count}</span> : null}
     </Link>
   );
 }

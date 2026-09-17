@@ -58,7 +58,7 @@ export function StudentLearningPage() {
       </label>
       <h2>Current semester</h2>
       {visibleCurrent.length === 0 ? <p>No subject offerings match this filter.</p> : null}
-      <ul>
+      <ul className="entity-list">
         {visibleCurrent.map((item) => (
           <li key={item.id}>
             <Link to={`/learning/offerings/${item.id}`}>
@@ -69,7 +69,7 @@ export function StudentLearningPage() {
       </ul>
       <h2>Academic history</h2>
       {history.length === 0 ? <p>No historical offerings recorded yet.</p> : null}
-      <ul>
+      <ul className="entity-list">
         {history.map((item) => (
           <li key={item.id}>
             <Link to={`/learning/offerings/${item.id}`}>

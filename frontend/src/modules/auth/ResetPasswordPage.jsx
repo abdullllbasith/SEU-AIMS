@@ -23,7 +23,7 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <section>
+    <section className="auth-card">
       <h1>Choose a new password</h1>
       {done ? (
         <p>

@@ -43,7 +43,7 @@ export function LecturerLearningPage() {
       <h1>Official resources</h1>
       <p>Manage materials only for subject offerings assigned to you.</p>
       {items.length === 0 ? <p>You have no active assignments.</p> : null}
-      <ul>
+      <ul className="entity-list">
         {items.map((item) => (
           <li key={item.id}>
             <Link to={`/learning/offerings/${item.id}`}>

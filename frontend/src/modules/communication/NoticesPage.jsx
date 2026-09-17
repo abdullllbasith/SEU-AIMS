@@ -46,7 +46,7 @@ export function NoticesPage() {
         </form>
       ) : null}
       {items.length === 0 ? <p>No published notices for your scope.</p> : null}
-      <ul>
+      <ul className="entity-list">
         {items.map((item) => (
           <li key={item.id} id={`notice-${item.id}`}>
             <strong>{item.title}</strong>

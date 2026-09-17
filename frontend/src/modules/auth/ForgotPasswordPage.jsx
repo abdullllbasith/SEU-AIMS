@@ -16,7 +16,7 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <section>
+    <section className="auth-card">
       <h1>Reset password</h1>
       {done ? (
         <p>If an account exists, a reset message was sent.</p>
