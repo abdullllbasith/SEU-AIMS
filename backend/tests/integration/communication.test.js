@@ -546,3 +546,35 @@ test('cancelled and rescheduled events do not fire stale reminders; duplicate re
   assert.equal(cancelled.reason, 'INACTIVE');
   assert.equal(await CalendarEvent.countDocuments(CalendarEvent.activeFilter({ _id: event._id })), 0);
 });
+
+test('communication reconciliation reports an open reminder for a cancelled event and does not send it', async () => {
+  const { department, admin } = await seed();
+  const session = await login('admin@example.test');
+  const student = await login('student@example.test');
+  const event = await CalendarEvent.create({
+    title: 'Cancelled deadline',
+    startsAt: new Date(Date.now() + 48 * 3600_000),
+    createdByUserId: admin._id,
+    departmentId: department._id,
+    eventType: 'DEPARTMENT',
+    publicationState: 'PUBLISHED',
+    cancelledAt: new Date(),
+  });
+  await Notification.create({
+    recipientUserId: (await User.findOne({ email: 'student@example.test' }))._id,
+    type: 'CALENDAR_REMINDER',
+    sourceModule: 'notices-calendar',
+    sourceId: String(event._id),
+    channel: 'IN_APP',
+    status: 'SCHEDULED',
+    departmentId: department._id,
+    mandatory: false,
+    idempotencyKey: `test-cancelled-reminder:${event._id}`,
+  });
+  const denied = await student.agent.get('/api/calendar/admin/reconciliation');
+  assert.equal(denied.status, 403);
+  const report = await session.agent.get('/api/calendar/admin/reconciliation');
+  assert.equal(report.status, 200);
+  assert.equal(report.body.data.issues.some((item) => item.issue === 'REMINDER_FOR_CANCELLED_EVENT'), true);
+  assert.equal(await Notification.countDocuments({ type: 'CALENDAR_REMINDER', status: 'SENT' }), 0);
+});

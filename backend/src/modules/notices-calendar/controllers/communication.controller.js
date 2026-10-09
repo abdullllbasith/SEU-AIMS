@@ -2,6 +2,7 @@ import { sendSuccess } from '../../../shared/http/api-response.js';
 import { asyncHandler } from '../../../shared/http/async-handler.js';
 import * as noticeService from '../services/notice.service.js';
 import * as calendarService from '../services/calendar.service.js';
+import * as reconciliationService from '../services/communication-reconciliation.service.js';
 
 function deps(req) {
   return {
@@ -37,6 +38,9 @@ export function createCalendarController() {
   return {
     list: asyncHandler(async (req, res) => {
       sendSuccess(res, await calendarService.listEvents(req.principal, req.query));
+    }),
+    reconciliation: asyncHandler(async (req, res) => {
+      sendSuccess(res, await reconciliationService.reconcileCommunication(req.principal));
     }),
     upcoming: asyncHandler(async (req, res) => {
       sendSuccess(res, await calendarService.upcomingEvents(req.principal));

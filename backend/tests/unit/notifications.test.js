@@ -22,6 +22,24 @@ test('mandatory notification types cannot be treated as optional preference targ
   assert.equal(isMandatoryType('CA_REMINDER'), false);
 });
 
+test('optional channels follow preferences and mandatory channels do not', async () => {
+  const { channelsForNotification } = await import('../../src/modules/notifications/services/channel-policy.js');
+  assert.deepEqual(
+    channelsForNotification({
+      type: 'CA_REMINDER',
+      preferences: { emailEnabled: false, whatsappEnabled: true, inAppEnabled: true },
+    }),
+    ['IN_APP', 'WHATSAPP'],
+  );
+  assert.deepEqual(
+    channelsForNotification({
+      type: 'RESULTS_UPDATED',
+      preferences: { emailEnabled: false, whatsappEnabled: false, inAppEnabled: false },
+    }),
+    ['IN_APP', 'EMAIL', 'WHATSAPP'],
+  );
+});
+
 test('provider acceptance is not treated as delivered', () => {
   assert.equal(classifyProviderResult({ accepted: true, category: 'accepted' }).status, 'SENT');
   assert.notEqual(classifyProviderResult({ accepted: true }).status, 'DELIVERED');

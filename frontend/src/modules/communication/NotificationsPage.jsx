@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { communicationApi } from './communication-api.js';
 import { PageHeader } from '../../ui/PageHeader.jsx';
+import { useAuth } from '../../state/AuthProvider.jsx';
+import { ROLES } from '../../constants/roles.js';
 
 export function NotificationsPage() {
+  const { user } = useAuth();
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [items, setItems] = useState([]);
   const [prefs, setPrefs] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [checks, setChecks] = useState(null);
 
   useEffect(() => {
     communicationApi
@@ -82,6 +86,23 @@ export function NotificationsPage() {
           ) : null
         }
       />
+
+      {user?.role === ROLES.DEPARTMENT_ADMINISTRATOR ? (
+        <p>
+          <button
+            type="button"
+            onClick={() =>
+              communicationApi
+                .communicationChecks()
+                .then((body) => setChecks(body.data))
+                .catch((caught) => setError(caught.message))
+            }
+          >
+            Check reminders
+          </button>
+          {checks ? ` Open deliveries ${checks.openDeliveryCount}. Checks ${checks.issueCount}.` : null}
+        </p>
+      ) : null}
 
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {successMessage ? (

@@ -7,6 +7,7 @@ export const communicationApi = {
   markAllRead: () => apiRequest('/notifications/mark-all-read', { method: 'POST', body: JSON.stringify({}) }),
   preferences: () => apiRequest('/notifications/preferences'),
   savePreferences: (body) => apiRequest('/notifications/preferences', { method: 'PATCH', body: JSON.stringify(body) }),
+  communicationChecks: () => apiRequest('/calendar/admin/reconciliation'),
   notices: () => apiRequest('/notices'),
   notice: (id) => apiRequest(`/notices/${id}`),
   adminCreateNotice: (body) => apiRequest('/notices/admin', { method: 'POST', body: JSON.stringify(body) }),

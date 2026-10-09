@@ -5,6 +5,7 @@ import { MANDATORY_NOTIFICATION_TYPES, OPTIONAL_NOTIFICATION_TYPES } from '../co
 import { BUILTIN_TITLES, renderTemplate } from '../utils/templates.js';
 import { safeActionPath } from '../utils/http.js';
 import { getPreferences } from './preference.service.js';
+import { channelsForNotification } from './channel-policy.js';
 import { User } from '../../authentication/models/user.model.js';
 
 function categoryFor(type) {
@@ -41,22 +42,6 @@ export async function resolveTitle(type, vars, locale = 'en') {
   return renderTemplate(template, vars);
 }
 
-function channelAllowed(channel, prefs, mandatory) {
-  if (mandatory) {
-    return true;
-  }
-  if (channel === 'IN_APP') {
-    return prefs.inAppEnabled !== false;
-  }
-  if (channel === 'EMAIL') {
-    return prefs.emailEnabled !== false;
-  }
-  if (channel === 'WHATSAPP') {
-    return prefs.whatsappEnabled !== false;
-  }
-  return false;
-}
-
 export async function fanoutNotification({
   recipientUserId,
   type,
@@ -80,14 +65,9 @@ export async function fanoutNotification({
   const prefs = await getPreferences({ userId: recipientUserId });
   const title = await resolveTitle(type, vars, prefs.locale);
   const body = renderTemplate(vars.bodyTemplate || title, vars);
+  const allowed = new Set(channelsForNotification({ type, preferences: prefs, requested: channels }));
   let created = 0;
-  for (const channel of channels) {
-    if (!channelAllowed(channel, prefs, mandatory) && channel !== 'IN_APP') {
-      continue;
-    }
-    if (channel === 'IN_APP' && prefs.inAppEnabled === false && !mandatory) {
-      continue;
-    }
+  for (const channel of allowed) {
     const idempotencyKey = reminderOffsetDays
       ? `${type}:${sourceId}:${reminderOffsetDays}:${channel}`
       : reminderOffsetHours !== undefined && reminderOffsetHours !== null

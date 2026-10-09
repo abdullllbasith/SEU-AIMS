@@ -28,6 +28,7 @@ export function createCalendarRouter() {
   const router = Router();
   const controller = createCalendarController();
   router.get('/events', requireRole(ROLES.STUDENT, ROLES.LECTURER, ROLES.DEPARTMENT_ADMINISTRATOR), controller.list);
+  router.get('/admin/reconciliation', requireDepartmentAdmin(), controller.reconciliation);
   router.get('/upcoming', requireRole(ROLES.STUDENT, ROLES.LECTURER, ROLES.DEPARTMENT_ADMINISTRATOR), controller.upcoming);
   router.post('/admin/events', requireDepartmentAdmin(), requireCsrf, writeLimiter, controller.adminCreate);
   router.patch('/admin/events/:eventId', requireDepartmentAdmin(), requireCsrf, controller.update);
