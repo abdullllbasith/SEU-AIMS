@@ -17,9 +17,17 @@ export const resultsApi = {
   preview: (id, params) => apiRequest(`/results/imports/${id}/preview${qs(params)}`),
   createImport: (formData) => apiRequest('/results/imports', { method: 'POST', body: formData }),
   commit: (id) => apiRequest(`/results/imports/${id}/commit`, { method: 'POST', body: JSON.stringify({}) }),
+  reject: (id) => apiRequest(`/results/imports/${id}/reject`, { method: 'POST', body: JSON.stringify({}) }),
+  reprocess: (id) => apiRequest(`/results/imports/${id}/reprocess`, { method: 'POST', body: JSON.stringify({}) }),
+  records: (params) => apiRequest(`/results/records${qs(params)}`),
+  versions: (id) => apiRequest(`/results/records/${id}/versions`),
+  analytics: () => apiRequest('/results/analytics'),
+  reconciliation: () => apiRequest('/results/reconciliation'),
   me: () => apiRequest('/results/me'),
 };
 
 export const gpaApi = {
   me: () => apiRequest('/gpa/me'),
+  quality: () => apiRequest('/gpa/admin/quality'),
+  rebuild: () => apiRequest('/gpa/admin/rebuild', { method: 'POST', body: JSON.stringify({}) }),
 };

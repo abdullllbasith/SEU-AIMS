@@ -40,8 +40,8 @@ export function PerformancePage() {
       <p>{formatGpaDisplay(data.gpa)}</p>
       {data.gpa.available ? (
         <p>
-          Credits counted: {data.gpa.credits}. Classification: {data.gpa.classification || '—'}. Engine:{' '}
-          {data.gpa.engine}.
+          Credits counted: {data.gpa.credits}. Classification: {data.gpa.classification || '—'}. Calculation{' '}
+          {data.gpa.calculationVersion || data.gpa.engine}.
         </p>
       ) : null}
       <p>{data.explanation}</p>

@@ -8,7 +8,22 @@ const gpaSnapshotSchema = new mongoose.Schema(
     academicYearId: { type: objectId, ref: 'AcademicYear' },
     semesterId: { type: objectId, ref: 'Semester' },
     value: { type: Number },
-    status: { type: String, required: true, enum: ['CURRENT', 'STALE'], default: 'STALE' },
+    status: { type: String, required: true, enum: ['CURRENT', 'STALE', 'UNAVAILABLE', 'FAILED'], default: 'STALE' },
+    calculationVersion: { type: String, trim: true },
+    inputResultVersions: [
+      {
+        resultId: { type: String, trim: true },
+        version: { type: Number },
+        subjectCode: { type: String, trim: true },
+      },
+    ],
+    excluded: [
+      {
+        subjectCode: { type: String, trim: true },
+        resultCode: { type: String, trim: true },
+        reason: { type: String, trim: true },
+      },
+    ],
     credits: { type: Number, default: 0 },
     qualityPoints: { type: Number, default: 0 },
     classification: { type: String, trim: true },

@@ -4,6 +4,12 @@
 
 **Must not own:** Official results, GPA formulas, email/WhatsApp provider delivery, calendar storage, or a HOD portal. Completing a CA does **not** write a grade.
 
+## Provenance
+
+An incomplete-CA condition stores the official result version and, when present, the source import. Resolution records `resolvedAt` and `resolutionSource: OFFICIAL_RESULT`. A later `E(CA)` on the same result reopens the condition. It does not create a second one.
+
+`GET /api/ca/admin/reconciliation` reports drift and does not edit records. `POST /api/ca/admin/backfill` creates missing conditions for current `E(CA)` results only.
+
 ## State machine
 
 `DRAFT` → `SUBMITTED` → `UNDER_VERIFICATION` (after physical verify) → `APPROVED` or `REJECTED`.  

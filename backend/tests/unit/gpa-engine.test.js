@@ -54,6 +54,32 @@ test('E(CA) and unknown markers are excluded rather than mapped to E=0', () => {
   assert.equal(result.excluded.some((item) => item.resultCode === 'ABSENT'), true);
 });
 
+test('missing credits and an empty set do not become a zero GPA', () => {
+  const missing = calculateWeightedGpa([
+    { subjectCode: 'ICT1233', resultCode: 'A', credits: 3, countsForGpa: true },
+    { subjectCode: 'ICT9999', resultCode: 'B', credits: null, countsForGpa: true },
+  ]);
+  assert.equal(missing.gpa, 4);
+  assert.equal(missing.credits, 3);
+  assert.equal(missing.excluded.some((item) => item.reason === 'MISSING_CREDITS'), true);
+  const empty = calculateWeightedGpa([]);
+  assert.equal(empty.gpa, null);
+  assert.equal(empty.credits, 0);
+});
+
+test('the same courses in another order produce the same GPA', () => {
+  const first = calculateWeightedGpa([
+    { subjectCode: 'ICT1233', resultCode: 'A', credits: 3, countsForGpa: true },
+    { subjectCode: 'ICT1242', resultCode: 'C', credits: 2, countsForGpa: true },
+  ]);
+  const second = calculateWeightedGpa([
+    { subjectCode: 'ICT1242', resultCode: 'C', credits: 2, countsForGpa: true },
+    { subjectCode: 'ICT1233', resultCode: 'A', credits: 3, countsForGpa: true },
+  ]);
+  assert.equal(first.gpa, second.gpa);
+  assert.equal(first.gpa, round2((3 * 4 + 2 * 2) / 5));
+});
+
 test('class bands follow the calculator thresholds', () => {
   assert.equal(classifyDegreeByGpa(3.7), 'First Class');
   assert.equal(classifyDegreeByGpa(3.3), 'Second Class (Upper Division)');

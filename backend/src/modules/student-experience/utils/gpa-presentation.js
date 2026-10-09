@@ -1,5 +1,5 @@
 export function presentGpaSummary(summary) {
-  if (!summary || !Number(summary.credits)) {
+  if (!summary || summary.status === 'STALE' || summary.status === 'FAILED' || !Number(summary.credits)) {
     return {
       available: false,
       gpa: null,
@@ -8,6 +8,7 @@ export function presentGpaSummary(summary) {
       classification: null,
       status: summary?.status || 'UNAVAILABLE',
       engine: summary?.engine || null,
+      calculationVersion: summary?.calculationVersion || null,
       calculatedAt: summary?.calculatedAt || null,
       semesters: [],
       excluded: summary?.excluded || [],
@@ -21,6 +22,7 @@ export function presentGpaSummary(summary) {
     classification: summary.classification || null,
     status: summary.status,
     engine: summary.engine,
+    calculationVersion: summary.calculationVersion || null,
     calculatedAt: summary.calculatedAt || null,
     semesters: summary.semesters || [],
     excluded: summary.excluded || [],

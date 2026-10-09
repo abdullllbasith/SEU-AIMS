@@ -4,6 +4,7 @@ import { academicApi } from './academic-api.js';
 
 export function AdminCaPage() {
   const [error, setError] = useState('');
+  const [report, setReport] = useState(null);
   const [items, setItems] = useState([]);
   const [years, setYears] = useState([]);
   const [semesters, setSemesters] = useState([]);
@@ -34,6 +35,27 @@ export function AdminCaPage() {
     <section className="admin-page">
       <h1>CA recovery administration</h1>
       {error ? <p className="form-error">{error}</p> : null}
+      <p>
+        <button type="button" onClick={() => caApi.reconciliation().then((response) => setReport(response.data)).catch((caught) => setError(caught.message))}>
+          Check CA conditions
+        </button>{' '}
+        <button
+          type="button"
+          onClick={() => {
+            if (!window.confirm('Create missing incomplete-CA conditions for current E(CA) results? Official grades are not changed.')) {
+              return;
+            }
+            caApi
+              .backfill()
+              .then(() => caApi.reconciliation())
+              .then((response) => setReport(response.data))
+              .catch((caught) => setError(caught.message));
+          }}
+        >
+          Backfill missing conditions
+        </button>
+      </p>
+      {report ? <p>Checks: {report.issueCount}</p> : null}
       <h2>Application window</h2>
       <form
         onSubmit={(event) => {

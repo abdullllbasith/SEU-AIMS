@@ -10,6 +10,7 @@ import { requireObjectId } from '../utils/http.js';
 import { emitCaNotification, recordCaAudit } from './notify.js';
 import { CaApplicationEvent } from '../models/ca-application-event.model.js';
 import { queueRemindersForSchedule } from './reminder.service.js';
+import { assertApplicationTransition } from './transitions.js';
 
 function assertLecturer(principal) {
   if (!principal || principal.role !== ROLES.LECTURER) {
@@ -126,6 +127,7 @@ export async function createSchedule(principal, body, { infrastructure }) {
   }
 
   if (application.workflowStatus === 'APPROVED') {
+    assertApplicationTransition(application.workflowStatus, 'SCHEDULED');
     application.workflowStatus = 'SCHEDULED';
     await application.save();
     await CaApplicationEvent.create({
@@ -212,13 +214,15 @@ export async function completeApplication(principal, applicationId) {
   if (!['SCHEDULED', 'APPROVED'].includes(application.workflowStatus)) {
     throw new ValidationError('Application is not ready to complete');
   }
+  const fromStatus = application.workflowStatus;
+  assertApplicationTransition(fromStatus, 'COMPLETED');
   application.workflowStatus = 'COMPLETED';
   await application.save();
   await CaApplicationEvent.create({
     applicationId: application._id,
     type: 'COMPLETED',
     actorUserId: principal.userId,
-    fromStatus: 'SCHEDULED',
+      fromStatus,
     toStatus: 'COMPLETED',
     occurredAt: new Date(),
   });

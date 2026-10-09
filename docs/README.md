@@ -27,5 +27,7 @@ This tree describes **this repository**. Product decisions in the Architecture p
 | [ops/admin-operations.md](./ops/admin-operations.md) | Prompt 18 admin dashboard |
 | [qa/student-experience-map.md](./qa/student-experience-map.md) | Prompt 19 student workspace map |
 | [ops/lecturer-workspace.md](./ops/lecturer-workspace.md) | Prompt 20 lecturer workspace |
+| [ops/result-processing.md](./ops/result-processing.md) | Prompt 21 result processing |
+| [ops/gpa.md](./ops/gpa.md) | Prompt 22 GPA calculation |
 
 Unresolved institutional policy is labeled **unconfirmed** — do not treat those notes as academic law.

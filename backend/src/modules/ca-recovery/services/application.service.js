@@ -17,6 +17,7 @@ import {
   ValidationError,
 } from '../../../shared/errors/app-error.js';
 import { createPublicApplicationId, createQrVerificationToken } from '../public-ids.js';
+import { assertApplicationTransition } from './transitions.js';
 import { JOB_NAMES } from '../../../infrastructure/queue/job-names.js';
 import { isAtOrBeforeDeadline, parsePagination, requireObjectId, windowLifecycle } from '../utils/http.js';
 import { emitCaNotification, recordCaAudit } from './notify.js';
@@ -328,6 +329,7 @@ export async function submitApplication(principal, applicationId, { config, infr
   }
 
   const fromStatus = doc.workflowStatus;
+  assertApplicationTransition(fromStatus, 'SUBMITTED');
   doc.workflowStatus = 'SUBMITTED';
   doc.physicalVerificationStatus = 'AWAITING_PHYSICAL';
   doc.submittedAt = now;
@@ -403,6 +405,7 @@ export async function verifyPhysical(principal, applicationId, body) {
   const outcome = String(body.outcome || 'verified');
   const fromStatus = doc.workflowStatus;
   if (outcome === 'failed') {
+    assertApplicationTransition(fromStatus, 'REJECTED');
     doc.physicalVerificationStatus = 'VERIFICATION_FAILED';
     doc.workflowStatus = 'REJECTED';
     doc.decisionReason = String(body.reason || 'Physical verification failed');
@@ -412,6 +415,9 @@ export async function verifyPhysical(principal, applicationId, body) {
     doc.physicalVerificationStatus = 'PHYSICALLY_VERIFIED';
     doc.physicallyVerifiedAt = new Date();
     doc.verifiedByAdminUserId = principal.userId;
+    if (fromStatus !== 'UNDER_VERIFICATION') {
+      assertApplicationTransition(fromStatus, 'UNDER_VERIFICATION');
+    }
     doc.workflowStatus = 'UNDER_VERIFICATION';
   }
   await doc.save();
@@ -433,6 +439,7 @@ export async function approveApplication(principal, applicationId, { infrastruct
     throw new ValidationError('Physical verification is required before approval');
   }
   const fromStatus = doc.workflowStatus;
+  assertApplicationTransition(fromStatus, 'APPROVED');
   doc.workflowStatus = 'APPROVED';
   doc.decidedAt = new Date();
   doc.decidedByUserId = principal.userId;
@@ -472,6 +479,7 @@ export async function rejectApplication(principal, applicationId, body, { infras
     throw new ValidationError('A rejection reason is required');
   }
   const fromStatus = doc.workflowStatus;
+  assertApplicationTransition(fromStatus, 'REJECTED');
   doc.workflowStatus = 'REJECTED';
   doc.decisionReason = reason;
   doc.decidedAt = new Date();
@@ -506,6 +514,7 @@ export async function reopenApplication(principal, applicationId, body, { infras
     throw new ValidationError('A reopen reason is required');
   }
   const fromStatus = doc.workflowStatus;
+  assertApplicationTransition(fromStatus, 'DRAFT');
   doc.workflowStatus = 'DRAFT';
   doc.physicalVerificationStatus = 'NOT_STARTED';
   doc.reopenReason = reason;

@@ -20,6 +20,7 @@ export function StudentCaPage() {
   const [applications, setApplications] = useState([]);
   const [selected, setSelected] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [timeline, setTimeline] = useState(null);
 
   async function reload() {
     const [cond, apps] = await Promise.all([caApi.conditions(), caApi.applications()]);
@@ -117,7 +118,18 @@ export function StudentCaPage() {
         {applications.map((item) => (
           <li key={item.id}>
             {item.applicationId} — {WORKFLOW_LABELS[item.workflowStatus] || item.workflowStatus}
-            {item.decisionReason ? ` (${item.decisionReason})` : ''} / PDF {item.pdfStatus}
+            {item.decisionReason ? ` (${item.decisionReason})` : ''} / PDF {item.pdfStatus}{' '}
+            <button
+              type="button"
+              onClick={() =>
+                caApi
+                  .get(item.applicationId)
+                  .then((response) => setTimeline(response.data))
+                  .catch((caught) => setError(caught.message))
+              }
+            >
+              Timeline
+            </button>
             {item.pdfStatus === 'READY' ? (
               <>
                 {' '}
@@ -127,6 +139,19 @@ export function StudentCaPage() {
           </li>
         ))}
       </ul>
+      {timeline?.timeline?.length ? (
+        <div>
+          <h2>Status timeline</h2>
+          <ul>
+            {timeline.timeline.map((event) => (
+              <li key={`${event.type}-${event.occurredAt}`}>
+                {WORKFLOW_LABELS[event.toStatus] || event.toStatus}
+                {event.reason ? ` — ${event.reason}` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

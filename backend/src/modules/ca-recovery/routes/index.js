@@ -34,6 +34,8 @@ export function createRouter() {
   router.post('/admin/applications/:applicationId/approve', requireDepartmentAdmin(), requireCsrf, controller.approve);
   router.post('/admin/applications/:applicationId/reject', requireDepartmentAdmin(), requireCsrf, controller.reject);
   router.post('/admin/applications/:applicationId/reopen', requireDepartmentAdmin(), requireCsrf, controller.reopen);
+  router.get('/admin/reconciliation', requireDepartmentAdmin(), controller.reconciliation);
+  router.post('/admin/backfill', requireDepartmentAdmin(), requireCsrf, controller.backfill);
 
   router.get('/lecturer/eligible-students', requireRole(ROLES.LECTURER), controller.lecturerEligible);
   router.get('/lecturer/schedules', requireRole(ROLES.LECTURER), controller.lecturerSchedules);

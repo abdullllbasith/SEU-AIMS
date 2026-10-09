@@ -4,10 +4,17 @@ import { ResultImport } from '../models/result-import.model.js';
 import { ResultImportRow } from '../models/result-import-row.model.js';
 import { AcademicResult } from '../models/academic-result.model.js';
 import { ResultRevision } from '../models/result-revision.model.js';
-import { ECA_RESULT_CODE } from '../constants.js';
+import { ECA_RESULT_CODE, RESULT_PARSER_VERSION } from '../constants.js';
 import { parseXlsxResults } from './xlsx-parser.js';
 import { parsePdfResults } from './pdf-parser.js';
-import { isKnownGrade, looksLikeRegistrationNumber, normalizeRegistrationNumber } from './normalize.js';
+import {
+  isKnownGrade,
+  looksLikeRegistrationNumber,
+  normalizeRegistrationNumber,
+  normalizeResultCode,
+  normalizeSubjectCode,
+} from './normalize.js';
+import { actionForExistingResult, blockConflictingIdentities } from './classification.js';
 import { mapImport, mapImportRow } from '../mappers/results.mappers.js';
 import { parsePagination, requireObjectId } from '../utils/http.js';
 import {
@@ -76,14 +83,20 @@ function summarize(rows) {
     ecaRows: rows.filter((row) => row.isEca).length,
     updateRows: rows.filter((row) => row.proposedAction === 'UPDATE').length,
     newRows: rows.filter((row) => row.proposedAction === 'NEW').length,
+    unchangedRows: rows.filter((row) => row.proposedAction === 'UNCHANGED').length,
+    conflictRows: rows.filter((row) => (row.validationErrors || []).includes('INTRA_IMPORT_CONFLICT')).length,
+    duplicateRows: rows.filter((row) => (row.validationErrors || []).includes('INTRA_IMPORT_DUPLICATE')).length,
   };
 }
 
 async function classifyRow({ importDoc, parsed, seen }) {
   const errors = [];
-  const registrationNumber = normalizeRegistrationNumber(parsed.registrationNumber);
-  const subjectCode = String(parsed.subjectCode || '').trim().toUpperCase();
-  const resultCode = String(parsed.resultCode || '').trim();
+  const sourceRegistrationNumber = String(parsed.registrationNumber || '').trim();
+  const sourceSubjectCode = String(parsed.subjectCode || '').trim();
+  const sourceResultCode = String(parsed.resultCode || '').trim();
+  const registrationNumber = normalizeRegistrationNumber(sourceRegistrationNumber);
+  const subjectCode = normalizeSubjectCode(sourceSubjectCode);
+  const resultCode = normalizeResultCode(sourceResultCode);
   const isEca = resultCode === ECA_RESULT_CODE;
   let rowStatus = 'VALID';
   let matchStatus = 'UNMATCHED';
@@ -105,9 +118,7 @@ async function classifyRow({ importDoc, parsed, seen }) {
     rowStatus = 'BLOCKED';
   } else if (!isEca && !isKnownGrade(resultCode)) {
     errors.push('UNKNOWN_RESULT_MARKER');
-    if (rowStatus !== 'BLOCKED') {
-      rowStatus = 'WARNING';
-    }
+    rowStatus = 'BLOCKED';
   }
 
   const identityKey = `${registrationNumber}|${subjectCode}`;
@@ -168,7 +179,7 @@ async function classifyRow({ importDoc, parsed, seen }) {
 
   if (rowStatus !== 'BLOCKED' && matchedStudentUserId && subjectId && proposedAction !== 'SKIP') {
     const existing = await AcademicResult.findOne({ registrationNumber, subjectCode });
-    proposedAction = existing ? 'UPDATE' : 'NEW';
+    proposedAction = actionForExistingResult(existing?.resultCode, resultCode);
   }
 
   if (rowStatus === 'BLOCKED') {
@@ -183,6 +194,9 @@ async function classifyRow({ importDoc, parsed, seen }) {
     registrationNumber: registrationNumber || 'UNKNOWN',
     subjectCode: subjectCode || 'UNKNOWN',
     resultCode: resultCode || 'UNKNOWN',
+    sourceRegistrationNumber,
+    sourceSubjectCode,
+    sourceResultCode,
     displayName: parsed.displayName || '',
     sourceLocation: parsed.sourceLocation || '',
     matchedStudentUserId,
@@ -201,7 +215,7 @@ export async function processResultParse({ importId, infrastructure }) {
   if (!importDoc) {
     return null;
   }
-  if (['COMMITTED', 'PARSE_FAILED', 'REJECTED_FILE'].includes(importDoc.processingStatus)) {
+  if (['COMMITTED', 'COMMITTING', 'REJECTED_FILE', 'CANCELLED'].includes(importDoc.processingStatus)) {
     return importDoc;
   }
 
@@ -227,6 +241,8 @@ export async function processResultParse({ importId, infrastructure }) {
   }
 
   importDoc.processingStatus = 'PROCESSING';
+  importDoc.parserVersion = RESULT_PARSER_VERSION;
+  importDoc.parseStartedAt = new Date();
   await importDoc.save();
 
   let parsed;
@@ -249,20 +265,24 @@ export async function processResultParse({ importId, infrastructure }) {
   for (const row of parsed.rows) {
     classified.push(await classifyRow({ importDoc, parsed: row, seen }));
   }
-  if (classified.length) {
-    await ResultImportRow.insertMany(classified);
+  const finalized = blockConflictingIdentities(classified);
+  if (finalized.length) {
+    await ResultImportRow.insertMany(finalized);
   }
 
-  importDoc.summary = summarize(classified);
-  if (!classified.length) {
+  importDoc.summary = summarize(finalized);
+  if (!finalized.length) {
     importDoc.processingStatus = 'PARSE_FAILED';
     importDoc.failureCode = 'NO_ROWS';
     importDoc.failedAt = new Date();
-  } else if (classified.some((row) => row.proposedAction === 'NEW' || row.proposedAction === 'UPDATE')) {
+  } else if (finalized.some((row) => row.proposedAction === 'NEW' || row.proposedAction === 'UPDATE')) {
     importDoc.processingStatus = 'READY_FOR_REVIEW';
+    importDoc.failureCode = undefined;
+    importDoc.failedAt = undefined;
   } else {
     importDoc.processingStatus = 'VALIDATION_ISSUES';
   }
+  importDoc.parseFinishedAt = new Date();
   await importDoc.save();
   return importDoc;
 }
@@ -331,6 +351,10 @@ export async function createResultImport(principal, file, body, { config, infras
     sourceSemesterId: body?.semesterId || undefined,
     processingStatus: 'UPLOADED',
     duplicateOfImportId: committedDuplicate?._id,
+    originalFilename: displayFilename,
+    sizeBytes: file.buffer.length,
+    parserVersion: RESULT_PARSER_VERSION,
+    processingAttempt: 1,
   });
 
   await enqueueMalwareScan({ queue: infrastructure.queue, fileId: stored._id });
@@ -401,29 +425,54 @@ export async function getResultImportPreview(principal, importId, query = {}) {
   };
 }
 
+const COMMITTABLE_STATUSES = ['READY_FOR_REVIEW', 'VALIDATION_ISSUES', 'CONFIRMED', 'COMMIT_FAILED'];
+
 export async function commitResultImport(principal, importId, { infrastructure }) {
   const importDoc = await loadDepartmentImport(principal, importId);
   if (importDoc.processingStatus === 'COMMITTED') {
     return mapImport(importDoc);
   }
-  if (!['READY_FOR_REVIEW', 'VALIDATION_ISSUES', 'CONFIRMED'].includes(importDoc.processingStatus)) {
+  if (!COMMITTABLE_STATUSES.includes(importDoc.processingStatus)) {
     throw new ValidationError('Import is not ready to commit');
   }
 
+  const locked = await ResultImport.findOneAndUpdate(
+    {
+      _id: importDoc._id,
+      departmentId: principal.departmentId,
+      processingStatus: { $in: COMMITTABLE_STATUSES },
+    },
+    { $set: { processingStatus: 'COMMITTING', confirmedAt: importDoc.confirmedAt || new Date() } },
+    { new: true },
+  );
+  if (!locked) {
+    const current = await ResultImport.findById(importDoc._id);
+    if (current?.processingStatus === 'COMMITTED') {
+      return mapImport(current);
+    }
+    throw new ConflictError('Import is already being committed');
+  }
+
   const rows = await ResultImportRow.find({
-    importId: importDoc._id,
+    importId: locked._id,
     proposedAction: { $in: ['NEW', 'UPDATE'] },
-    rowStatus: { $in: ['VALID', 'WARNING'] },
+    rowStatus: 'VALID',
+    committedAt: { $exists: false },
   });
   if (!rows.length) {
-    throw new ValidationError('No valid rows are available to commit');
+    locked.processingStatus = 'VALIDATION_ISSUES';
+    locked.failureCode = 'NO_COMMITTABLE_ROWS';
+    await locked.save();
+    throw new ValidationError('No new or updated rows are available to commit');
   }
 
   const affectedStudents = new Set();
+  let writtenRows = 0;
+  try {
   for (const row of rows) {
     const student = await findStudentByRegistrationNumber(row.registrationNumber);
     const subject = await Subject.findById(row.subjectId);
-    if (!student || !subject || String(student.departmentId) !== String(importDoc.departmentId)) {
+    if (!student || !subject || String(student.departmentId) !== String(locked.departmentId)) {
       throw new ConflictError('Import rows changed since preview; re-parse required');
     }
 
@@ -432,6 +481,12 @@ export async function commitResultImport(principal, importId, { infrastructure }
       subjectCode: row.subjectCode,
     });
     const previousResultCode = official?.resultCode || '';
+    if (official && official.resultCode === row.resultCode && Boolean(official.isEca) === Boolean(row.isEca)) {
+      row.proposedAction = 'UNCHANGED';
+      row.committedAt = new Date();
+      await row.save();
+      continue;
+    }
     if (!official) {
       official = await AcademicResult.create({
         departmentId: importDoc.departmentId,
@@ -442,7 +497,7 @@ export async function commitResultImport(principal, importId, { infrastructure }
         subjectOfferingId: row.subjectOfferingId,
         studentAcademicYearId: student.currentAcademicYearId,
         studentSemesterId: student.currentSemesterId,
-        sourceImportId: importDoc._id,
+        sourceImportId: locked._id,
         sourceBatchId: student.batchId,
         resultCode: row.resultCode,
         previousResultCode: '',
@@ -457,7 +512,7 @@ export async function commitResultImport(principal, importId, { infrastructure }
       official.previousResultCode = official.resultCode;
       official.resultCode = row.resultCode;
       official.isEca = row.isEca;
-      official.sourceImportId = importDoc._id;
+      official.sourceImportId = locked._id;
       official.committedByUserId = principal.userId;
       official.version += 1;
       await official.save();
@@ -465,7 +520,7 @@ export async function commitResultImport(principal, importId, { infrastructure }
 
     await ResultRevision.create({
       academicResultId: official._id,
-      importId: importDoc._id,
+      importId: locked._id,
       actorUserId: principal.userId,
       registrationNumber: row.registrationNumber,
       subjectCode: row.subjectCode,
@@ -477,64 +532,134 @@ export async function commitResultImport(principal, importId, { infrastructure }
       action: 'results.commit.row',
       entityType: 'AcademicResult',
       entityId: official._id,
-      departmentId: importDoc.departmentId,
+      departmentId: locked.departmentId,
       metadata: {
         subjectCode: row.subjectCode,
         previousResultCode,
         newResultCode: row.resultCode,
-        importId: String(importDoc._id),
+        importId: String(locked._id),
       },
     });
     await syncIncompleteCaFromResult(official);
     row.committedAt = new Date();
     await row.save();
+    writtenRows += 1;
     affectedStudents.add(String(student.userId));
   }
+  } catch (error) {
+    locked.processingStatus = 'COMMIT_FAILED';
+    locked.failureCode = 'COMMIT_EXCEPTION';
+    locked.failedAt = new Date();
+    await locked.save();
+    throw error;
+  }
 
-  importDoc.processingStatus = 'COMMITTED';
-  importDoc.committedAt = new Date();
-  importDoc.committedByUserId = principal.userId;
-  importDoc.confirmedAt = importDoc.confirmedAt || new Date();
-  await importDoc.save();
+  locked.processingStatus = 'COMMITTED';
+  locked.committedAt = new Date();
+  locked.committedByUserId = principal.userId;
+  locked.failureCode = undefined;
+  locked.failedAt = undefined;
+  await locked.save();
 
+  const downstreamFailures = [];
   for (const studentUserId of affectedStudents) {
     try {
       await fanoutNotification({
         recipientUserId: studentUserId,
         type: 'RESULTS_UPDATED',
         sourceModule: 'results',
-        sourceId: String(importDoc._id),
+        sourceId: String(locked._id),
         actionPath: '/results/me',
-        departmentId: importDoc.departmentId,
+        departmentId: locked.departmentId,
         infrastructure,
       });
     } catch (error) {
       if (error?.code !== 11000) {
-        throw error;
+        downstreamFailures.push({ studentUserId, stage: 'notification' });
+        infrastructure.logger?.warn('Result notification failed after commit', {
+          importId: String(locked._id),
+          message: error.message,
+        });
       }
     }
-    if (infrastructure.queue?.enqueue) {
-      await infrastructure.queue.enqueue({
-        name: JOB_NAMES.GPA_RECALCULATE,
-        payload: { studentUserId },
-        jobId: `gpa.recalculate:${studentUserId}:${importDoc._id}`,
-      });
-      await infrastructure.queue.enqueue({
-        name: JOB_NAMES.ECA_DETECT,
-        payload: { studentUserId, importId: String(importDoc._id) },
-        jobId: `results.eca:${studentUserId}:${importDoc._id}`,
+    try {
+      if (infrastructure.queue?.enqueue) {
+        await infrastructure.queue.enqueue({
+          name: JOB_NAMES.GPA_RECALCULATE,
+          payload: { studentUserId },
+          jobId: `gpa.recalculate:${studentUserId}:${locked._id}`,
+        });
+        await infrastructure.queue.enqueue({
+          name: JOB_NAMES.ECA_DETECT,
+          payload: { studentUserId, importId: String(locked._id) },
+          jobId: `results.eca:${studentUserId}:${locked._id}`,
+        });
+      }
+      await recalculateStudentGpa(studentUserId);
+    } catch (error) {
+      downstreamFailures.push({ studentUserId, stage: 'gpa' });
+      infrastructure.logger?.warn('GPA recalculation failed after result commit', {
+        importId: String(locked._id),
+        message: error.message,
       });
     }
-    await recalculateStudentGpa(studentUserId);
   }
 
   await recordAudit({
     actorUserId: principal.userId,
     action: 'results.import.commit',
-    entityId: importDoc._id,
-    departmentId: importDoc.departmentId,
-    metadata: { committedRows: rows.length, students: affectedStudents.size },
+    entityId: locked._id,
+    departmentId: locked.departmentId,
+    metadata: {
+      committedRows: writtenRows,
+      students: affectedStudents.size,
+      downstreamFailures: downstreamFailures.length,
+    },
   });
 
+  return mapImport(locked);
+}
+
+export async function rejectResultImport(principal, importId) {
+  const importDoc = await loadDepartmentImport(principal, importId);
+  if (importDoc.processingStatus === 'COMMITTED') {
+    throw new ConflictError('A committed import cannot be rejected');
+  }
+  if (importDoc.processingStatus === 'COMMITTING') {
+    throw new ConflictError('Import is being committed');
+  }
+  if (importDoc.processingStatus === 'CANCELLED') {
+    return mapImport(importDoc);
+  }
+  importDoc.processingStatus = 'CANCELLED';
+  await importDoc.save();
+  await recordAudit({
+    actorUserId: principal.userId,
+    action: 'results.import.reject',
+    entityId: importDoc._id,
+    departmentId: importDoc.departmentId,
+    metadata: {},
+  });
   return mapImport(importDoc);
+}
+
+export async function reprocessResultImport(principal, importId, { infrastructure }) {
+  const importDoc = await loadDepartmentImport(principal, importId);
+  if (['COMMITTED', 'COMMITTING'].includes(importDoc.processingStatus)) {
+    throw new ConflictError('A committed import cannot be reprocessed');
+  }
+  importDoc.processingStatus = 'UPLOADED';
+  importDoc.processingAttempt = (importDoc.processingAttempt || 1) + 1;
+  importDoc.failureCode = undefined;
+  importDoc.failedAt = undefined;
+  await importDoc.save();
+  await processResultParse({ importId: importDoc._id, infrastructure });
+  await recordAudit({
+    actorUserId: principal.userId,
+    action: 'results.import.reprocess',
+    entityId: importDoc._id,
+    departmentId: importDoc.departmentId,
+    metadata: { processingAttempt: importDoc.processingAttempt },
+  });
+  return mapImport(await ResultImport.findById(importDoc._id));
 }

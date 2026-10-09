@@ -26,6 +26,12 @@ export function createRouter() {
     upload.single('file')(req, res, next);
   }, controller.createImport);
   router.post('/imports/:importId/commit', requireDepartmentAdmin(), requireCsrf, controller.commitImport);
+  router.post('/imports/:importId/reject', requireDepartmentAdmin(), requireCsrf, controller.rejectImport);
+  router.post('/imports/:importId/reprocess', requireDepartmentAdmin(), requireCsrf, controller.reprocessImport);
+  router.get('/records', requireDepartmentAdmin(), controller.searchRecords);
+  router.get('/records/:resultId/versions', requireDepartmentAdmin(), controller.resultVersions);
+  router.get('/analytics', requireDepartmentAdmin(), controller.analytics);
+  router.get('/reconciliation', requireDepartmentAdmin(), controller.reconciliation);
 
   return router;
 }

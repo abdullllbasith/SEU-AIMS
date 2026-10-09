@@ -29,6 +29,8 @@ export const caApi = {
     apiRequest(`/ca/admin/applications/${id}/reject`, { method: 'POST', body: JSON.stringify(body) }),
   reopen: (id, body) =>
     apiRequest(`/ca/admin/applications/${id}/reopen`, { method: 'POST', body: JSON.stringify(body) }),
+  reconciliation: () => apiRequest('/ca/admin/reconciliation'),
+  backfill: () => apiRequest('/ca/admin/backfill', { method: 'POST', body: JSON.stringify({}) }),
   lecturerEligible: () => apiRequest('/ca/lecturer/eligible-students'),
   lecturerSchedules: () => apiRequest('/ca/lecturer/schedules'),
   createSchedule: (body) => apiRequest('/ca/lecturer/schedules', { method: 'POST', body: JSON.stringify(body) }),

@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { MATCH_STATUSES, ROW_STATUSES } from '../constants.js';
+import { MATCH_STATUSES, PROPOSED_ACTIONS, ROW_STATUSES } from '../constants.js';
 import { defineModel, objectId, persistenceOptions } from '../../../infrastructure/database/define-model.js';
 
 const resultImportRowSchema = new mongoose.Schema(
@@ -8,6 +8,9 @@ const resultImportRowSchema = new mongoose.Schema(
     registrationNumber: { type: String, required: true, trim: true, uppercase: true },
     subjectCode: { type: String, required: true, trim: true, uppercase: true },
     resultCode: { type: String, required: true, trim: true },
+    sourceRegistrationNumber: { type: String, trim: true, default: '' },
+    sourceSubjectCode: { type: String, trim: true, default: '' },
+    sourceResultCode: { type: String, trim: true, default: '' },
     displayName: { type: String, trim: true, default: '' },
     sourceLocation: { type: String, trim: true, default: '' },
     matchedStudentUserId: { type: objectId, ref: 'User' },
@@ -20,7 +23,7 @@ const resultImportRowSchema = new mongoose.Schema(
     },
     rowStatus: { type: String, enum: ROW_STATUSES, default: 'BLOCKED' },
     validationErrors: [{ type: String }],
-    proposedAction: { type: String, enum: ['NEW', 'UPDATE', 'SKIP'], default: 'SKIP' },
+    proposedAction: { type: String, enum: PROPOSED_ACTIONS, default: 'SKIP' },
     isEca: { type: Boolean, default: false },
     committedAt: Date,
   },

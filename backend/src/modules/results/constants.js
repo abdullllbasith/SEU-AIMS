@@ -1,3 +1,5 @@
+export const RESULT_PARSER_VERSION = 'results-parser-1';
+
 export const RESULT_IMPORT_STATUSES = Object.freeze([
   'UPLOADED',
   'PROCESSING',
@@ -5,15 +7,20 @@ export const RESULT_IMPORT_STATUSES = Object.freeze([
   'VALIDATION_ISSUES',
   'READY_FOR_REVIEW',
   'CONFIRMED',
+  'COMMITTING',
   'COMMITTED',
+  'COMMIT_FAILED',
   'FAILED',
   'REJECTED_FILE',
   'PARSE_FAILED',
+  'CANCELLED',
 ]);
 
 export const ROW_STATUSES = Object.freeze(['VALID', 'WARNING', 'BLOCKED']);
 
 export const MATCH_STATUSES = Object.freeze(['UNMATCHED', 'MATCHED', 'AMBIGUOUS']);
+
+export const PROPOSED_ACTIONS = Object.freeze(['NEW', 'UPDATE', 'UNCHANGED', 'SKIP']);
 
 export const ECA_RESULT_CODE = 'E(CA)';
 

@@ -35,4 +35,10 @@ Credits come from Academic Foundation `Subject.credits`. `countsForGpa` defaults
 
 ## Recalculation
 
-Snapshots are marked `STALE` then rewritten as `CURRENT` after result commit (`GPA_RECALCULATE`). The backend value is authoritative; the UI must not compute GPA locally.
+Result commit calls `recalculateStudentGpa`. The stored snapshot keeps calculation version `DICT-SEUSL-GPA-1`, the official result versions used, and a fingerprint of those inputs. An identical fingerprint does not rewrite the snapshot.
+
+`GET /api/gpa/me` does not recalculate. If the stored fingerprint does not match current official results, the response status is `STALE` and no GPA number is returned. A department administrator rebuilds from `POST /api/gpa/admin/rebuild`. `GET /api/gpa/admin/quality` returns counts only.
+
+If no credits are counted, the snapshot status is `UNAVAILABLE` and `value` is null. A missing subject credit is excluded as `MISSING_CREDITS`. It is not treated as zero. `E(CA)` stays excluded.
+
+The backend value is authoritative; the UI must not compute GPA locally.

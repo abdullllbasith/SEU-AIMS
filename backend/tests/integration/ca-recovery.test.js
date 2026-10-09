@@ -203,6 +203,8 @@ test('E(CA) creates an incomplete condition and duplicate sync is idempotent', a
   const { result, condition, student } = await seed();
   assert.equal(condition.status, 'OPEN');
   assert.equal(condition.subjectCode, 'ICT1233');
+  assert.equal(condition.sourceResultVersion, 1);
+  assert.ok(condition.detectedAt);
   const again = await syncIncompleteCaFromResult(result);
   assert.equal(String(again._id), String(condition._id));
   assert.equal(await IncompleteCa.countDocuments({ studentUserId: student._id }), 1);
@@ -563,7 +565,9 @@ test('completed or resolved cycle does not block a later E(CA) application; dupl
   result.resultCode = 'A';
   await result.save();
   await syncIncompleteCaFromResult(result);
-  assert.equal((await IncompleteCa.findById(condition._id)).status, 'RESOLVED');
+  const resolvedCondition = await IncompleteCa.findById(condition._id);
+  assert.equal(resolvedCondition.status, 'RESOLVED');
+  assert.equal(resolvedCondition.resolutionSource, 'OFFICIAL_RESULT');
   assert.equal((await CaApplication.findOne({ applicationId: firstApplicationId })).workflowStatus, 'RESOLVED');
 
   result.isEca = true;
@@ -597,4 +601,25 @@ test('completed or resolved cycle does not block a later E(CA) application; dupl
     .send(payload);
   assert.equal(duplicateActive.status, 409);
   assert.equal(await CaApplication.countDocuments({ studentUserId: result.studentUserId }), 2);
+});
+
+test('CA reconciliation reports a missing condition and backfill creates only that row', async () => {
+  const { result, condition } = await seed();
+  const admin = await login('admin@example.test');
+  const student = await login('student@example.test');
+  const clean = await admin.agent.get('/api/ca/admin/reconciliation');
+  assert.equal(clean.status, 200);
+  assert.equal(clean.body.data.issueCount, 0);
+  await IncompleteCa.deleteOne({ _id: condition._id });
+  const drift = await admin.agent.get('/api/ca/admin/reconciliation');
+  assert.equal(drift.body.data.issues.some((item) => item.issue === 'ECA_WITHOUT_CONDITION'), true);
+  assert.equal(await AcademicResult.findById(result._id).then((row) => row.resultCode), 'E(CA)');
+  const denied = await student.agent.post('/api/ca/admin/backfill').set('X-CSRF-Token', student.csrfToken).send({});
+  assert.equal(denied.status, 403);
+  const filled = await admin.agent.post('/api/ca/admin/backfill').set('X-CSRF-Token', admin.csrfToken).send({});
+  assert.equal(filled.status, 200);
+  assert.equal(filled.body.data.created, 1);
+  const again = await admin.agent.post('/api/ca/admin/backfill').set('X-CSRF-Token', admin.csrfToken).send({});
+  assert.equal(again.body.data.created, 0);
+  assert.equal(await IncompleteCa.countDocuments({ academicResultId: result._id }), 1);
 });

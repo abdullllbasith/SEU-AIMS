@@ -421,3 +421,172 @@ test('pdf import commits extracted tokens and empty files fail closed', async ()
   const official = await AcademicResult.findOne({ registrationNumber: 'SEU/IS/22/ICT/001' });
   assert.equal(official.resultCode, 'B+');
 });
+
+test('identical later import is unchanged and conflicting duplicates do not commit', async () => {
+  await seed();
+  const admin = await login('admin@example.test');
+  const first = await xlsxBuffer([
+    ['Registration Number', 'Subject Code', 'Result'],
+    ['SEU/IS/22/ICT/001', 'ICT1233', 'A'],
+  ]);
+  const created = await admin.agent
+    .post('/api/results/imports')
+    .set('X-CSRF-Token', admin.csrfToken)
+    .attach('file', first, {
+      filename: 'first.xlsx',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  const commit = await admin.agent
+    .post(`/api/results/imports/${created.body.data.id}/commit`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({});
+  assert.equal(commit.status, 200);
+  const again = await xlsxBuffer([
+    ['Registration Number', 'Subject Code', 'Result'],
+    ['seu/is/22/ict/001', 'ict1233', 'A'],
+    ['note'],
+  ]);
+  const second = await admin.agent
+    .post('/api/results/imports')
+    .set('X-CSRF-Token', admin.csrfToken)
+    .attach('file', again, {
+      filename: 'same-grade.xlsx',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  assert.equal(second.status, 201);
+  const preview = await admin.agent.get(`/api/results/imports/${second.body.data.id}/preview`);
+  assert.equal(preview.body.data.items[0].proposedAction, 'UNCHANGED');
+  const noop = await admin.agent
+    .post(`/api/results/imports/${second.body.data.id}/commit`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({});
+  assert.equal(noop.status, 400);
+  const official = await AcademicResult.findOne({ registrationNumber: 'SEU/IS/22/ICT/001', subjectCode: 'ICT1233' });
+  assert.equal(official.version, 1);
+
+  const conflictFile = await xlsxBuffer([
+    ['Registration Number', 'Subject Code', 'Result'],
+    ['SEU/IS/22/ICT/001', 'ICT1242', 'B'],
+    ['SEU/IS/22/ICT/001', 'ICT1242', 'C'],
+  ]);
+  const conflict = await admin.agent
+    .post('/api/results/imports')
+    .set('X-CSRF-Token', admin.csrfToken)
+    .attach('file', conflictFile, {
+      filename: 'conflict.xlsx',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  const conflictPreview = await admin.agent.get(`/api/results/imports/${conflict.body.data.id}/preview`);
+  assert.equal(conflictPreview.body.data.items.length, 2);
+  assert.ok(conflictPreview.body.data.items.every((row) => row.rowStatus === 'BLOCKED'));
+  assert.ok(conflictPreview.body.data.items.every((row) => row.validationErrors.includes('INTRA_IMPORT_CONFLICT')));
+  const blockedCommit = await admin.agent
+    .post(`/api/results/imports/${conflict.body.data.id}/commit`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({});
+  assert.equal(blockedCommit.status, 400);
+  assert.equal(await AcademicResult.countDocuments({ subjectCode: 'ICT1242' }), 0);
+});
+
+test('unknown grades are blocked, reject stops commit, and admin search stays scoped', async () => {
+  await seed();
+  const admin = await login('admin@example.test');
+  const student = await login('student22@example.test');
+  const unknown = await xlsxBuffer([
+    ['Registration Number', 'Subject Code', 'Result'],
+    ['SEU/IS/22/ICT/001', 'ICT1233', 'D+'],
+  ]);
+  const created = await admin.agent
+    .post('/api/results/imports')
+    .set('X-CSRF-Token', admin.csrfToken)
+    .attach('file', unknown, {
+      filename: 'unknown.xlsx',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  const preview = await admin.agent.get(`/api/results/imports/${created.body.data.id}/preview`);
+  assert.ok(preview.body.data.items[0].validationErrors.includes('UNKNOWN_RESULT_MARKER'));
+  assert.equal(preview.body.data.items[0].rowStatus, 'BLOCKED');
+  const rejected = await admin.agent
+    .post(`/api/results/imports/${created.body.data.id}/reject`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({});
+  assert.equal(rejected.status, 200);
+  assert.equal(rejected.body.data.processingStatus, 'CANCELLED');
+  const commit = await admin.agent
+    .post(`/api/results/imports/${created.body.data.id}/commit`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({});
+  assert.equal(commit.status, 400);
+
+  const valid = await xlsxBuffer([
+    ['Registration Number', 'Subject Code', 'Result'],
+    ['SEU/IS/22/ICT/001', 'ICT1233', 'B'],
+  ]);
+  const imported = await admin.agent
+    .post('/api/results/imports')
+    .set('X-CSRF-Token', admin.csrfToken)
+    .attach('file', valid, {
+      filename: 'valid.xlsx',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  await admin.agent
+    .post(`/api/results/imports/${imported.body.data.id}/commit`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({});
+  const denied = await student.agent.get('/api/results/analytics');
+  assert.equal(denied.status, 403);
+  const missing = await admin.agent.get('/api/results/records');
+  assert.equal(missing.status, 400);
+  const found = await admin.agent.get('/api/results/records').query({ registrationNumber: 'SEU/IS/22/ICT/001' });
+  assert.equal(found.status, 200);
+  assert.equal(found.body.data.items.length, 1);
+  const history = await admin.agent.get(`/api/results/records/${found.body.data.items[0].id}/versions`);
+  assert.equal(history.status, 200);
+  assert.equal(history.body.data.current.resultCode, 'B');
+  assert.ok(history.body.data.versions.length >= 1);
+  const counts = await admin.agent.get('/api/results/analytics');
+  assert.equal(counts.status, 200);
+  assert.equal(counts.body.data.officialResultCount, 1);
+  assert.equal(JSON.stringify(counts.body.data).includes('student22'), false);
+  const report = await admin.agent.get('/api/results/reconciliation');
+  assert.equal(report.status, 200);
+  assert.equal(typeof report.body.data.issueCount, 'number');
+});
+
+test('GPA read does not recalculate, and only an admin can rebuild department snapshots', async () => {
+  await seed();
+  const admin = await login('admin@example.test');
+  const student = await login('student22@example.test');
+  const before = await student.agent.get('/api/gpa/me');
+  assert.equal(before.body.data.status, 'UNAVAILABLE');
+  assert.equal(before.body.data.gpa, null);
+  const denied = await student.agent.get('/api/gpa/admin/quality');
+  assert.equal(denied.status, 403);
+  const file = await xlsxBuffer([
+    ['Registration Number', 'Subject Code', 'Result'],
+    ['SEU/IS/22/ICT/001', 'ICT1233', 'A'],
+  ]);
+  const created = await admin.agent
+    .post('/api/results/imports')
+    .set('X-CSRF-Token', admin.csrfToken)
+    .attach('file', file, {
+      filename: 'gpa.xlsx',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  await admin.agent.post(`/api/results/imports/${created.body.data.id}/commit`).set('X-CSRF-Token', admin.csrfToken).send({});
+  const after = await student.agent.get('/api/gpa/me');
+  assert.equal(after.body.data.gpa, 4);
+  assert.equal(after.body.data.calculationVersion, 'DICT-SEUSL-GPA-1');
+  const quality = await admin.agent.get('/api/gpa/admin/quality');
+  assert.equal(quality.status, 200);
+  assert.equal(quality.body.data.current, 1);
+  assert.equal(JSON.stringify(quality.body.data).includes('SEU/IS'), false);
+  const rebuild = await admin.agent
+    .post('/api/gpa/admin/rebuild')
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({});
+  assert.equal(rebuild.status, 200);
+  assert.equal(rebuild.body.data.failed, 0);
+  const again = await student.agent.get('/api/gpa/me');
+  assert.equal(again.body.data.gpa, 4);
+});

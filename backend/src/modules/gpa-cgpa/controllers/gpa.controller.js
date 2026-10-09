@@ -2,7 +2,7 @@ import { sendSuccess } from '../../../shared/http/api-response.js';
 import { asyncHandler } from '../../../shared/http/async-handler.js';
 import { ForbiddenError } from '../../../shared/errors/app-error.js';
 import { ROLES } from '../../../shared/constants/roles.js';
-import { getStudentGpaSummary } from '../services/gpa.service.js';
+import { getDepartmentGpaQuality, getStudentGpaSummary, rebuildDepartmentGpa } from '../services/gpa.service.js';
 
 export function createGpaController() {
   return {
@@ -14,6 +14,12 @@ export function createGpaController() {
         throw new ForbiddenError('Forbidden');
       }
       sendSuccess(res, await getStudentGpaSummary(req.principal.userId));
+    }),
+    quality: asyncHandler(async (req, res) => {
+      sendSuccess(res, await getDepartmentGpaQuality(req.principal));
+    }),
+    rebuild: asyncHandler(async (req, res) => {
+      sendSuccess(res, await rebuildDepartmentGpa(req.principal));
     }),
   };
 }

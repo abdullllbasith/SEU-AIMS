@@ -4,6 +4,7 @@ import * as applicationService from '../services/application.service.js';
 import * as windowService from '../services/window.service.js';
 import * as scheduleService from '../services/schedule.service.js';
 import { downloadApplicationPdf } from '../services/pdf.service.js';
+import * as reconciliationService from '../services/reconciliation.service.js';
 
 function deps(req) {
   return {
@@ -63,6 +64,12 @@ export function createCaController() {
     }),
     reject: asyncHandler(async (req, res) => {
       sendSuccess(res, await applicationService.rejectApplication(req.principal, req.params.applicationId, req.body || {}, deps(req)));
+    }),
+    reconciliation: asyncHandler(async (req, res) => {
+      sendSuccess(res, await reconciliationService.reconcileCaConditions(req.principal));
+    }),
+    backfill: asyncHandler(async (req, res) => {
+      sendSuccess(res, await reconciliationService.backfillMissingCaConditions(req.principal));
     }),
     reopen: asyncHandler(async (req, res) => {
       sendSuccess(res, await applicationService.reopenApplication(req.principal, req.params.applicationId, req.body || {}, deps(req)));

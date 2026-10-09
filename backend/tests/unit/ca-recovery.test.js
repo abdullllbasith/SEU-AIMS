@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isAtOrBeforeDeadline, windowLifecycle } from '../../src/modules/ca-recovery/utils/http.js';
 import { CA_REMINDER_OFFSETS_DAYS } from '../../src/modules/ca-recovery/constants.js';
+import { assertApplicationTransition } from '../../src/modules/ca-recovery/services/transitions.js';
 
 test('application window lifecycle is derived from published, suspended, and server time', () => {
   const base = {
@@ -23,6 +24,13 @@ test('deadline lock uses inclusive close timestamp', () => {
   assert.equal(isAtOrBeforeDeadline(new Date(close.getTime() - 1000), close), true);
   assert.equal(isAtOrBeforeDeadline(close, close), true);
   assert.equal(isAtOrBeforeDeadline(new Date(close.getTime() + 1000), close), false);
+});
+
+test('application status changes follow the allowed transitions', () => {
+  assertApplicationTransition('DRAFT', 'SUBMITTED');
+  assertApplicationTransition('APPROVED', 'RESOLVED');
+  assert.throws(() => assertApplicationTransition('COMMITTED', 'DRAFT'), /not allowed/);
+  assert.throws(() => assertApplicationTransition('RESOLVED', 'DRAFT'), /not allowed/);
 });
 
 test('reminder offsets remain 7, 3, and 1 days', () => {

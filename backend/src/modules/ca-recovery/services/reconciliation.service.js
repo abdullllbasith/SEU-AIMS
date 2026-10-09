@@ -1,0 +1,118 @@
+import { AcademicResult } from '../../results/models/academic-result.model.js';
+import { IncompleteCa } from '../models/incomplete-ca.model.js';
+import { CaSchedule } from '../models/ca-schedule.model.js';
+import { CaApplication } from '../models/ca-application.model.js';
+import { syncIncompleteCaFromResult } from './eca-from-results.js';
+import { recordCaAudit } from './notify.js';
+import { ForbiddenError } from '../../../shared/errors/app-error.js';
+import { ROLES } from '../../../shared/constants/roles.js';
+
+function assertAdmin(principal) {
+  if (!principal || principal.role !== ROLES.DEPARTMENT_ADMINISTRATOR || !principal.departmentId) {
+    throw new ForbiddenError('Forbidden');
+  }
+}
+
+export async function reconcileCaConditions(principal) {
+  assertAdmin(principal);
+  const departmentId = principal.departmentId;
+  const issues = [];
+  const ecaResults = await AcademicResult.find({ departmentId, isEca: true })
+    .select('_id registrationNumber subjectCode')
+    .lean();
+  const conditions = await IncompleteCa.find({ academicResultId: { $in: ecaResults.map((row) => row._id) } })
+    .select('academicResultId status')
+    .lean();
+  const byResult = new Map(conditions.map((row) => [String(row.academicResultId), row]));
+  for (const result of ecaResults) {
+    const condition = byResult.get(String(result._id));
+    if (!condition) {
+      issues.push({
+        issue: 'ECA_WITHOUT_CONDITION',
+        entity: 'AcademicResult',
+        entityId: String(result._id),
+        registrationNumber: result.registrationNumber,
+        subjectCode: result.subjectCode,
+        recommendedAction: 'Run the CA backfill. It creates the missing condition and does not change the official result.',
+      });
+    } else if (condition.status === 'RESOLVED') {
+      issues.push({
+        issue: 'RESOLVED_CONDITION_STILL_ECA',
+        entity: 'IncompleteCa',
+        entityId: String(condition._id),
+        registrationNumber: result.registrationNumber,
+        subjectCode: result.subjectCode,
+        recommendedAction: 'The official result is still E(CA). Review before changing either record. This report does not edit them.',
+      });
+    }
+  }
+
+  const openConditions = await IncompleteCa.find({ departmentId, status: { $in: ['OPEN', 'IN_APPLICATION'] } })
+    .select('academicResultId registrationNumber subjectCode')
+    .lean();
+  const linkedResults = await AcademicResult.find({ _id: { $in: openConditions.map((row) => row.academicResultId) } })
+    .select('isEca')
+    .lean();
+  const resultById = new Map(linkedResults.map((row) => [String(row._id), row]));
+  for (const condition of openConditions) {
+    const result = resultById.get(String(condition.academicResultId));
+    if (!result || !result.isEca) {
+      issues.push({
+        issue: 'OPEN_CONDITION_WITHOUT_ECA',
+        entity: 'IncompleteCa',
+        entityId: String(condition._id),
+        registrationNumber: condition.registrationNumber,
+        subjectCode: condition.subjectCode,
+        recommendedAction: 'An open condition is not tied to a current E(CA) result. Confirm before changing it.',
+      });
+    }
+  }
+
+  const schedules = await CaSchedule.find({ departmentId, cancelledAt: { $exists: false } })
+    .select('applicationId')
+    .lean();
+  if (schedules.length) {
+    const applications = await CaApplication.find({
+      _id: { $in: schedules.map((row) => row.applicationId) },
+      departmentId,
+      workflowStatus: { $nin: ['APPROVED', 'SCHEDULED', 'COMPLETED', 'RESOLVED'] },
+    })
+      .select('applicationId workflowStatus')
+      .lean();
+    for (const application of applications) {
+      issues.push({
+        issue: 'SCHEDULE_FOR_INELIGIBLE_APPLICATION',
+        entity: 'CaApplication',
+        entityId: String(application._id),
+        recommendedAction: `Application ${application.applicationId} is ${application.workflowStatus} but still has a schedule. Review it. This report does not cancel the schedule.`,
+      });
+    }
+  }
+
+  return { issues, issueCount: issues.length };
+}
+
+export async function backfillMissingCaConditions(principal) {
+  assertAdmin(principal);
+  const results = await AcademicResult.find({ departmentId: principal.departmentId, isEca: true });
+  let created = 0;
+  let existing = 0;
+  for (const result of results) {
+    const prior = await IncompleteCa.findOne({ academicResultId: result._id }).select('_id');
+    if (prior) {
+      existing += 1;
+      continue;
+    }
+    await syncIncompleteCaFromResult(result);
+    created += 1;
+  }
+  await recordCaAudit({
+    actorUserId: principal.userId,
+    action: 'ca.conditions.backfill',
+    entityType: 'IncompleteCa',
+    entityId: principal.departmentId,
+    departmentId: principal.departmentId,
+    metadata: { created, existing },
+  });
+  return { created, existing, examined: results.length };
+}

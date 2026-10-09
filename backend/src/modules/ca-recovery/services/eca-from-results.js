@@ -1,17 +1,25 @@
 import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { CaApplication } from '../models/ca-application.model.js';
 import { CaApplicationSubject } from '../models/ca-application-subject.model.js';
+import { assertApplicationTransition } from './transitions.js';
 
 export async function syncIncompleteCaFromResult(result) {
   const existing = await IncompleteCa.findOne({ academicResultId: result._id });
   if (result.isEca) {
     if (existing) {
-      existing.status = existing.status === 'RESOLVED' ? 'OPEN' : existing.status;
+      if (existing.status === 'RESOLVED') {
+        existing.status = 'OPEN';
+        existing.resolvedAt = undefined;
+        existing.resolutionSource = '';
+      }
       existing.registrationNumber = result.registrationNumber;
       existing.subjectCode = result.subjectCode;
       existing.academicYearId = result.studentAcademicYearId;
       existing.semesterId = result.studentSemesterId;
       existing.departmentId = result.departmentId;
+      existing.sourceImportId = result.sourceImportId || existing.sourceImportId;
+      existing.sourceResultVersion = result.version;
+      existing.detectedAt = existing.detectedAt || new Date();
       await existing.save();
       return existing;
     }
@@ -25,6 +33,9 @@ export async function syncIncompleteCaFromResult(result) {
         semesterId: result.studentSemesterId,
         academicResultId: result._id,
         departmentId: result.departmentId,
+        sourceImportId: result.sourceImportId,
+        sourceResultVersion: result.version,
+        detectedAt: new Date(),
         status: 'OPEN',
       });
     } catch (error) {
@@ -36,6 +47,10 @@ export async function syncIncompleteCaFromResult(result) {
   }
   if (existing && existing.status !== 'RESOLVED') {
     existing.status = 'RESOLVED';
+    existing.resolvedAt = new Date();
+    existing.resolutionSource = 'OFFICIAL_RESULT';
+    existing.sourceImportId = result.sourceImportId || existing.sourceImportId;
+    existing.sourceResultVersion = result.version;
     await existing.save();
     await maybeResolveApplication(existing);
   }
@@ -48,10 +63,13 @@ async function maybeResolveApplication(incomplete) {
     const siblings = await CaApplicationSubject.find({ applicationId: link.applicationId });
     const conditions = await IncompleteCa.find({ _id: { $in: siblings.map((item) => item.incompleteCaId) } });
     if (conditions.length && conditions.every((item) => item.status === 'RESOLVED')) {
-      await CaApplication.updateOne(
-        { _id: link.applicationId, workflowStatus: { $in: ['COMPLETED', 'SCHEDULED', 'APPROVED'] } },
-        { $set: { workflowStatus: 'RESOLVED' } },
-      );
+      const application = await CaApplication.findById(link.applicationId);
+      if (!application || !['COMPLETED', 'SCHEDULED', 'APPROVED'].includes(application.workflowStatus)) {
+        continue;
+      }
+      assertApplicationTransition(application.workflowStatus, 'RESOLVED');
+      application.workflowStatus = 'RESOLVED';
+      await application.save();
     }
   }
 }

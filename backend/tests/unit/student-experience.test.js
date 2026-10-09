@@ -17,6 +17,9 @@ test('missing GPA credits are not presented as zero averages', () => {
   const present = presentGpaSummary({ gpa: 3.5, cgpa: 3.5, credits: 3, classification: 'Pass', status: 'CURRENT' });
   assert.equal(present.available, true);
   assert.equal(present.gpa, 3.5);
+  const stale = presentGpaSummary({ gpa: 3.5, cgpa: 3.5, credits: 3, status: 'STALE' });
+  assert.equal(stale.available, false);
+  assert.equal(stale.gpa, null);
 });
 
 test('phone numbers normalize to E.164 and reject junk', () => {

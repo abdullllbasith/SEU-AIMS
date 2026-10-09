@@ -12,7 +12,13 @@ Repeat students keep the same registration number. A later import updates the ex
 
 ## Import lifecycle
 
-`UPLOADED` → scan → `PROCESSING` → `READY_FOR_REVIEW` / `VALIDATION_ISSUES` / `PARSE_FAILED` / `REJECTED_FILE` → admin `COMMITTED`.
+`UPLOADED` → scan → `PROCESSING` → `READY_FOR_REVIEW` / `VALIDATION_ISSUES` / `PARSE_FAILED` / `REJECTED_FILE`.
+
+Admin actions: `commit` (locks `COMMITTING`, then `COMMITTED` or `COMMIT_FAILED`), `reject` (`CANCELLED`), `reprocess` (same stored file, new attempt, not allowed after commit).
+
+Rows are classified `NEW`, `UPDATE`, `UNCHANGED`, or `SKIP`. Unknown grades and conflicting duplicates are `BLOCKED` and are not committed. An identical incoming grade does not write a new revision.
+
+Parser version stored on each import: `results-parser-1`. Supported layouts are the synthetic narrow-column sheet and subject-code header sheet, plus PDF text that already exposes registration number, subject code, and result as tokens.
 
 PDF and XLSX only. Untrusted uploads go through `StoredFile` (`RESULT_IMPORT`) and must be `SAFE` before parse. Parse and GPA jobs are enqueued for the **worker** (Redis lists when Redis is connected).
 

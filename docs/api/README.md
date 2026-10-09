@@ -62,6 +62,9 @@ Mutating routes require CSRF except the public verify GET.
 - `GET /api/health`, `/api/health/live`, `/api/health/ready`
 - Admin: `GET /api/audit/events`, `GET /api/audit/summary`, `GET /api/ops/metrics`, `GET /api/ops/integrity`
 - Department operations (Prompt 18): `GET /api/admin/dashboard` and related reads under `/api/admin`. See [admin-operations.md](../ops/admin-operations.md).
+- CA recovery (Prompt 23): department admin `GET /api/ca/admin/reconciliation` (read-only) and `POST /api/ca/admin/backfill` (creates missing E(CA) conditions only). Completing a CA still does not write a grade.
+- GPA (Prompt 22): student `GET /api/gpa/me`. Department admin `GET /api/gpa/admin/quality` and `POST /api/gpa/admin/rebuild` (CSRF). Calculation version `DICT-SEUSL-GPA-1`. A read does not recalculate.
+- Results processing (Prompt 21): department admin `POST /api/results/imports/:id/reject|reprocess`, `GET /api/results/records`, `GET /api/results/records/:resultId/versions`, `GET /api/results/analytics`, `GET /api/results/reconciliation`. Students keep `GET /api/results/me` only. See [result-processing.md](../ops/result-processing.md).
 - Lecturer workspace (Prompt 20): `GET /api/lecturer/dashboard`, `/subject-offerings`, `/subject-offerings/:id`, `/search`, `/upcoming`, `/assignments`, `/ca-recovery/eligible-students`, `/ca-recovery/schedules`. Mutating aliases for CA approval, results, and resource writes are rejected. See [lecturer-workspace.md](../ops/lecturer-workspace.md).
 - Audit mutation routes are rejected.
 - `GET|POST /api/webhooks/whatsapp` — verify token / HMAC; unsigned posts fail closed
