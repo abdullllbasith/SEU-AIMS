@@ -22,6 +22,9 @@ import { StudentAcademicContext } from '../../src/modules/academic-foundation/mo
 import { ROLES } from '../../src/shared/constants/roles.js';
 import { Message } from '../../src/modules/study-room/models/message.model.js';
 import { SharedResource } from '../../src/modules/study-room/models/shared-resource.model.js';
+import { SharedFolder } from '../../src/modules/study-room/models/shared-folder.model.js';
+import { ResourceReport } from '../../src/modules/study-room/models/resource-report.model.js';
+import { StoredFile } from '../../src/modules/files/models/stored-file.model.js';
 import {
   decryptText,
   derivePrivateKey,
@@ -494,4 +497,63 @@ dbTest('established Study Room sockets disconnect after logout or account disabl
   });
   assert.notEqual(afterDisable.ok, true);
   disableSocket.close();
+});
+
+dbTest('study room reconciliation reports an unsafe available file and does not return chat', async () => {
+  const { department, batch, studentA } = await seed();
+  const admin = await login('admin@example.test');
+  const lecturer = await login('lecturer@example.test');
+  const student = await login('a@example.test');
+  const folder = await SharedFolder.create({
+    departmentId: department._id,
+    batchId: batch._id,
+    createdByUserId: studentA._id,
+    name: 'Notes',
+    visibility: 'COMMON',
+  });
+  const file = await StoredFile.create({
+    storageKey: `study-room/${folder._id}/unsafe`,
+    originalFilename: 'notes.pdf',
+    displayFilename: 'notes.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 12,
+    uploadedByUserId: studentA._id,
+    owningDomain: 'STUDY_ROOM_RESOURCE',
+    owningContextId: folder._id,
+    scanStatus: 'UNSAFE',
+    reviewStatus: 'PENDING',
+    availability: 'UNAVAILABLE',
+  });
+  await SharedResource.create({
+    departmentId: department._id,
+    batchId: batch._id,
+    folderId: folder._id,
+    fileId: file._id,
+    createdByUserId: studentA._id,
+    moderationState: 'AVAILABLE',
+  });
+  const removed = await SharedResource.create({
+    departmentId: department._id,
+    batchId: batch._id,
+    folderId: folder._id,
+    fileId: file._id,
+    createdByUserId: studentA._id,
+    moderationState: 'REMOVED',
+  });
+  await ResourceReport.create({
+    departmentId: department._id,
+    reporterUserId: studentA._id,
+    targetType: 'RESOURCE',
+    targetId: removed._id,
+    category: 'OTHER',
+  });
+  const deniedStudent = await student.agent.get('/api/study-room/moderation/reconciliation');
+  assert.equal(deniedStudent.status, 403);
+  const deniedLecturer = await lecturer.agent.get('/api/study-room/moderation/reconciliation');
+  assert.equal(deniedLecturer.status, 403);
+  const report = await admin.agent.get('/api/study-room/moderation/reconciliation');
+  assert.equal(report.status, 200);
+  assert.equal(report.body.data.issues.some((item) => item.issue === 'AVAILABLE_WITHOUT_SAFE_FILE'), true);
+  assert.equal(report.body.data.issues.some((item) => item.issue === 'OPEN_REPORT_FOR_REMOVED_RESOURCE'), true);
+  assert.equal(JSON.stringify(report.body.data).includes('ciphertext'), false);
 });

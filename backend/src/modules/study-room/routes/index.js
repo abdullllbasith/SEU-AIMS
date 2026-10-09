@@ -55,6 +55,7 @@ export function createRouter() {
   router.post('/moderation/resources/:resourceId/reject', admins, requireCsrf, controller.rejectResource);
   router.post('/moderation/resources/:resourceId/remove', admins, requireCsrf, controller.removeResource);
   router.get('/moderation/reports', admins, controller.listReports);
+  router.get('/moderation/reconciliation', admins, controller.reconciliation);
   router.patch('/moderation/reports/:reportId', admins, requireCsrf, controller.resolveReport);
 
   return router;

@@ -221,4 +221,64 @@ export async function resolveReport(principal, reportId, body) {
   return { id: String(report._id), status: report.status };
 }
 
+export async function reconcileStudyRoom(principal) {
+  const { settings } = await requireModerator(principal);
+  const available = await SharedResource.find({
+    departmentId: settings.departmentId,
+    moderationState: 'AVAILABLE',
+    deletedAt: null,
+  })
+    .select('fileId')
+    .limit(200)
+    .lean();
+  const files = await StoredFile.find({ _id: { $in: available.map((row) => row.fileId) } })
+    .select('scanStatus')
+    .lean();
+  const byId = new Map(files.map((file) => [String(file._id), file]));
+  const issues = [];
+  for (const resource of available) {
+    const file = byId.get(String(resource.fileId));
+    if (!file || file.scanStatus !== 'SAFE') {
+      issues.push({
+        issue: 'AVAILABLE_WITHOUT_SAFE_FILE',
+        entity: 'SharedResource',
+        entityId: String(resource._id),
+        recommendedAction: 'This shared file is marked available but is not a safe scanned file. This report does not remove it and does not read chat.',
+      });
+    }
+  }
+  const openReports = await ResourceReport.find({
+    departmentId: settings.departmentId,
+    status: 'OPEN',
+    targetType: 'RESOURCE',
+  })
+    .select('targetId')
+    .limit(200)
+    .lean();
+  if (openReports.length) {
+    const targets = await SharedResource.find({
+      _id: { $in: openReports.map((report) => report.targetId) },
+    })
+      .select('moderationState deletedAt')
+      .lean();
+    const resources = new Map(targets.map((resource) => [String(resource._id), resource]));
+    for (const report of openReports) {
+      const resource = resources.get(String(report.targetId));
+      if (resource && (resource.moderationState === 'REMOVED' || resource.deletedAt)) {
+        issues.push({
+          issue: 'OPEN_REPORT_FOR_REMOVED_RESOURCE',
+          entity: 'ResourceReport',
+          entityId: String(report._id),
+          recommendedAction: 'This open report points at a resource that is already removed. This report does not close it and does not read chat.',
+        });
+      }
+    }
+  }
+  return {
+    issues,
+    issueCount: issues.length,
+    note: 'Department administrators can moderate shared files. They cannot read Study Room messages.',
+  };
+}
+
 export { getOrCreateSettings };

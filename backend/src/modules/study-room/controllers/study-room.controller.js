@@ -139,6 +139,9 @@ export function createStudyRoomController() {
     listReports: asyncHandler(async (req, res) => {
       sendSuccess(res, await moderationService.listReports(req.principal, req.query));
     }),
+    reconciliation: asyncHandler(async (req, res) => {
+      sendSuccess(res, await moderationService.reconcileStudyRoom(req.principal));
+    }),
     resolveReport: asyncHandler(async (req, res) => {
       sendSuccess(res, await moderationService.resolveReport(req.principal, req.params.reportId, req.body || {}));
     }),

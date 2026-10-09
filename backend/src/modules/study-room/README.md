@@ -23,6 +23,10 @@ Ordinary Study Room APIs and sockets require `STUDENT` plus an active academic c
 - IndexedDB key loss (new browser/device, cleared site data) makes old ciphertext unreadable. There is **no** server-side private-key escrow.
 - Chat file attachments are **not** implemented as E2E blobs. Shared-folder files are scanned; a message may reference an already-available shared resource id only.
 
+Student blocking is not implemented. No approved rule defines who may block whom.
+
+`GET /api/study-room/moderation/reconciliation` reports shared files marked available when the stored file is missing or not safe, and open reports whose target resource is already removed. It does not remove files, close reports, or return message contents.
+
 ## Shared files (Option B)
 
 Uploads use the files module (allowlist, magic bytes, opaque keys `study-room/{folderId}/{uuid}`, malware scan). Default department mode is `ADMIN_REVIEW`. `NON_REVIEW` still requires `scanStatus=SAFE` before `AVAILABLE`. Scan failure/unconfigured scanner fails closed (not downloadable).
