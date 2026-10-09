@@ -45,6 +45,9 @@ export function createLearningController() {
     getResource: asyncHandler(async (req, res) => {
       sendSuccess(res, await learningService.getResource(req.principal, req.params.resourceId));
     }),
+    resourceVersions: asyncHandler(async (req, res) => {
+      sendSuccess(res, await learningService.listResourceVersions(req.principal, req.params.resourceId));
+    }),
     updateResource: asyncHandler(async (req, res) => {
       sendSuccess(
         res,
@@ -82,6 +85,9 @@ export function createLearningController() {
     }),
     adminResources: asyncHandler(async (req, res) => {
       sendSuccess(res, await learningService.listDepartmentResources(req.principal, req.query));
+    }),
+    reconciliation: asyncHandler(async (req, res) => {
+      sendSuccess(res, await learningService.reconcileOfficialResources(req.principal));
     }),
   };
 }

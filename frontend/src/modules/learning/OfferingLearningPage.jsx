@@ -17,6 +17,7 @@ export function OfferingLearningPage() {
   const [category, setCategory] = useState('LECTURE');
   const [sectionId, setSectionId] = useState('');
   const [file, setFile] = useState(null);
+  const [history, setHistory] = useState(null);
 
   async function reload() {
     const [offering, list] = await Promise.all([
@@ -179,16 +180,29 @@ export function OfferingLearningPage() {
                     </button>
                   ) : null}
                   {canManage ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm('Archive this official resource? Students will no longer see it.')) {
-                          run(() => learningApi.archive(item.id));
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          learningApi
+                            .versions(item.id)
+                            .then((response) => setHistory({ title: item.title, ...response.data }))
+                            .catch((caught) => setError(caught.message))
                         }
-                      }}
-                    >
-                      Archive
-                    </button>
+                      >
+                        Versions
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Archive this official resource? Students will no longer see it.')) {
+                            run(() => learningApi.archive(item.id));
+                          }
+                        }}
+                      >
+                        Archive
+                      </button>
+                    </>
                   ) : null}
                 </li>
               ))}
@@ -196,6 +210,11 @@ export function OfferingLearningPage() {
         </div>
       ))}
       {resources.length === 0 ? <p>No official resources are available in this offering.</p> : null}
+      {history ? (
+        <p>
+          {history.title}: current version {history.currentVersion}. Earlier files kept: {history.items.length}.
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -26,6 +26,7 @@ export function createRouter() {
   router.get('/offerings/:offeringId/sections', requireAuthenticated, controller.listSections);
   router.get('/offerings/:offeringId/resources', requireAuthenticated, controller.listResources);
   router.get('/resources/:resourceId', requireAuthenticated, controller.getResource);
+  router.get('/resources/:resourceId/versions', managers, controller.resourceVersions);
   router.get('/resources/:resourceId/download', requireAuthenticated, controller.downloadResource);
 
   router.post('/offerings/:offeringId/sections', managers, requireCsrf, controller.createSection);
@@ -45,6 +46,7 @@ export function createRouter() {
   }, controller.replaceResource);
   router.post('/resources/:resourceId/archive', managers, requireCsrf, controller.archiveResource);
 
+  router.get('/admin/reconciliation', requireDepartmentAdmin(), controller.reconciliation);
   router.get('/admin/resources', requireDepartmentAdmin(), controller.adminResources);
 
   return router;

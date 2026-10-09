@@ -26,6 +26,7 @@ export const learningApi = {
   publish: (id) => apiRequest(`/learning/resources/${id}/publish`, { method: 'POST', body: JSON.stringify({}) }),
   unpublish: (id) => apiRequest(`/learning/resources/${id}/unpublish`, { method: 'POST', body: JSON.stringify({}) }),
   archive: (id) => apiRequest(`/learning/resources/${id}/archive`, { method: 'POST', body: JSON.stringify({}) }),
+  versions: (id) => apiRequest(`/learning/resources/${id}/versions`),
   adminResources: (params) => apiRequest(`/learning/admin/resources${qs(params)}`),
   downloadUrl: (id) => `/api/learning/resources/${id}/download`,
 };

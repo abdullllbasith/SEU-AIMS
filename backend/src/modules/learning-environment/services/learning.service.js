@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { OfficialResource } from '../models/official-resource.model.js';
 import { ResourceSection } from '../models/resource-section.model.js';
+import { ResourceVersion } from '../models/resource-version.model.js';
 import { RESOURCE_CATEGORIES } from '../constants.js';
 import {
   SubjectOffering,
@@ -529,20 +530,84 @@ export async function replaceResourceFile(principal, resourceId, file, { config,
     config,
     infrastructure,
   });
-  resource.previousFileId = resource.fileId;
-  resource.fileId = stored._id;
-  resource.version += 1;
-  resource.publicationState = 'DRAFT';
-  resource.publishedAt = undefined;
-  resource.updatedByUserId = principal.userId;
-  await resource.save();
+  const previousVersion = resource.version;
+  const previousFileId = resource.fileId;
+  const history = await ResourceVersion.create({
+    resourceId: resource._id,
+    versionNumber: previousVersion,
+    fileId: previousFileId,
+    replacedByUserId: principal.userId,
+  });
+  const updated = await OfficialResource.findOneAndUpdate(
+    { _id: resource._id, version: previousVersion, deletedAt: null },
+    {
+      $set: {
+        previousFileId,
+        fileId: stored._id,
+        publicationState: 'DRAFT',
+        publishedAt: null,
+        updatedByUserId: principal.userId,
+      },
+      $inc: { version: 1 },
+    },
+    { new: true },
+  );
+  if (!updated) {
+    await ResourceVersion.deleteOne({ _id: history._id });
+    throw new ConflictError('Resource changed while the file was being replaced');
+  }
+  await StoredFile.updateOne({ _id: previousFileId }, { $set: { availability: 'UNAVAILABLE' } });
   await recordAudit({
     actorUserId: principal.userId,
     action: 'learning.resource.replace',
     entityId: resource._id,
-    metadata: { fileId: String(stored._id), version: resource.version },
+    metadata: { fileId: String(stored._id), version: updated.version, previousVersion },
   });
-  return mapResource(resource, { file: stored, includeOperational: true });
+  return mapResource(updated, { file: stored, includeOperational: true });
+}
+
+export async function listResourceVersions(principal, resourceId) {
+  const { resource } = await loadManagedResource(principal, resourceId);
+  const items = await ResourceVersion.find({ resourceId: resource._id }).sort({ versionNumber: 1 });
+  return {
+    currentVersion: resource.version,
+    items: items.map((item) => ({
+      versionNumber: item.versionNumber,
+      replacedAt: item.createdAt,
+    })),
+  };
+}
+
+export async function reconcileOfficialResources(principal) {
+  if (principal.role !== ROLES.DEPARTMENT_ADMINISTRATOR || !principal.departmentId) {
+    throw new ForbiddenError('Forbidden');
+  }
+  const published = await OfficialResource.find({
+    departmentId: principal.departmentId,
+    publicationState: 'PUBLISHED',
+    deletedAt: null,
+  })
+    .select('fileId subjectOfferingId title')
+    .limit(200)
+    .lean();
+  const files = await StoredFile.find({ _id: { $in: published.map((row) => row.fileId) } })
+    .select('scanStatus')
+    .lean();
+  const byId = new Map(files.map((file) => [String(file._id), file]));
+  const issues = [];
+  for (const resource of published) {
+    const file = byId.get(String(resource.fileId));
+    if (!file || file.scanStatus !== 'SAFE') {
+      issues.push({
+        issue: 'PUBLISHED_WITHOUT_SAFE_FILE',
+        entity: 'OfficialResource',
+        entityId: String(resource._id),
+        subjectOfferingId: String(resource.subjectOfferingId),
+        recommendedAction: 'The published resource does not have a safe file. This report does not unpublish it.',
+      });
+    }
+  }
+  return { issues, issueCount: issues.length };
 }
 
 export async function archiveResource(principal, resourceId) {

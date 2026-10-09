@@ -241,3 +241,44 @@ dbTest('lecturers still cannot access Study Room', async () => {
   const response = await lecturer.agent.get('/api/study-room/access');
   assert.equal(response.status, 403);
 });
+
+dbTest('replacing a published file keeps the resource, stores the old version, and hides it until republished', async () => {
+  const { offering } = await seedDepartment();
+  const lecturer = await login('lecturer@example.test');
+  const student = await login('student@example.test');
+  const section = await lecturer.agent
+    .post(`/api/learning/offerings/${offering._id}/sections`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .send({ name: 'Lecture Materials' });
+  const created = await lecturer.agent
+    .post(`/api/learning/offerings/${offering._id}/resources`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .field('title', 'Week 1 notes')
+    .field('sectionId', section.body.data.id)
+    .field('category', 'LECTURE')
+    .attach('file', pdfBuffer, { filename: 'week1.pdf', contentType: 'application/pdf' });
+  await lecturer.agent
+    .post(`/api/learning/resources/${created.body.data.id}/publish`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .send({});
+  const replaced = await lecturer.agent
+    .post(`/api/learning/resources/${created.body.data.id}/replace`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .attach('file', pdfBuffer, { filename: 'week1-revised.pdf', contentType: 'application/pdf' });
+  assert.equal(replaced.status, 200);
+  assert.equal(replaced.body.data.id, created.body.data.id);
+  assert.equal(replaced.body.data.publicationState, 'DRAFT');
+  assert.equal(replaced.body.data.version, 2);
+  const hidden = await student.agent.get(`/api/learning/offerings/${offering._id}/resources`);
+  assert.equal(hidden.body.data.items.length, 0);
+  const denied = await student.agent.get(`/api/learning/resources/${created.body.data.id}/versions`);
+  assert.equal(denied.status, 403);
+  const versions = await lecturer.agent.get(`/api/learning/resources/${created.body.data.id}/versions`);
+  assert.equal(versions.status, 200);
+  assert.equal(versions.body.data.currentVersion, 2);
+  assert.equal(versions.body.data.items.length, 1);
+  assert.equal(versions.body.data.items[0].versionNumber, 1);
+  const checks = await (await login('admin@example.test')).agent.get('/api/learning/admin/reconciliation');
+  assert.equal(checks.status, 200);
+  assert.equal(checks.body.data.issueCount, 0);
+});
