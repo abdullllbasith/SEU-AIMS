@@ -1,9 +1,10 @@
 import { Router } from 'express';
+import { requireDepartmentAdmin } from '../../../shared/auth/authorize.js';
+import { createFilesController } from '../controllers/files.controller.js';
 
-/**
- * HTTP surface for files.
- * Domain endpoints are added in V2/V4 file prompts. Routes stay thin.
- */
 export function createRouter() {
-  return Router();
+  const router = Router();
+  const controller = createFilesController();
+  router.get('/admin/reconciliation', requireDepartmentAdmin(), controller.reconciliation);
+  return router;
 }

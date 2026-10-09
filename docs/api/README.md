@@ -68,6 +68,7 @@ Mutating routes require CSRF except the public verify GET.
 - Learning resources (Prompt 25): lecturer/admin `GET /api/learning/resources/:id/versions`. Department admin `GET /api/learning/admin/reconciliation`. Replacing a file keeps the resource id, stores the previous version, and returns the resource to draft.
 - Study Room (Prompt 26): department admin `GET /api/study-room/moderation/reconciliation`. Shared-file checks only. Ciphertext is not returned. Students and lecturers are denied.
 - Academic foundation (Prompt 27): department admin `GET /api/academic/admin/reconciliation`. Identity and structure checks only. It does not create, move, or revoke records.
+- Files (Prompt 28): department admin `GET /api/files/admin/reconciliation`. Compares file records with stored objects. It does not delete objects or return storage keys.
 - Communication checks (Prompt 24): department admin `GET /api/calendar/admin/reconciliation`. Counts open deliveries and reminders for cancelled calendar events. It does not fail a delivery because it is old, and it does not apply quiet hours.
 - Lecturer workspace (Prompt 20): `GET /api/lecturer/dashboard`, `/subject-offerings`, `/subject-offerings/:id`, `/search`, `/upcoming`, `/assignments`, `/ca-recovery/eligible-students`, `/ca-recovery/schedules`. Mutating aliases for CA approval, results, and resource writes are rejected. See [lecturer-workspace.md](../ops/lecturer-workspace.md).
 - Audit mutation routes are rejected.

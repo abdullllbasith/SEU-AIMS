@@ -10,6 +10,7 @@ export function AdminObservabilityPage() {
   const [jobs, setJobs] = useState(null);
   const [notify, setNotify] = useState(null);
   const [calendar, setCalendar] = useState(null);
+  const [files, setFiles] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +76,23 @@ export function AdminObservabilityPage() {
         <p>
           Notification groups {notify.byStatusAndChannel.length}. Recent failures{' '}
           {notify.recentFailures.length}.
+        </p>
+      ) : null}
+      <p>
+        <button
+          type="button"
+          onClick={() =>
+            apiRequest('/files/admin/reconciliation')
+              .then((response) => setFiles(response.data))
+              .catch((caught) => setError(caught.message || 'Unable to check stored files'))
+          }
+        >
+          Check stored files
+        </button>
+      </p>
+      {files ? (
+        <p>
+          Stored-file issues {files.issueCount}. {files.note}
         </p>
       ) : null}
       {calendar ? (
