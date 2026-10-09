@@ -13,6 +13,7 @@ const qs = (params = {}) => {
 
 export const academicApi = {
   overview: () => apiRequest('/academic/overview'),
+  reconciliation: () => apiRequest('/academic/admin/reconciliation'),
   departments: () => apiRequest('/academic/departments'),
   createDepartment: (body) => apiRequest('/academic/departments', { method: 'POST', body: JSON.stringify(body) }),
   updateDepartment: (id, body) =>

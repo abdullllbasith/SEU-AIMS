@@ -8,6 +8,7 @@ import { createLogger } from '../../src/infrastructure/logging/logger.js';
 import { User } from '../../src/modules/authentication/models/user.model.js';
 import { hashPassword } from '../../src/modules/authentication/security/passwords.js';
 import { LecturerAssignment } from '../../src/modules/academic-foundation/models/lecturer-assignment.model.js';
+import { Semester } from '../../src/modules/academic-foundation/models/semester.model.js';
 import { StudentAcademicHistory } from '../../src/modules/academic-foundation/models/student-academic-history.model.js';
 import { AuditEvent } from '../../src/modules/audit-security/index.js';
 import { ROLES } from '../../src/shared/constants/roles.js';
@@ -356,4 +357,68 @@ dbTest('object-level academic access is assignment and department scoped', async
 dbTest('unauthenticated academic routes remain denied', async () => {
   const response = await request(app).get('/api/academic/batches');
   assert.equal(response.status, 401);
+});
+
+dbTest('academic reconciliation reports missing membership and stale assignment without changing records', async () => {
+  const session = await bootstrapDepartment();
+  await createUser({
+    role: ROLES.STUDENT,
+    email: 'student@example.test',
+    departmentId: session.department.id,
+  });
+  const lecturer = await createUser({
+    role: ROLES.LECTURER,
+    email: 'lecturer@example.test',
+    departmentId: session.department.id,
+    lecturerStatus: 'VERIFIED',
+  });
+  const batch = await session.agent
+    .post('/api/academic/batches')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ code: '22', name: '22 batch' });
+  const year = await session.agent
+    .post('/api/academic/academic-years')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ sequence: 1, name: 'Year 1' });
+  const laterYear = await session.agent
+    .post('/api/academic/academic-years')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ sequence: 2, name: 'Year 2' });
+  const semester = await session.agent
+    .post('/api/academic/semesters')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ academicYearId: year.body.data.id, sequence: 1, name: 'Semester 1' });
+  const subject = await session.agent
+    .post('/api/academic/subjects')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ code: 'ICT1233', name: 'Synthetic Subject', credits: 3 });
+  const offering = await session.agent
+    .post('/api/academic/subject-offerings')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({
+      subjectId: subject.body.data.id,
+      batchId: batch.body.data.id,
+      academicYearId: year.body.data.id,
+      semesterId: semester.body.data.id,
+    });
+  const assignment = await session.agent
+    .post('/api/academic/lecturer-assignments')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ lecturerUserId: String(lecturer._id), subjectOfferingId: offering.body.data.id });
+  assert.equal(assignment.status, 201);
+  await User.updateOne({ _id: lecturer._id }, { lecturerStatus: 'SUSPENDED' });
+  await Semester.updateOne({ _id: semester.body.data.id }, { academicYearId: laterYear.body.data.id });
+  const student = await login('student@example.test');
+  const lecturerSession = await login('lecturer@example.test');
+  assert.equal((await student.agent.get('/api/academic/admin/reconciliation')).status, 403);
+  assert.equal((await lecturerSession.agent.get('/api/academic/admin/reconciliation')).status, 403);
+  const report = await session.agent.get('/api/academic/admin/reconciliation');
+  assert.equal(report.status, 200);
+  const codes = report.body.data.issues.map((item) => item.issue);
+  assert.equal(codes.includes('STUDENT_WITHOUT_ACADEMIC_CONTEXT'), true);
+  assert.equal(codes.includes('ACTIVE_ASSIGNMENT_FOR_INELIGIBLE_LECTURER'), true);
+  assert.equal(codes.includes('OFFERING_SEMESTER_YEAR_MISMATCH'), true);
+  assert.equal(JSON.stringify(report.body.data).includes('student@example.test'), false);
+  const stillAssigned = await LecturerAssignment.findById(assignment.body.data.id);
+  assert.equal(stillAssigned.isActive, true);
 });

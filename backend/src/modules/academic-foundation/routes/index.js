@@ -14,6 +14,7 @@ export function createRouter() {
 
   const admin = requireDepartmentAdmin();
   router.get('/overview', admin, controller.overview);
+  router.get('/admin/reconciliation', admin, controller.reconciliation);
   router.get('/departments', admin, controller.listDepartments);
   router.post('/departments', admin, requireCsrf, controller.createDepartment);
   router.patch('/departments/:departmentId', admin, requireCsrf, controller.updateDepartment);

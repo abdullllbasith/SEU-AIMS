@@ -7,6 +7,9 @@ export function createAcademicController() {
     overview: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.getOverview(req.principal));
     }),
+    reconciliation: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.reconcileAcademicFoundation(req.principal));
+    }),
     listDepartments: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.listDepartments(req.principal));
     }),

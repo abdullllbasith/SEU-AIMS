@@ -65,6 +65,7 @@ export function AcademicAdminPage() {
   const [students, setStudents] = useState({ items: [], total: 0, page: 1, pageSize: 20 });
   const [studentUsers, setStudentUsers] = useState([]);
   const [search, setSearch] = useState('');
+  const [checks, setChecks] = useState(null);
 
   const run = useCallback(async (fn) => {
     setError('');
@@ -172,6 +173,37 @@ export function AcademicAdminPage() {
                 </li>
               ))}
             </ul>
+          ) : null}
+          {department ? (
+            <p>
+              <button
+                type="button"
+                onClick={() =>
+                  run(() => academicApi.reconciliation()).then((response) => {
+                    if (response) {
+                      setChecks(response.data);
+                    }
+                  })
+                }
+              >
+                Check academic records
+              </button>
+            </p>
+          ) : null}
+          {checks ? (
+            <div>
+              <p>{checks.note}</p>
+              <p>{checks.issueCount} issue{checks.issueCount === 1 ? '' : 's'}</p>
+              {checks.issues?.length ? (
+                <ul>
+                  {checks.issues.map((item) => (
+                    <li key={`${item.issue}-${item.entityId}`}>
+                      {item.issue}: {item.recommendedAction}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}

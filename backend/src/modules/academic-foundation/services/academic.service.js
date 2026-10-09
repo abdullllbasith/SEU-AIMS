@@ -981,3 +981,103 @@ export async function getStudentContextForAdmin(principal, contextId) {
   });
   return { context: mapStudentContext(context), history: history.map(mapHistory) };
 }
+
+export async function reconcileAcademicFoundation(principal) {
+  const departmentId = await requireAdminDepartment(principal);
+  const issues = [];
+  const contexts = await StudentAcademicContext.find({ departmentId })
+    .select('userId currentAcademicYearId currentSemesterId')
+    .limit(200)
+    .lean();
+  const contextUserIds = contexts.map((row) => row.userId);
+  const studentsWithoutContext = await User.find({
+    departmentId,
+    role: ROLES.STUDENT,
+    _id: { $nin: contextUserIds },
+  })
+    .select('_id')
+    .limit(200)
+    .lean();
+  for (const student of studentsWithoutContext) {
+    issues.push({
+      issue: 'STUDENT_WITHOUT_ACADEMIC_CONTEXT',
+      entity: 'User',
+      entityId: String(student._id),
+      recommendedAction: 'This student account has no academic membership. This report does not create one.',
+    });
+  }
+  const linkedUsers = await User.find({ _id: { $in: contextUserIds } })
+    .select('role')
+    .lean();
+  const studentsById = new Map(
+    linkedUsers.filter((user) => user.role === ROLES.STUDENT).map((user) => [String(user._id), user]),
+  );
+  for (const context of contexts) {
+    if (!studentsById.has(String(context.userId))) {
+      issues.push({
+        issue: 'ACADEMIC_CONTEXT_WITHOUT_STUDENT',
+        entity: 'StudentAcademicContext',
+        entityId: String(context._id),
+        recommendedAction: 'This academic membership does not point at a student account. This report does not delete it.',
+      });
+    }
+  }
+  const assignments = await LecturerAssignment.find({ departmentId, isActive: true })
+    .select('lecturerUserId')
+    .limit(200)
+    .lean();
+  const lecturers = await User.find({ _id: { $in: assignments.map((row) => row.lecturerUserId) } })
+    .select('accountStatus lecturerStatus')
+    .lean();
+  const lecturersById = new Map(lecturers.map((user) => [String(user._id), user]));
+  for (const assignment of assignments) {
+    const lecturer = lecturersById.get(String(assignment.lecturerUserId));
+    if (!lecturer || lecturer.accountStatus !== 'ACTIVE' || lecturer.lecturerStatus !== 'VERIFIED') {
+      issues.push({
+        issue: 'ACTIVE_ASSIGNMENT_FOR_INELIGIBLE_LECTURER',
+        entity: 'LecturerAssignment',
+        entityId: String(assignment._id),
+        recommendedAction: 'This active assignment is not held by an active verified lecturer. This report does not revoke it.',
+      });
+    }
+  }
+  const offerings = await SubjectOffering.find({ departmentId })
+    .select('academicYearId semesterId')
+    .limit(200)
+    .lean();
+  const semesterIds = [
+    ...contexts.map((row) => row.currentSemesterId),
+    ...offerings.map((row) => row.semesterId),
+  ];
+  const semesters = await Semester.find({ _id: { $in: semesterIds } })
+    .select('academicYearId')
+    .lean();
+  const semestersById = new Map(semesters.map((semester) => [String(semester._id), semester]));
+  for (const context of contexts) {
+    const semester = semestersById.get(String(context.currentSemesterId));
+    if (semester && String(semester.academicYearId) !== String(context.currentAcademicYearId)) {
+      issues.push({
+        issue: 'STUDENT_SEMESTER_YEAR_MISMATCH',
+        entity: 'StudentAcademicContext',
+        entityId: String(context._id),
+        recommendedAction: 'This student semester does not belong to the recorded academic year. This report does not move the student.',
+      });
+    }
+  }
+  for (const offering of offerings) {
+    const semester = semestersById.get(String(offering.semesterId));
+    if (semester && String(semester.academicYearId) !== String(offering.academicYearId)) {
+      issues.push({
+        issue: 'OFFERING_SEMESTER_YEAR_MISMATCH',
+        entity: 'SubjectOffering',
+        entityId: String(offering._id),
+        recommendedAction: 'This offering semester does not belong to the recorded academic year. This report does not change the offering.',
+      });
+    }
+  }
+  return {
+    issues,
+    issueCount: issues.length,
+    note: 'This check reports identity and academic-structure drift. It does not create, move, or revoke records.',
+  };
+}
