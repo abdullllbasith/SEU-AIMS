@@ -108,11 +108,23 @@ export function mapOffering(doc) {
 }
 
 export function mapAssignment(doc) {
+  const lecturer = doc.lecturerUserId;
+  const offering = doc.subjectOfferingId;
+  const lecturerPopulated = lecturer && lecturer.email;
+  const offeringPopulated = offering && offering._id && offering.subjectId;
+  const subject = offeringPopulated && offering.subjectId.code ? offering.subjectId : null;
+  const batch = offeringPopulated && offering.batchId && offering.batchId.code ? offering.batchId : null;
   return {
     id: id(doc),
     departmentId: id(doc.departmentId),
-    lecturerUserId: id(doc.lecturerUserId),
-    subjectOfferingId: id(doc.subjectOfferingId),
+    lecturerUserId: lecturerPopulated ? String(lecturer._id) : id(doc.lecturerUserId),
+    lecturerEmail: lecturerPopulated ? lecturer.email : undefined,
+    lecturerDisplayName: lecturerPopulated ? lecturer.displayName || '' : undefined,
+    subjectOfferingId: offeringPopulated ? String(offering._id) : id(doc.subjectOfferingId),
+    subjectCode: subject ? subject.code : undefined,
+    subjectName: subject ? subject.name : undefined,
+    batchCode: batch ? batch.code : undefined,
+    batchName: batch ? batch.name : undefined,
     assignedByUserId: id(doc.assignedByUserId),
     assignedAt: doc.assignedAt,
     revokedAt: doc.revokedAt || null,

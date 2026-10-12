@@ -1698,7 +1698,19 @@ export async function listAssignments(principal, query) {
     filter.isActive = false;
   }
   const [items, total] = await Promise.all([
-    LecturerAssignment.find(filter).sort({ assignedAt: -1 }).skip(skip).limit(limit),
+    LecturerAssignment.find(filter)
+      .sort({ assignedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('lecturerUserId', 'email displayName')
+      .populate({
+        path: 'subjectOfferingId',
+        select: 'subjectId batchId',
+        populate: [
+          { path: 'subjectId', select: 'code name' },
+          { path: 'batchId', select: 'code name' },
+        ],
+      }),
     LecturerAssignment.countDocuments(filter),
   ]);
   return paginatedResult({ items: items.map(mapAssignment), total, page, pageSize });
