@@ -10,6 +10,7 @@ import { PageSkeleton } from '../../ui/Skeleton.jsx';
 import { assessAcademicStructure } from './academic-structure.js';
 import {
   formatBatchLabel,
+  formatOfferingLabel,
   formatSemesterLabel,
   formatLinkedSubjectLabel,
   formatSemesterShortName,
@@ -1034,7 +1035,7 @@ export function AcademicAdminPage() {
       ) : null}
 
       {tab === 'Assignments' ? (
-        <div className="admin-crud">
+        <div className="admin-crud admin-crud--stacked">
           <Panel title="Assign lecturer" kicker="Active offerings">
             <form
               className="settings-form"
@@ -1102,10 +1103,32 @@ export function AcademicAdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {assignments.items.map((row) => (
+                    {assignments.items.map((row) => {
+                      const lecturer = lecturers.items.find((item) => item.id === row.lecturerUserId);
+                      const offering = offerings.items.find((item) => item.id === row.subjectOfferingId);
+                      const lecturerLabel =
+                        row.lecturerDisplayName ||
+                        lecturer?.displayName ||
+                        row.lecturerEmail ||
+                        lecturer?.email ||
+                        'Lecturer';
+                      const offeringLabel = formatOfferingLabel(
+                        {
+                          subjectCode: row.subjectCode || offering?.subjectCode,
+                          subjectName: row.subjectName || offering?.subjectName,
+                          subjectId: offering?.subjectId,
+                          batchId: offering?.batchId,
+                          batchCode: row.batchCode || offering?.batchCode,
+                          batchName: row.batchName || offering?.batchName,
+                          academicYearId: offering?.academicYearId,
+                          semesterId: offering?.semesterId,
+                        },
+                        lookups,
+                      );
+                      return (
                       <tr key={row.id}>
-                        <td>{row.lecturerUserId}</td>
-                        <td>{row.subjectOfferingId}</td>
+                        <td>{lecturerLabel}</td>
+                        <td>{offeringLabel || 'Offering'}</td>
                         <td>
                           <span className={statusPillClass(row.isActive)}>
                             {row.isActive ? 'Active' : 'Inactive'}
@@ -1122,7 +1145,8 @@ export function AcademicAdminPage() {
                           ) : null}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

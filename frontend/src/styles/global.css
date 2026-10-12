@@ -3842,6 +3842,14 @@ textarea:focus-visible {
   max-width: 36rem;
 }
 
+.admin-crud select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .admin-crud .data-table {
   width: 100%;
   min-width: 28rem;
