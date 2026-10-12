@@ -3,7 +3,7 @@
 | | development | test | staging | production |
 |---|---|---|---|---|
 | `NODE_ENV` | `development` | `test` | `production` (or `staging` if you add it) | `production` |
-| Mongo | local / compose | memory server in automated tests | dedicated cluster | dedicated cluster + auth |
+| Mongo | local replica set or Atlas (required for batch progression transactions) | memory replica set or transactional `MONGODB_TEST_URI` in automated tests | dedicated cluster | dedicated cluster + auth |
 | Redis | local | usually unset (in-memory queue + process rate limit) | dedicated | dedicated |
 | Files | `FILE_STORAGE_DRIVER=local_dev` | local_dev / unused | object storage | object storage (never `local_dev`) |
 | CORS | `http://localhost:5173` | test origin | staging origin | real HTTPS origin |

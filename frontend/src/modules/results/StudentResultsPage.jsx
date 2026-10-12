@@ -3,6 +3,7 @@ import { gpaApi, resultsApi } from './results-api.js';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
 
 export function StudentResultsPage() {
   const [error, setError] = useState('');
@@ -38,18 +39,16 @@ export function StudentResultsPage() {
   }, []);
 
   if (loading) {
-    return (
-      <section aria-busy="true">
-        <PageHeader title="My results" purpose="Loading your academic results…" />
-      </section>
-    );
+    return <PageSkeleton title="My results" variant="list" />;
   }
 
   if (error) {
     return (
-      <section>
+      <section className="record-page">
         <PageHeader title="My results" />
-        <p className="form-error">{error}</p>
+        <p className="form-error" role="alert">
+          {error}
+        </p>
       </section>
     );
   }
@@ -59,11 +58,12 @@ export function StudentResultsPage() {
   const gpaReady = gpa && Number(gpa.credits);
 
   return (
-    <section className="results-page">
+    <section className="record-page results-page">
       <PageHeader
         title="My results"
         purpose="Official marks by registration number and subject code. GPA is calculated on the server. E(CA) is excluded from the average."
       />
+
       {gpaReady ? (
         <div className="results-hero">
           <article className="gpa-hero">
@@ -83,10 +83,10 @@ export function StudentResultsPage() {
           </article>
         </div>
       ) : (
-        <p className="empty-state">Performance calculation is not yet available.</p>
+        <p className="deadline-empty">Performance calculation is not yet available.</p>
       )}
 
-      <Panel title="Current semester">
+      <Panel title="Current semester" kicker={`${current.length} result${current.length === 1 ? '' : 's'}`}>
         {current.length === 0 ? (
           <EmptyState to="/academic/me" action="Open academic context">
             No official results for the current semester.
@@ -101,9 +101,9 @@ export function StudentResultsPage() {
         )}
       </Panel>
 
-      <Panel title="Academic history">
+      <Panel title="Academic history" kicker={`${history.length} result${history.length === 1 ? '' : 's'}`}>
         {history.length === 0 ? (
-          <p className="empty-state">No earlier official results.</p>
+          <p className="deadline-empty">No earlier official results.</p>
         ) : (
           <>
             <ResultCards rows={history} />
@@ -127,7 +127,9 @@ function ResultCards({ rows }) {
         <li key={row.id} className="result-card">
           <p className="result-card__code">{row.subjectCode}</p>
           <p className={resultMarkClass(row)}>{resultLabel(row)}</p>
-          <p className="stack-item__meta">{row.updatedAt ? new Date(row.updatedAt).toLocaleDateString() : ''}</p>
+          <p className="stack-item__meta">
+            {row.updatedAt ? new Date(row.updatedAt).toLocaleDateString() : ''}
+          </p>
         </li>
       ))}
     </ul>

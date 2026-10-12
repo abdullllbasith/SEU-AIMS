@@ -20,6 +20,7 @@ export function createRouter() {
   router.get('/dashboard', lecturers, readLimiter, controller.dashboard);
   router.get('/subject-offerings', lecturers, readLimiter, controller.offerings);
   router.get('/subject-offerings/:offeringId', lecturers, readLimiter, controller.offering);
+  router.get('/subject-offerings/:offeringId/roster', lecturers, readLimiter, controller.offeringRoster);
   router.get('/upcoming', lecturers, readLimiter, controller.upcoming);
   router.get('/search', lecturers, readLimiter, controller.search);
   router.get('/assignments', lecturers, readLimiter, controller.assignments);

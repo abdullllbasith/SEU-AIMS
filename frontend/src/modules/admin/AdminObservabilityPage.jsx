@@ -2,9 +2,27 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminApi } from './admin-api.js';
 import { apiRequest } from '../../services/api-client.js';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { Panel } from '../../ui/Panel.jsx';
+import { StatCard } from '../../ui/StatCard.jsx';
+
+function queueDepthLabel(depth) {
+  if (depth == null || depth === '') {
+    return 'n/a';
+  }
+  if (typeof depth !== 'object') {
+    return depth;
+  }
+  const parts = ['high', 'normal', 'low']
+    .filter((key) => depth[key] != null)
+    .map((key) => `${key} ${depth[key]}`);
+  return parts.length ? parts.join(' · ') : 'n/a';
+}
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
 
 export function AdminObservabilityPage() {
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
   const [ops, setOps] = useState(null);
   const [jobs, setJobs] = useState(null);
@@ -35,72 +53,112 @@ export function AdminObservabilityPage() {
         if (!cancelled) {
           setError(caught.message || 'Unable to load operational summary');
         }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  if (loading) {
+    return <PageSkeleton title="Operational summary" variant="detail" stats={4} />;
+  }
+
   return (
-    <section>
-      <h1>Operational summary</h1>
-      <p>Counts only. This view does not show student names, results, or chat content.</p>
-      <p>
-        <Link to="/admin">Department dashboard</Link>
-      </p>
+    <section className="record-page">
+      <PageHeader
+        title="Operational summary"
+        purpose="Counts only. This view does not show student names, results, or chat content. Queue failed-job counts may be platform-wide."
+        actions={
+          <Link className="text-action" to="/admin">
+            Department dashboard
+          </Link>
+        }
+      />
+
       {error ? (
         <p className="form-error" role="alert">
           {error}
         </p>
       ) : null}
-      {summary ? (
-        <dl>
-          <dt>Denied audit events</dt>
-          <dd>{summary.denied}</dd>
-        </dl>
-      ) : null}
-      {ops?.queue ? (
-        <p>
-          Queue adapter {ops.queue.adapter}. Depth {ops.queue.depth ?? 'n/a'}. Failed{' '}
-          {ops.queue.failed}.
-        </p>
-      ) : null}
-      {jobs?.retry ? <p>{jobs.retry.reason}</p> : null}
-      {ops?.integrity ? (
-        <p>
-          Integrity issues {ops.integrity.issueCount}. Diagnostic only; this view does not repair
-          records.
-        </p>
-      ) : null}
-      {notify ? (
-        <p>
-          Notification groups {notify.byStatusAndChannel.length}. Recent failures{' '}
-          {notify.recentFailures.length}.
-        </p>
-      ) : null}
-      <p>
-        <button
-          type="button"
-          onClick={() =>
-            apiRequest('/files/admin/reconciliation')
-              .then((response) => setFiles(response.data))
-              .catch((caught) => setError(caught.message || 'Unable to check stored files'))
-          }
-        >
-          Check stored files
-        </button>
-      </p>
-      {files ? (
-        <p>
-          Stored-file issues {files.issueCount}. {files.note}
-        </p>
-      ) : null}
-      {calendar ? (
-        <p>
-          Upcoming published events {calendar.upcomingPublishedEvents}. Draft notices{' '}
-          {calendar.draftNotices}.
-        </p>
-      ) : null}
+
+      <div className="stat-row">
+        <StatCard label="Denied audits" value={summary?.denied ?? '—'} />
+        <StatCard label="Queue failed" value={ops?.queue?.failed ?? '—'} />
+        <StatCard label="Integrity issues" value={ops?.integrity?.issueCount ?? '—'} />
+        <StatCard
+          label="Upcoming events"
+          value={calendar?.upcomingPublishedEvents ?? '—'}
+        />
+      </div>
+
+      <div className="dashboard-grid dashboard-grid--primary">
+        <Panel title="Queue & jobs" kicker={ops?.queue?.adapter || 'adapter'}>
+          <dl className="record-dl">
+            <div>
+              <dt>Adapter</dt>
+              <dd>{ops?.queue?.adapter || '—'}</dd>
+            </div>
+            <div>
+              <dt>Depth</dt>
+              <dd>{queueDepthLabel(ops?.queue?.depth)}</dd>
+            </div>
+            <div>
+              <dt>Failed</dt>
+              <dd>{ops?.queue?.failed ?? '—'}</dd>
+            </div>
+            {jobs?.retry?.reason ? (
+              <div>
+                <dt>Retry note</dt>
+                <dd>{jobs.retry.reason}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </Panel>
+
+        <Panel title="Integrity & notifications" kicker="Diagnostic">
+          <p className="panel-lead">
+            Integrity issues: <strong>{ops?.integrity?.issueCount ?? '—'}</strong>. Diagnostic only;
+            this view does not repair records.
+          </p>
+          <p className="stack-item__meta">
+            Notification groups: {notify?.byStatusAndChannel?.length ?? '—'}
+            <span className="panel-footnote__sep">·</span>
+            Recent failures: {notify?.recentFailures?.length ?? '—'}
+          </p>
+          <p className="stack-item__meta">
+            Draft notices: {calendar?.draftNotices ?? '—'}
+          </p>
+        </Panel>
+      </div>
+
+      <Panel title="Stored files" kicker="Reconciliation">
+        <div className="panel-actions">
+          <button
+            type="button"
+            onClick={() =>
+              apiRequest('/files/admin/reconciliation')
+                .then((response) => setFiles(response.data))
+                .catch((caught) => setError(caught.message || 'Unable to check stored files'))
+            }
+          >
+            Check stored files
+          </button>
+        </div>
+        {files ? (
+          <div className="panel-subsection">
+            <p className="panel-lead">
+              Stored-file issues <strong>{files.issueCount}</strong>. {files.note}
+            </p>
+          </div>
+        ) : (
+          <p className="deadline-empty">Run a check to load stored-file diagnostics.</p>
+        )}
+      </Panel>
     </section>
   );
 }

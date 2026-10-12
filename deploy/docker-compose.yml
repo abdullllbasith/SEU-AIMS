@@ -5,6 +5,8 @@ services:
   mongo:
     image: mongo:7.0.14
     restart: unless-stopped
+    ports:
+      - "27017:27017"
     volumes:
       - mongo_data:/data/db
     command: ["--bind_ip_all"]
@@ -13,6 +15,8 @@ services:
   redis:
     image: redis:7.2.7-alpine
     restart: unless-stopped
+    ports:
+      - "6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data

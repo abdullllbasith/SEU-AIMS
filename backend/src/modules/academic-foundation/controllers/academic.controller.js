@@ -1,6 +1,8 @@
 import { sendSuccess } from '../../../shared/http/api-response.js';
 import { asyncHandler } from '../../../shared/http/async-handler.js';
 import * as academicService from '../services/academic.service.js';
+import * as enrollmentService from '../services/enrollment.service.js';
+import * as catalogImportService from '../services/catalog-import.service.js';
 
 export function createAcademicController() {
   return {
@@ -30,6 +32,15 @@ export function createAcademicController() {
     createBatch: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.createBatch(req.principal, req.body || {}), { statusCode: 201 });
     }),
+    getBatch: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.getBatch(req.principal, req.params.batchId));
+    }),
+    assignBatchAcademicContext: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await academicService.assignBatchAcademicContext(req.principal, req.params.batchId, req.body || {}),
+      );
+    }),
     updateBatch: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.updateBatch(req.principal, req.params.batchId, req.body || {}));
     }),
@@ -47,6 +58,9 @@ export function createAcademicController() {
         await academicService.updateAcademicYear(req.principal, req.params.yearId, req.body || {}),
       );
     }),
+    deleteAcademicYear: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.deleteAcademicYear(req.principal, req.params.yearId));
+    }),
     listSemesters: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.listSemesters(req.principal, req.query));
     }),
@@ -60,6 +74,9 @@ export function createAcademicController() {
         res,
         await academicService.updateSemester(req.principal, req.params.semesterId, req.body || {}),
       );
+    }),
+    deleteSemester: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.deleteSemester(req.principal, req.params.semesterId));
     }),
     listSubjects: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.listSubjects(req.principal, req.query));
@@ -89,6 +106,63 @@ export function createAcademicController() {
         res,
         await academicService.updateOffering(req.principal, req.params.offeringId, req.body || {}),
       );
+    }),
+    listOfferingEnrollments: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await enrollmentService.listOfferingEnrollments(req.principal, req.params.offeringId, req.query),
+      );
+    }),
+    createOfferingEnrollment: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await enrollmentService.createOfferingEnrollment(req.principal, req.params.offeringId, req.body || {}),
+        { statusCode: 201 },
+      );
+    }),
+    listStudentEnrollments: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await enrollmentService.listStudentEnrollments(req.principal, req.params.contextId, req.query),
+      );
+    }),
+    cancelEnrollment: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await enrollmentService.cancelEnrollment(req.principal, req.params.enrollmentId, req.body || {}),
+      );
+    }),
+    previewCatalogImport: asyncHandler(async (req, res) => {
+      sendSuccess(res, await catalogImportService.previewCatalogImport(req.principal));
+    }),
+    commitCatalogImport: asyncHandler(async (req, res) => {
+      sendSuccess(res, await catalogImportService.commitCatalogImport(req.principal));
+    }),
+    listCurriculumMappings: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.listCurriculumMappings(req.principal, req.query));
+    }),
+    createCurriculumMapping: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.createCurriculumMapping(req.principal, req.body || {}), {
+        statusCode: 201,
+      });
+    }),
+    updateCurriculumMapping: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await academicService.updateCurriculumMapping(req.principal, req.params.mappingId, req.body || {}),
+      );
+    }),
+    previewBatchOfferings: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.previewBatchOfferings(req.principal, req.params.batchId));
+    }),
+    generateBatchOfferings: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.generateBatchOfferings(req.principal, req.params.batchId));
+    }),
+    previewBatchProgression: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.previewBatchProgression(req.principal, req.params.batchId));
+    }),
+    progressBatch: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.progressBatch(req.principal, req.params.batchId, req.body || {}));
     }),
     listMembers: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.listMembers(req.principal, req.query));
@@ -126,6 +200,9 @@ export function createAcademicController() {
         res,
         await academicService.updateStudentContext(req.principal, req.params.contextId, req.body || {}),
       );
+    }),
+    deleteStudentContext: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.deleteStudentContext(req.principal, req.params.contextId));
     }),
     myContext: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.getMyContext(req.principal));

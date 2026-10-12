@@ -1,4 +1,4 @@
-import { createRedisClient, connectRedis } from './redis/client.js';
+import { createRedisClient, connectRedis, disconnectRedis } from './redis/client.js';
 import { createJobQueue } from './queue/job-queue.js';
 import { createFileStorage } from './storage/file-storage.js';
 import { createEmailProvider } from './providers/email-provider.js';
@@ -6,9 +6,10 @@ import { createWhatsAppProvider } from './providers/whatsapp-provider.js';
 import { createMalwareScanner } from './providers/malware-scanner.js';
 import { connectMongo } from './database/mongo.js';
 import { registerModels } from './database/register-models.js';
+import { ensureCurriculumMappingIndex } from '../modules/academic-foundation/models/ensure-curriculum-index.js';
 
 export async function createInfrastructure({ config, logger, backendRoot, connect = true }) {
-  const redis = createRedisClient({ url: config.redis.url, logger });
+  let redis = createRedisClient({ url: config.redis.url, logger });
   const storage = createFileStorage({ config, backendRoot });
   const email = createEmailProvider({ config });
   const whatsapp = createWhatsAppProvider({ config });
@@ -22,7 +23,19 @@ export async function createInfrastructure({ config, logger, backendRoot, connec
       serverSelectionTimeoutMS: config.mongo.serverSelectionTimeoutMS,
     });
     registerModels();
-    await connectRedis(redis, { logger });
+    await ensureCurriculumMappingIndex({ logger });
+    try {
+      await connectRedis(redis, { logger });
+    } catch (error) {
+      if (config.isProduction) {
+        throw error;
+      }
+      logger.warn('Redis is not reachable; API will run without the shared queue and socket adapter', {
+        message: error.message,
+      });
+      await disconnectRedis(redis, { logger });
+      redis = null;
+    }
   }
 
   const queue = createJobQueue({

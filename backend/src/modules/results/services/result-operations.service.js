@@ -3,6 +3,7 @@ import { AcademicResult } from '../models/academic-result.model.js';
 import { ResultImport } from '../models/result-import.model.js';
 import { ResultRevision } from '../models/result-revision.model.js';
 import { IncompleteCa } from '../../ca-recovery/index.js';
+import { ECA_RESULT_CODE } from '../constants.js';
 import { normalizeRegistrationNumber, normalizeSubjectCode } from './normalize.js';
 import { parsePagination, requireObjectId } from '../utils/http.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
@@ -98,43 +99,63 @@ export async function getResultVersions(principal, resultId) {
 export async function getResultAnalytics(principal) {
   assertAdmin(principal);
   const departmentId = new mongoose.Types.ObjectId(String(principal.departmentId));
-  const [importCounts, gradeRows, officialCount, ecaCount, revisionCount] = await Promise.all([
-    ResultImport.aggregate([
-      { $match: { departmentId } },
-      { $group: { _id: '$processingStatus', count: { $sum: 1 } } },
-    ]),
-    AcademicResult.aggregate([
-      { $match: { departmentId } },
-      { $group: { _id: '$resultCode', count: { $sum: 1 } } },
-      { $sort: { count: -1, _id: 1 } },
-    ]),
-    AcademicResult.countDocuments({ departmentId }),
-    AcademicResult.countDocuments({ departmentId, isEca: true }),
-    ResultRevision.aggregate([
-      {
-        $lookup: {
-          from: AcademicResult.collection.name,
-          localField: 'academicResultId',
-          foreignField: '_id',
-          as: 'result',
+  const attentionCodes = ['E', ECA_RESULT_CODE, 'D'];
+  const [importCounts, gradeRows, officialCount, ecaCount, revisionCount, subjectAttentionRows] =
+    await Promise.all([
+      ResultImport.aggregate([
+        { $match: { departmentId } },
+        { $group: { _id: '$processingStatus', count: { $sum: 1 } } },
+      ]),
+      AcademicResult.aggregate([
+        { $match: { departmentId } },
+        { $group: { _id: '$resultCode', count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+      ]),
+      AcademicResult.countDocuments({ departmentId }),
+      AcademicResult.countDocuments({ departmentId, isEca: true }),
+      ResultRevision.aggregate([
+        {
+          $lookup: {
+            from: AcademicResult.collection.name,
+            localField: 'academicResultId',
+            foreignField: '_id',
+            as: 'result',
+          },
         },
-      },
-      { $unwind: '$result' },
-      { $match: { 'result.departmentId': departmentId } },
-      { $count: 'count' },
-    ]),
-  ]);
+        { $unwind: '$result' },
+        { $match: { 'result.departmentId': departmentId } },
+        { $count: 'count' },
+      ]),
+      AcademicResult.aggregate([
+        { $match: { departmentId, resultCode: { $in: attentionCodes } } },
+        {
+          $group: {
+            _id: { subjectCode: '$subjectCode', resultCode: '$resultCode' },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { count: -1, '_id.subjectCode': 1, '_id.resultCode': 1 } },
+        { $limit: 8 },
+      ]),
+    ]);
   return {
     officialResultCount: officialCount,
     ecaCount,
     revisionCount: revisionCount[0]?.count || 0,
     importsByStatus: importCounts.map((row) => ({ status: row._id, count: row.count })),
     gradeDistribution: gradeRows.map((row) => ({ resultCode: row._id, count: row.count })),
+    subjectAttention: subjectAttentionRows.map((row) => ({
+      subjectCode: row._id.subjectCode,
+      resultCode: row._id.resultCode,
+      count: row.count,
+    })),
     definitions: {
       officialResultCount: 'Current official result rows in this department. One row per registration number and subject code.',
       ecaCount: 'Official rows whose current result code is E(CA).',
       revisionCount: 'Stored result revisions for this department, including the first commit of a row.',
       gradeDistribution: 'Count of current official result codes. Codes are not regrouped.',
+      subjectAttention:
+        'Subject codes with the highest counts of D, E, or E(CA) official results. Aggregated only; no student identifiers.',
     },
   };
 }

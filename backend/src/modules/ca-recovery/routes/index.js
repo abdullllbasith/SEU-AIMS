@@ -43,5 +43,17 @@ export function createRouter() {
   router.post('/lecturer/schedules/:scheduleId/cancel', requireRole(ROLES.LECTURER), requireCsrf, controller.cancelSchedule);
   router.post('/lecturer/applications/:applicationId/complete', requireRole(ROLES.LECTURER), requireCsrf, controller.complete);
 
+  router.get(
+    '/recovery-results',
+    requireRole(ROLES.DEPARTMENT_ADMINISTRATOR, ROLES.LECTURER),
+    controller.listRecoveryReviews,
+  );
+  router.post(
+    '/recovery-results/:reviewId/decision',
+    requireRole(ROLES.DEPARTMENT_ADMINISTRATOR, ROLES.LECTURER),
+    requireCsrf,
+    controller.decideRecoveryReview,
+  );
+
   return router;
 }

@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { DICT_SEUSL_CATALOG } from '../../src/modules/academic-foundation/data/dict-seusl-catalog.js';
+import { buildCatalogPlan } from '../../src/modules/academic-foundation/services/catalog-plan.js';
+
+const plan = buildCatalogPlan(DICT_SEUSL_CATALOG);
+
+test('vendored catalog keeps the calculator subject, credit, year, and semester rows', () => {
+  assert.equal(DICT_SEUSL_CATALOG.courses.length, 116);
+  assert.equal(plan.subjects.length, 97);
+  assert.equal(plan.conflicts.length, 0);
+  const security = plan.subjects.find((item) => item.code === 'NST32042');
+  assert.equal(security.name, 'Information Systems Security');
+  assert.equal(security.credits, 2);
+  const securityMappings = plan.mappings.filter((item) => item.code === 'NST32042');
+  assert.equal(securityMappings.length, 2);
+  assert.equal(securityMappings.every((item) => item.year === 3 && item.semester === 2), true);
+  assert.deepEqual(securityMappings.map((item) => item.specialization).sort(), ['NST', 'SWT']);
+  const programming = plan.subjects.find((item) => item.code === 'SWT11012');
+  assert.equal(programming.name, 'Fundamentals of Programming');
+  assert.equal(programming.credits, 2);
+  assert.equal(programming.countsForGpa, true);
+  const english = plan.subjects.find((item) => item.code === 'CMS11022');
+  assert.equal(english.countsForGpa, false);
+  assert.equal(english.credits, 2);
+  const project = plan.mappings.find((item) => item.code === 'SWT40016');
+  assert.equal(project.year, 4);
+  assert.equal(project.semester, 2);
+  assert.equal(project.streams[0], 'Software Technologies');
+  assert.equal(project.specialization, 'SWT');
+  const shared = plan.mappings.filter((item) => item.code === 'CMS31022');
+  assert.equal(shared.length, 2);
+  assert.deepEqual(shared.map((item) => item.specialization).sort(), ['NST', 'SWT']);
+  assert.equal(shared.every((item) => item.year === 3 && item.semester === 1), true);
+  const common = plan.mappings.find((item) => item.code === 'CIS11012');
+  assert.equal(common.specialization, null);
+  assert.equal(common.year, 1);
+  const softwareOnly = plan.mappings.find((item) => item.code === 'SWT31012');
+  assert.equal(softwareOnly.specialization, 'SWT');
+  const networkOnly = plan.mappings.find((item) => item.code === 'NST31011');
+  assert.equal(networkOnly.specialization, 'NST');
+  assert.equal(plan.unstored.electiveRules.length > 0, true);
+  assert.equal(plan.conflicts.some((item) => item.code === 'NST32042'), false);
+});

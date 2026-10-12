@@ -82,3 +82,15 @@ test('unconfigured malware scanner does not mark files clean', async () => {
   assert.equal(result.clean, false);
   assert.equal(result.status, 'not_configured');
 });
+
+test('dev_trust scanner is local only and production refuses it', async () => {
+  const local = createMalwareScanner({
+    config: { isProduction: false, malwareScanner: { provider: 'dev_trust' } },
+  });
+  const trusted = await local.scan({ key: 'local/example.pdf' });
+  assert.equal(trusted.clean, true);
+  assert.throws(
+    () => createMalwareScanner({ config: { isProduction: true, malwareScanner: { provider: 'dev_trust' } } }),
+    /not allowed when NODE_ENV is production/,
+  );
+});

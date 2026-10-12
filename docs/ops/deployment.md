@@ -37,6 +37,14 @@ Prompt 15 did **not** claim a successful `docker compose up` against a live host
 
 Compose does **not** load `.env` automatically from this file. Pass secrets at run time, for example `docker compose --env-file .env -f deploy/docker-compose.yml up --build`. Do not commit that file.
 
+## MongoDB replica set (batch progression)
+
+Department-admin **batch progression** (`POST /api/academic/batches/:batchId/progression`) uses MongoDB multi-document transactions. The cluster **must** run as a **replica set** (MongoDB Atlas default, or `mongod --replSet` locally). A standalone instance without replica-set configuration does **not** block API startup, but progression returns errors such as *Transaction numbers are only allowed on a replica set member or mongos* until the URI points at a replica set.
+
+Integration tests use an in-memory replica set when no transactional `MONGODB_TEST_URI` is available (`backend/tests/helpers/memory-mongo.js`).
+
+Transient write conflicts during progression are retried up to three times in application code; audit rows are written after the transaction commits (see `backend/src/modules/academic-foundation/README.md`).
+
 ## Migrations
 
 There is no separate migration runner. Mongoose `syncIndexes` runs when models register on process start. Do not run destructive index drops from two API instances as a custom script — none is provided.

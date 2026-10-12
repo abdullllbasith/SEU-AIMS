@@ -38,4 +38,7 @@ export const caApi = {
     apiRequest(`/ca/lecturer/schedules/${id}/cancel`, { method: 'POST', body: JSON.stringify({}) }),
   complete: (id) =>
     apiRequest(`/ca/lecturer/applications/${id}/complete`, { method: 'POST', body: JSON.stringify({}) }),
+  recoveryResults: () => apiRequest('/ca/recovery-results'),
+  decideRecovery: (id, decision) =>
+    apiRequest(`/ca/recovery-results/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision }) }),
 };

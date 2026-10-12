@@ -20,9 +20,23 @@ export const ROW_STATUSES = Object.freeze(['VALID', 'WARNING', 'BLOCKED']);
 
 export const MATCH_STATUSES = Object.freeze(['UNMATCHED', 'MATCHED', 'AMBIGUOUS']);
 
-export const PROPOSED_ACTIONS = Object.freeze(['NEW', 'UPDATE', 'UNCHANGED', 'SKIP']);
+export const PROPOSED_ACTIONS = Object.freeze(['NEW', 'UPDATE', 'UNCHANGED', 'SKIP', 'REVIEW']);
 
 export const ECA_RESULT_CODE = 'E(CA)';
+export const ABSENT_RESULT_CODE = 'AB';
+export const ESA_INCOMPLETE_RESULT_CODE = 'E(ESA)';
+export const CA_AND_ESA_INCOMPLETE_RESULT_CODE = 'E(CA&ESA)';
+
+/**
+ * Sheet markers that are official results but not grade points.
+ * Meanings are the department result-sheet legend. They stay out of DICT_GRADE_POINTS.
+ */
+export const RECOGNIZED_NON_GRADE_RESULTS = Object.freeze({
+  [ABSENT_RESULT_CODE]: 'Absent',
+  [ECA_RESULT_CODE]: 'Incomplete Continuous Assessment',
+  [ESA_INCOMPLETE_RESULT_CODE]: 'Incomplete End Semester Assessment',
+  [CA_AND_ESA_INCOMPLETE_RESULT_CODE]: 'Incomplete Continuous Assessment and Incomplete End Semester Assessment',
+});
 
 /**
  * Grade points copied from the approved DICT-SEUSL GPA calculator reference:

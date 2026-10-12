@@ -10,6 +10,10 @@ const resultRevisionSchema = new mongoose.Schema(
     subjectCode: { type: String, required: true },
     previousResultCode: { type: String, trim: true, default: '' },
     newResultCode: { type: String, required: true },
+    rawResultCode: { type: String, trim: true, default: '' },
+    gradeCapApplied: { type: Boolean, default: false },
+    gradeCapReason: { type: String, trim: true, default: '' },
+    caRecoveryReviewId: { type: objectId, ref: 'CaRecoveryResultReview' },
   },
   persistenceOptions,
 );

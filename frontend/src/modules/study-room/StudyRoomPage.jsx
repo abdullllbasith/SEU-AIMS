@@ -17,9 +17,37 @@ import {
   wrapGroupKey,
 } from './encryption.js';
 import { useAuth } from '../../state/AuthProvider.jsx';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { Panel } from '../../ui/Panel.jsx';
+import { EmptyState } from '../../ui/EmptyState.jsx';
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
 
 function clientMessageId() {
   return crypto.randomUUID ? crypto.randomUUID() : `m_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function connectionTone(socketState) {
+  if (socketState === 'connected') {
+    return 'status-pill status-pill--ok';
+  }
+  if (socketState === 'unauthorized') {
+    return 'status-pill status-pill--danger';
+  }
+  return 'status-pill status-pill--pending';
+}
+
+function resourceStatusClass(label) {
+  const value = String(label || '').toUpperCase();
+  if (value.includes('AVAILABLE') || value.includes('APPROVED') || value.includes('SAFE')) {
+    return 'status-pill status-pill--ok';
+  }
+  if (value.includes('PENDING') || value.includes('SCAN') || value.includes('REVIEW')) {
+    return 'status-pill status-pill--pending';
+  }
+  if (value.includes('REJECT') || value.includes('UNSAFE') || value.includes('FAIL')) {
+    return 'status-pill status-pill--danger';
+  }
+  return 'status-pill';
 }
 
 export function StudyRoomPage() {
@@ -41,6 +69,7 @@ export function StudyRoomPage() {
   const [query, setQuery] = useState('');
   const [privateId, setPrivateId] = useState(null);
   const [pending, setPending] = useState([]);
+  const [searchBusy, setSearchBusy] = useState(false);
 
   const conversationId = tab === 'private' ? privateId : overview?.commonConversation?.id;
 
@@ -91,8 +120,9 @@ export function StudyRoomPage() {
       const detail = await studyRoomApi.getConversation(id);
       const conversation = detail.data.conversation;
       if (conversation.type === 'PRIVATE') {
-        const peerId = conversation.participantUserIds.find((item) => item !== user.userId && item !== user.id);
-        const resolvedPeer = (conversation.participantUserIds || []).find((item) => String(item) !== String(user.id || user.userId));
+        const resolvedPeer = (conversation.participantUserIds || []).find(
+          (item) => String(item) !== String(user.id || user.userId),
+        );
         const keyResponse = await studyRoomApi.getPublicKey(resolvedPeer);
         if (!keyResponse.data.publicKeyJwk) {
           throw new Error('The other student has not published a public key yet');
@@ -163,6 +193,7 @@ export function StudyRoomPage() {
     const pendingItem = { clientMessageId: localId, localStatus: 'pending', preview: draft };
     setPending((current) => [...current, pendingItem]);
     setSendState('sending');
+    setError('');
     try {
       const key = await resolveConversationKey(conversationId, identity);
       const encryptedPayload = await encryptPlaintext(key, draft);
@@ -187,27 +218,52 @@ export function StudyRoomPage() {
 
   async function searchPeers(event) {
     event.preventDefault();
-    const result = await studyRoomApi.searchStudents(query);
-    setPeers(result.data.items);
+    setSearchBusy(true);
+    setError('');
+    try {
+      const result = await studyRoomApi.searchStudents(query);
+      setPeers(result.data.items);
+    } catch (caught) {
+      setError(caught.message || 'Student search failed');
+    } finally {
+      setSearchBusy(false);
+    }
   }
 
   async function openPrivate(peerId) {
-    const created = await studyRoomApi.createConversation(peerId);
-    setPrivateId(created.data.id);
-    setTab('private');
+    setError('');
+    try {
+      const created = await studyRoomApi.createConversation(peerId);
+      setPrivateId(created.data.id);
+      setTab('private');
+      setMessages([]);
+      setPending([]);
+    } catch (caught) {
+      setError(caught.message || 'Unable to open private chat');
+    }
   }
 
   async function createFolder(event) {
     event.preventDefault();
-    const created = await studyRoomApi.createFolder({ name: folderName });
-    setFolders((current) => [created.data, ...current]);
-    setFolderName('');
+    setError('');
+    try {
+      const created = await studyRoomApi.createFolder({ name: folderName });
+      setFolders((current) => [created.data, ...current]);
+      setFolderName('');
+    } catch (caught) {
+      setError(caught.message || 'Unable to create folder');
+    }
   }
 
   async function openFolder(folder) {
+    setError('');
     setActiveFolder(folder);
-    const listed = await studyRoomApi.folderResources(folder.id);
-    setResources(listed.data.items);
+    try {
+      const listed = await studyRoomApi.folderResources(folder.id);
+      setResources(listed.data.items);
+    } catch (caught) {
+      setError(caught.message || 'Unable to open folder');
+    }
   }
 
   async function uploadFile(event) {
@@ -215,146 +271,309 @@ export function StudyRoomPage() {
     if (!file || !activeFolder) {
       return;
     }
-    const form = new FormData();
-    form.append('file', file);
-    form.append('title', file.name);
-    const uploaded = await studyRoomApi.uploadResource(activeFolder.id, form);
-    setResources((current) => [uploaded.data, ...current]);
-    event.target.value = '';
+    setError('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('title', file.name);
+      const uploaded = await studyRoomApi.uploadResource(activeFolder.id, form);
+      setResources((current) => [uploaded.data, ...current]);
+    } catch (caught) {
+      setError(caught.message || 'Upload failed');
+    } finally {
+      event.target.value = '';
+    }
+  }
+
+  async function reportFile(resourceId) {
+    setError('');
+    try {
+      await studyRoomApi.reportResource(resourceId, {
+        category: 'POLICY',
+        description: 'Reported from Study Room',
+      });
+    } catch (caught) {
+      setError(caught.message || 'Unable to report file');
+    }
   }
 
   if (status === 'loading') {
-    return <p>Opening Study Room…</p>;
+    return <PageSkeleton title="Study Room" variant="workspace" />;
   }
+
   if (status === 'error') {
-    return <p className="form-error">{error}</p>;
-  }
-  if (status === 'unavailable') {
     return (
-      <section>
-        <h1>Study Room</h1>
-        <p>Study Room is available only to students with an active academic context in this department.</p>
+      <section className="record-page study-room">
+        <PageHeader title="Study Room" purpose="Student collaboration for your batch." />
+        <p className="form-error" role="alert">
+          {error}
+        </p>
       </section>
     );
   }
 
+  if (status === 'unavailable') {
+    return (
+      <section className="record-page study-room">
+        <PageHeader
+          title="Study Room"
+          purpose="Student collaboration space for your batch. This is not official course material."
+        />
+        <Panel title="Access unavailable">
+          <EmptyState to="/">
+            Study Room is available only to students with an active academic context in this department.
+          </EmptyState>
+        </Panel>
+      </section>
+    );
+  }
+
+  const conversationTitle =
+    tab === 'private' ? (privateId ? 'Private conversation' : 'Choose a classmate') : 'Common batch chat';
+  const conversationKicker = tab === 'private' ? 'Direct' : 'Shared';
+
   return (
-    <section className="study-room">
-      <h1>Study Room</h1>
-      <p>
-        Student collaboration space for your batch. This is not official course material. Messages are encrypted on
-        your device before they are stored.
-      </p>
-      <p aria-live="polite">Connection: {socketState}</p>
+    <section className="record-page study-room">
+      <PageHeader
+        title="Study Room"
+        purpose="Student collaboration for your batch. Messages are encrypted on your device before they are stored. This is not official course material."
+        meta={overview?.batchLabel || overview?.contextLabel || undefined}
+        actions={
+          <span className={connectionTone(socketState)} aria-live="polite">
+            {socketState === 'connected' ? 'Live' : socketState}
+          </span>
+        }
+      />
+
       {socketState !== 'connected' ? (
         <p className="reconnect-banner" role="status">
           Real-time delivery is {socketState}. You can still send; if send fails, stay on this page and retry.
         </p>
       ) : null}
-      {error ? <p className="form-error">{error}</p> : null}
-      <div className="tab-nav" role="tablist">
-        <button type="button" className={tab === 'common' ? 'tab-nav__tab is-active' : 'tab-nav__tab'} onClick={() => setTab('common')}>
+
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="tab-nav" role="tablist" aria-label="Study Room sections">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'common'}
+          className={tab === 'common' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+          onClick={() => setTab('common')}
+        >
           Common chat
         </button>
-        <button type="button" className={tab === 'private' ? 'tab-nav__tab is-active' : 'tab-nav__tab'} onClick={() => setTab('private')}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'private'}
+          className={tab === 'private' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+          onClick={() => setTab('private')}
+        >
           Private chats
         </button>
-        <button type="button" className={tab === 'files' ? 'tab-nav__tab is-active' : 'tab-nav__tab'} onClick={() => setTab('files')}>
-          Student shared resources
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'files'}
+          className={tab === 'files' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+          onClick={() => setTab('files')}
+        >
+          Shared resources
         </button>
       </div>
 
       {tab !== 'files' ? (
-        <div>
+        <div className="study-room__workspace">
           {tab === 'private' ? (
-            <form onSubmit={searchPeers}>
-              <label>
-                Find a student in your batch
-                <input value={query} onChange={(event) => setQuery(event.target.value)} minLength={2} />
-              </label>
-              <button type="submit">Search</button>
-              {peers.length === 0 ? <p>No private chats selected yet.</p> : null}
-              <ul>
-                {peers.map((peer) => (
-                  <li key={peer.id}>
-                    <button type="button" onClick={() => openPrivate(peer.id)}>
-                      {peer.displayName} ({peer.registrationNumber})
+            <Panel title="Find a classmate" kicker="Your batch">
+              <form className="inline-form study-room__search" onSubmit={searchPeers}>
+                <label>
+                  Search by name or registration number
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    minLength={2}
+                    placeholder="At least 2 characters"
+                  />
+                </label>
+                <div className="panel-actions">
+                  <button type="submit" disabled={searchBusy || query.trim().length < 2}>
+                    {searchBusy ? 'Searching…' : 'Search'}
+                  </button>
+                </div>
+              </form>
+              {peers.length === 0 ? (
+                <p className="deadline-empty">
+                  {query.trim().length >= 2
+                    ? 'No matching students in your batch.'
+                    : 'Search to start or resume a private conversation.'}
+                </p>
+              ) : (
+                <ul className="resource-list">
+                  {peers.map((peer) => (
+                    <li key={peer.id} className="resource-row">
+                      <div className="resource-row__main">
+                        <p className="resource-row__title">{peer.displayName}</p>
+                        <p className="resource-row__meta">{peer.registrationNumber}</p>
+                      </div>
+                      <div className="resource-row__aside">
+                        <button type="button" onClick={() => openPrivate(peer.id)}>
+                          Open chat
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+          ) : null}
+
+          <Panel title={conversationTitle} kicker={conversationKicker}>
+            {tab === 'private' && !privateId ? (
+              <EmptyState>Select a classmate above to open a private encrypted chat.</EmptyState>
+            ) : (
+              <>
+                <div className="study-room__thread" aria-live="polite">
+                  {decrypted.length === 0 && pending.length === 0 ? (
+                    <p className="deadline-empty">No messages in this conversation yet.</p>
+                  ) : (
+                    <ul className="study-room__messages">
+                      {decrypted.map((item) => (
+                        <li key={item.id || item.clientMessageId} className="study-room__message">
+                          <div className="study-room__message-body">
+                            {item.deletedAt ? (
+                              <p className="study-room__message-text is-removed">[removed]</p>
+                            ) : (
+                              <MessagePlain
+                                identity={identity}
+                                conversationId={conversationId}
+                                message={item}
+                                resolveKey={resolveConversationKey}
+                              />
+                            )}
+                          </div>
+                          <span className="study-room__message-meta">
+                            {item.localStatus === 'acknowledged' ? 'Delivered' : item.localStatus}
+                          </span>
+                        </li>
+                      ))}
+                      {pending.map((item) => (
+                        <li
+                          key={item.clientMessageId}
+                          className={
+                            item.localStatus === 'failed'
+                              ? 'study-room__message is-failed'
+                              : 'study-room__message is-pending'
+                          }
+                        >
+                          <div className="study-room__message-body">
+                            <p className="study-room__message-text">{item.preview}</p>
+                          </div>
+                          <span className="study-room__message-meta">{item.localStatus}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <form className="study-room__composer" onSubmit={sendDraft}>
+                  <label htmlFor="composer">Message</label>
+                  <textarea
+                    id="composer"
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    rows={3}
+                    placeholder="Write a message — encrypted before send"
+                  />
+                  <div className="panel-actions">
+                    <button type="submit" disabled={sendState === 'sending' || !draft.trim()}>
+                      {sendState === 'sending' ? 'Sending…' : 'Send'}
                     </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </Panel>
+        </div>
+      ) : (
+        <div className="study-room__files">
+          <Panel title="Shared folders" kicker={`${folders.length} folder${folders.length === 1 ? '' : 's'}`}>
+            <p className="panel-lead">Student-created files only. These are not official lecturer resources.</p>
+            <form className="inline-form" onSubmit={createFolder}>
+              <label>
+                New folder name
+                <input
+                  value={folderName}
+                  onChange={(event) => setFolderName(event.target.value)}
+                  required
+                  maxLength={80}
+                />
+              </label>
+              <div className="panel-actions">
+                <button type="submit">Create folder</button>
+              </div>
+            </form>
+            {folders.length === 0 ? (
+              <EmptyState>No shared folders yet. Create one to start collecting student files.</EmptyState>
+            ) : (
+              <ul className="resource-list">
+                {folders.map((folder) => (
+                  <li key={folder.id} className="resource-row">
+                    <div className="resource-row__main">
+                      <p className="resource-row__title">{folder.name}</p>
+                      <p className="resource-row__meta">
+                        {activeFolder?.id === folder.id ? 'Open' : 'Student folder'}
+                      </p>
+                    </div>
+                    <div className="resource-row__aside">
+                      <button type="button" onClick={() => openFolder(folder)}>
+                        {activeFolder?.id === folder.id ? 'Refresh' : 'Open'}
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
-            </form>
-          ) : null}
-          <div className="study-room__messages" aria-live="polite">
-            {decrypted.length === 0 && pending.length === 0 ? <p>No messages in this conversation yet.</p> : null}
-            <ul>
-              {decrypted.map((item) => (
-                <li key={item.id || item.clientMessageId}>
-                  <span>{item.deletedAt ? '[removed]' : item.encryptedPayload?.ciphertext?.slice(0, 24) + '…'}</span>
-                  <small> {item.localStatus === 'acknowledged' ? 'sent' : item.localStatus}</small>
-                  <MessagePlain identity={identity} conversationId={conversationId} message={item} resolveKey={resolveConversationKey} />
-                </li>
-              ))}
-              {pending.map((item) => (
-                <li key={item.clientMessageId}>
-                  {item.preview} <small>{item.localStatus}</small>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <form onSubmit={sendDraft}>
-            <label htmlFor="composer">Message</label>
-            <textarea id="composer" value={draft} onChange={(event) => setDraft(event.target.value)} />
-            <button type="submit" disabled={sendState === 'sending'}>
-              Send
-            </button>
-          </form>
-        </div>
-      ) : (
-        <div>
-          <p>Student-created files. These are not official lecturer resources.</p>
-          <form onSubmit={createFolder}>
-            <label>
-              New folder
-              <input value={folderName} onChange={(event) => setFolderName(event.target.value)} required />
-            </label>
-            <button type="submit">Create folder</button>
-          </form>
-          {folders.length === 0 ? <p>No shared folders yet.</p> : null}
-          <ul>
-            {folders.map((folder) => (
-              <li key={folder.id}>
-                <button type="button" onClick={() => openFolder(folder)}>
-                  {folder.name}
-                </button>
-              </li>
-            ))}
-          </ul>
+            )}
+          </Panel>
+
           {activeFolder ? (
-            <div>
-              <h2>{activeFolder.name}</h2>
-              <label>
+            <Panel title={activeFolder.name} kicker={`${resources.length} file${resources.length === 1 ? '' : 's'}`}>
+              <label className="study-room__upload">
                 Upload a student file
                 <input type="file" onChange={uploadFile} />
               </label>
-              {resources.length === 0 ? <p>No files in this folder yet.</p> : null}
-              <ul>
-                {resources.map((resource) => (
-                  <li key={resource.id}>
-                    {resource.displayFilename} — {resource.studentStatusLabel || resource.studentStatus}
-                    {resource.downloadable ? (
-                      <a href={studyRoomApi.downloadUrl(resource.id)}> Download</a>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => studyRoomApi.reportResource(resource.id, { category: 'POLICY', description: 'Reported from Study Room' })}
-                    >
-                      Report
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+              {resources.length === 0 ? (
+                <EmptyState>No files in this folder yet.</EmptyState>
+              ) : (
+                <ul className="resource-list">
+                  {resources.map((resource) => (
+                    <li key={resource.id} className="resource-row">
+                      <div className="resource-row__main">
+                        <p className="resource-row__title">{resource.displayFilename}</p>
+                        <p className="resource-row__meta">
+                          <span className={resourceStatusClass(resource.studentStatusLabel || resource.studentStatus)}>
+                            {resource.studentStatusLabel || resource.studentStatus}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="resource-row__aside">
+                        {resource.downloadable ? (
+                          <a href={studyRoomApi.downloadUrl(resource.id)}>Download</a>
+                        ) : null}
+                        <button type="button" onClick={() => reportFile(resource.id)}>
+                          Report
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
           ) : null}
         </div>
       )}
@@ -386,5 +605,5 @@ function MessagePlain({ identity, conversationId, message, resolveKey }) {
       cancelled = true;
     };
   }, [identity, conversationId, message, resolveKey]);
-  return <div>{text}</div>;
+  return <p className="study-room__message-text">{text || 'Decrypting…'}</p>;
 }

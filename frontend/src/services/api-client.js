@@ -28,6 +28,7 @@ export async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_BASE}${path.replace(/^\/api/, '')}`, {
     credentials: 'include',
     ...options,
+    cache: 'no-store',
     headers,
   });
 

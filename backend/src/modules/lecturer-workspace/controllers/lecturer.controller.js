@@ -21,6 +21,10 @@ export function createLecturerWorkspaceController() {
       privateNoStore(res);
       sendSuccess(res, await dashboardService.getOfferingWorkspace(req.principal, req.params.offeringId, req.query));
     }),
+    offeringRoster: asyncHandler(async (req, res) => {
+      privateNoStore(res);
+      sendSuccess(res, await dashboardService.getOfferingRoster(req.principal, req.params.offeringId));
+    }),
     upcoming: asyncHandler(async (req, res) => {
       privateNoStore(res);
       sendSuccess(res, await dashboardService.getUpcoming(req.principal));

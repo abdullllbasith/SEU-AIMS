@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { academicApi } from '../admin/academic-api.js';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { Panel } from '../../ui/Panel.jsx';
+import { EmptyState } from '../../ui/EmptyState.jsx';
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import {
+  formatBatchLabel,
+  formatSemesterLabel,
+  formatSubjectLabel,
+  formatYearLabel,
+} from '../../ui/academic-labels.js';
 
 export function StudentAcademicPage() {
   const [error, setError] = useState('');
@@ -19,7 +30,7 @@ export function StudentAcademicPage() {
         ]);
         if (!cancelled) {
           setPayload(contextRes.data);
-          setOfferings(offeringRes.data.items);
+          setOfferings(offeringRes.data.items || []);
         }
       } catch (caught) {
         if (!cancelled) {
@@ -38,44 +49,135 @@ export function StudentAcademicPage() {
   }, []);
 
   if (loading) {
-    return <p>Loading your academic context…</p>;
+    return <PageSkeleton title="My academic context" variant="record" />;
   }
 
   if (error) {
-    return <p className="form-error">{error}</p>;
+    return (
+      <section className="record-page">
+        <PageHeader title="My academic context" />
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      </section>
+    );
   }
 
   const context = payload?.context;
+  const history = payload?.history || [];
+  const currentYear = context
+    ? {
+        name: context.currentAcademicYearName,
+        sequence: context.currentAcademicYearSequence,
+      }
+    : null;
+  const currentSemester = context
+    ? {
+        name: context.currentSemesterName,
+        sequence: context.currentSemesterSequence,
+      }
+    : null;
+
   return (
-    <section>
-      <h1>My academic context</h1>
-      {!context ? <p>No academic membership is recorded yet.</p> : null}
-      {context ? (
-        <dl>
-          <dt>Registration number</dt>
-          <dd>{context.registrationNumber}</dd>
-          <dt>Status</dt>
-          <dd>{context.status}</dd>
-        </dl>
-      ) : null}
-      <h2>Current offerings</h2>
-      {offerings.length === 0 ? <p>No active offerings for your current semester.</p> : null}
-      <ul>
-        {offerings.map((item) => (
-          <li key={item.id}>
-            {item.subjectCode || item.subjectId} ({item.id})
-          </li>
-        ))}
-      </ul>
-      <h2>History</h2>
-      {(payload?.history || []).length === 0 ? <p>No recorded academic history yet.</p> : null}
-      <ul>
-        {(payload?.history || []).map((item) => (
-          <li key={item.id}>
-            Year {item.academicYearId} / semester {item.semesterId}
-          </li>
-        ))}
-      </ul>
+    <section className="record-page">
+      <PageHeader
+        title="My academic context"
+        purpose="Registration number and current progression from the academic foundation. This is identity data, not a login credential."
+      />
+
+      <Panel title="Membership record">
+        {!context ? (
+          <EmptyState to="/profile" action="Open profile">
+            No academic membership is recorded yet.
+          </EmptyState>
+        ) : (
+          <dl className="record-dl">
+            <div>
+              <dt>Registration number</dt>
+              <dd>{context.registrationNumber}</dd>
+            </div>
+            <div>
+              <dt>Batch</dt>
+              <dd>
+                {formatBatchLabel({ code: context.batchCode, name: context.batchName }) || '—'}
+              </dd>
+            </div>
+            <div>
+              <dt>Current academic year</dt>
+              <dd>{formatYearLabel(currentYear) || '—'}</dd>
+            </div>
+            <div>
+              <dt>Current semester</dt>
+              <dd>{formatSemesterLabel(currentSemester, currentYear) || '—'}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>
+                <span className="status-pill status-pill--ok">{context.status}</span>
+              </dd>
+            </div>
+          </dl>
+        )}
+      </Panel>
+
+      <Panel title="Current offerings" kicker={`${offerings.length} active`}>
+        {offerings.length === 0 ? (
+          <p className="deadline-empty">No active offerings for your current semester.</p>
+        ) : (
+          <ul className="entity-list">
+            {offerings.map((item) => (
+              <li key={item.id}>
+                <Link className="offering-card" to={`/learning/offerings/${item.id}`}>
+                  <p className="offering-card__code">{formatSubjectLabel(item)}</p>
+                  <p className="offering-card__meta">
+                    {formatSemesterLabel(currentSemester, currentYear) || 'Current semester offering'}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="panel-footnote">
+          <Link to="/learning">Official learning resources</Link>
+          <span className="panel-footnote__sep">·</span>
+          <Link to="/academic/history">Academic history</Link>
+        </p>
+      </Panel>
+
+      <Panel title="Progression history" kicker={`${history.length} record${history.length === 1 ? '' : 's'}`}>
+        {history.length === 0 ? (
+          <p className="deadline-empty">No recorded academic history yet.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Academic year</th>
+                  <th>Semester</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((item) => {
+                  const year = {
+                    name: item.academicYearName,
+                    sequence: item.academicYearSequence,
+                  };
+                  const semester = {
+                    name: item.semesterName,
+                    sequence: item.semesterSequence,
+                  };
+                  return (
+                    <tr key={item.id}>
+                      <td>{formatYearLabel(year) || '—'}</td>
+                      <td>{formatSemesterLabel(semester, year) || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </section>
   );
 }

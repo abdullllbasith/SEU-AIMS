@@ -24,6 +24,10 @@ export function mapBatch(doc) {
     code: doc.code,
     name: doc.name,
     status: doc.status,
+    currentAcademicYearId: id(doc.currentAcademicYearId),
+    currentSemesterId: id(doc.currentSemesterId),
+    academicContextVerifiedAt: doc.academicContextVerifiedAt || null,
+    specialization: doc.specialization || null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -61,6 +65,24 @@ export function mapSubject(doc) {
     code: doc.code,
     name: doc.name,
     credits: doc.credits,
+    status: doc.status,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  };
+}
+
+export function mapCurriculum(doc) {
+  const subject = doc.subjectId;
+  const subjectId = subject && subject.code ? String(subject._id) : id(doc.subjectId);
+  return {
+    id: id(doc),
+    departmentId: id(doc.departmentId),
+    subjectId,
+    subjectCode: subject && subject.code ? subject.code : undefined,
+    subjectName: subject && subject.name ? subject.name : undefined,
+    academicYearId: id(doc.academicYearId),
+    semesterId: id(doc.semesterId),
+    specialization: doc.specialization || null,
     status: doc.status,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
@@ -107,6 +129,7 @@ export function mapStudentContext(doc) {
     registrationNumber: doc.registrationNumber,
     currentAcademicYearId: id(doc.currentAcademicYearId),
     currentSemesterId: id(doc.currentSemesterId),
+    specialization: doc.specialization || null,
     status: doc.status,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
@@ -120,7 +143,32 @@ export function mapHistory(doc) {
     userId: id(doc.userId),
     academicYearId: id(doc.academicYearId),
     semesterId: id(doc.semesterId),
+    specialization: doc.specialization || null,
     recordedAt: doc.recordedAt,
+  };
+}
+
+export function mapEnrollment(doc) {
+  return {
+    id: id(doc),
+    departmentId: id(doc.departmentId),
+    batchId: id(doc.batchId),
+    studentUserId: id(doc.studentUserId),
+    studentAcademicContextId: id(doc.studentAcademicContextId),
+    registrationNumber: doc.registrationNumber,
+    subjectId: id(doc.subjectId),
+    subjectCode: doc.subjectCode,
+    subjectOfferingId: id(doc.subjectOfferingId),
+    enrollmentType: doc.enrollmentType,
+    status: doc.status,
+    academicResultId: id(doc.academicResultId),
+    originalAcademicYearId: id(doc.originalAcademicYearId),
+    originalSemesterId: id(doc.originalSemesterId),
+    createdByUserId: id(doc.createdByUserId),
+    cancelledAt: doc.cancelledAt || null,
+    cancelledByUserId: id(doc.cancelledByUserId),
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
   };
 }
 

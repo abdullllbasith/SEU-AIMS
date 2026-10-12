@@ -3,11 +3,19 @@ import test from 'node:test';
 import ExcelJS from 'exceljs';
 import { parseXlsxResults } from '../../src/modules/results/services/xlsx-parser.js';
 import { parsePdfResults } from '../../src/modules/results/services/pdf-parser.js';
-import { normalizeRegistrationNumber, normalizeResultCode } from '../../src/modules/results/services/normalize.js';
+import {
+  looksLikeSubjectCode,
+  normalizeRegistrationNumber,
+  normalizeResultCode,
+  normalizeSubjectCode,
+} from '../../src/modules/results/services/normalize.js';
 
 test('registration normalization is trim and case only', () => {
   assert.equal(normalizeRegistrationNumber('  seu/is/22/ict/001  '), 'SEU/IS/22/ICT/001');
   assert.equal(normalizeResultCode('e(ca)'), 'E(CA)');
+  assert.equal(normalizeResultCode('ab'), 'AB');
+  assert.equal(normalizeResultCode('E(ESA)'), 'E(ESA)');
+  assert.equal(normalizeResultCode('E(CA&ESA)'), 'E(CA&ESA)');
 });
 
 test('xlsx parser supports narrow registration/subject/result columns', async () => {
@@ -23,6 +31,12 @@ test('xlsx parser supports narrow registration/subject/result columns', async ()
   assert.equal(parsed.rows[0].resultCode, 'A');
 });
 
+test('subject codes accept four- and five-digit SEUSL course numbers', () => {
+  assert.equal(normalizeSubjectCode('CMS 12012'), 'CMS12012');
+  assert.ok(looksLikeSubjectCode('CMS12012'));
+  assert.ok(looksLikeSubjectCode('ICT1233'));
+});
+
 test('xlsx parser supports wide subject-code headers', async () => {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Sheet1');
@@ -34,6 +48,20 @@ test('xlsx parser supports wide subject-code headers', async () => {
   assert.deepEqual(
     parsed.rows.map((row) => `${row.subjectCode}:${row.resultCode}`).sort(),
     ['ICT1233:B+', 'ICT1242:E(CA)'],
+  );
+});
+
+test('xlsx parser supports wide five-digit subject-code headers', async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Results');
+  sheet.addRow(['SN', 'Registration No', 'CMS12012', 'SWT12041']);
+  sheet.addRow(['1', 'SEU/IS/22/ICT/001', 'A+', 'B-']);
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const parsed = await parseXlsxResults(buffer);
+  assert.equal(parsed.rows.length, 2);
+  assert.deepEqual(
+    parsed.rows.map((row) => `${row.subjectCode}:${row.resultCode}`).sort(),
+    ['CMS12012:A+', 'SWT12041:B-'],
   );
 });
 

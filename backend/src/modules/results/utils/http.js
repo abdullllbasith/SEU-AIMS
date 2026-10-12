@@ -8,8 +8,8 @@ export function requireObjectId(value, label) {
   return value;
 }
 
-export function parsePagination(query = {}) {
+export function parsePagination(query = {}, { maxPageSize = 50 } = {}) {
   const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
-  const pageSize = Math.min(50, Math.max(1, Number.parseInt(query.pageSize, 10) || 20));
+  const pageSize = Math.min(maxPageSize, Math.max(1, Number.parseInt(query.pageSize, 10) || 20));
   return { page, pageSize, skip: (page - 1) * pageSize, limit: pageSize };
 }

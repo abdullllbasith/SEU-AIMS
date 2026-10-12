@@ -40,6 +40,12 @@ export function mapImportRow(doc) {
     validationErrors: doc.validationErrors || [],
     proposedAction: doc.proposedAction,
     isEca: Boolean(doc.isEca),
+    rawResultCode: doc.rawResultCode || '',
+    officialResultCode: doc.officialResultCode || '',
+    gradeCapApplied: Boolean(doc.gradeCapApplied),
+    gradeCapReason: doc.gradeCapReason || '',
+    reviewRequired: Boolean(doc.reviewRequired),
+    explanation: doc.explanation || '',
     matchedStudentUserId: doc.matchedStudentUserId ? String(doc.matchedStudentUserId) : null,
   };
 }

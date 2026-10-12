@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { experienceApi, formatGpaDisplay } from './experience-api.js';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { Panel } from '../../ui/Panel.jsx';
+import { StatCard } from '../../ui/StatCard.jsx';
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import { formatSemesterLabel } from '../../ui/academic-labels.js';
 
 export function PerformancePage() {
   const [state, setState] = useState({ loading: true, error: '', data: null });
@@ -16,7 +21,11 @@ export function PerformancePage() {
       })
       .catch((caught) => {
         if (!cancelled) {
-          setState({ loading: false, error: caught.message || 'Unable to load performance', data: null });
+          setState({
+            loading: false,
+            error: caught.message || 'Unable to load performance',
+            data: null,
+          });
         }
       });
     return () => {
@@ -25,99 +34,152 @@ export function PerformancePage() {
   }, []);
 
   if (state.loading) {
-    return <p>Loading performance…</p>;
+    return <PageSkeleton title="My performance" variant="detail" stats={4} />;
   }
+
   if (state.error) {
-    return <p className="form-error">{state.error}</p>;
+    return (
+      <section className="record-page">
+        <PageHeader title="My performance" />
+        <p className="form-error" role="alert">
+          {state.error}
+        </p>
+      </section>
+    );
   }
 
   const data = state.data;
-  const maxCount = Math.max(1, ...data.distribution.map((item) => item.count));
+  const distribution = Array.isArray(data.distribution) ? data.distribution : [];
+  const trend = Array.isArray(data.trend) ? data.trend : [];
+  const subjects = Array.isArray(data.subjects) ? data.subjects : [];
+  const maxCount = Math.max(1, ...distribution.map((item) => item.count));
 
   return (
-    <section>
-      <h1>My performance</h1>
-      <p>{formatGpaDisplay(data.gpa)}</p>
-      {data.gpa.available ? (
-        <p>
-          Credits counted: {data.gpa.credits}. Classification: {data.gpa.classification || '—'}. Calculation{' '}
-          {data.gpa.calculationVersion || data.gpa.engine}.
+    <section className="record-page">
+      <PageHeader
+        title="My performance"
+        purpose={data.explanation || 'Server-calculated GPA from official results. E(CA) is excluded.'}
+      />
+
+      <div className="stat-row">
+        <StatCard
+          label="CGPA"
+          value={data.gpa?.available ? data.gpa.cgpa : '—'}
+          hint={formatGpaDisplay(data.gpa)}
+          to="/results/me"
+        />
+        <StatCard label="Credits counted" value={data.gpa?.available ? data.gpa.credits : '—'} />
+        <StatCard label="Completed results" value={data.completedCount ?? 0} />
+        <StatCard
+          label="Pending E(CA)"
+          value={data.pendingEcaCount ?? 0}
+          to={data.pendingEcaCount ? '/ca' : undefined}
+        />
+      </div>
+
+      {data.gpa?.available ? (
+        <p className="panel-lead">
+          Classification: <strong>{data.gpa.classification || '—'}</strong>
+          <span className="panel-footnote__sep">·</span>
+          Engine {data.gpa.calculationVersion || data.gpa.engine}
+          {data.pendingEcaCount ? (
+            <>
+              <span className="panel-footnote__sep">·</span>
+              <Link to="/ca">Open CA recovery</Link>
+            </>
+          ) : null}
         </p>
       ) : null}
-      <p>{data.explanation}</p>
-      <p>
-        Completed official results: {data.completedCount}. Pending E(CA): {data.pendingEcaCount}.
-        {data.pendingEcaCount ? (
-          <>
-            {' '}
-            <Link to="/ca">Open CA recovery</Link>
-          </>
-        ) : null}
-      </p>
 
-      <h2>Semester GPA trend</h2>
-      {data.trend.length === 0 ? <p>Not enough semester calculations yet.</p> : null}
-      <table className="data-table">
-        <caption>GPA by semester from the official calculation service</caption>
-        <thead>
-          <tr>
-            <th>Semester</th>
-            <th>GPA</th>
-            <th>Credits</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.trend.map((item) => (
-            <tr key={`${item.academicYearId}-${item.semesterId}`}>
-              <td>{item.semesterId}</td>
-              <td>{item.gpa}</td>
-              <td>{item.credits}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="dashboard-grid dashboard-grid--primary">
+        <Panel title="Semester GPA trend">
+          {trend.length === 0 ? (
+            <p className="deadline-empty">Not enough semester calculations yet.</p>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table">
+                <caption>GPA by semester from the official calculation service</caption>
+                <thead>
+                  <tr>
+                    <th>Semester</th>
+                    <th>GPA</th>
+                    <th>Credits</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trend.map((item) => (
+                    <tr key={`${item.academicYearId}-${item.semesterId}`}>
+                      <td>
+                        {formatSemesterLabel(
+                          { name: item.semesterName, sequence: item.semesterSequence },
+                          { name: item.academicYearName, sequence: item.academicYearSequence },
+                        ) ||
+                          item.semesterName ||
+                          '—'}
+                      </td>
+                      <td>{item.gpa}</td>
+                      <td>{item.credits}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
 
-      <h2>Result distribution</h2>
-      {data.distribution.length === 0 ? <p>Official results are not available for this semester yet.</p> : null}
-      <ul className="bar-chart" aria-label="Result distribution">
-        {data.distribution.map((item) => (
-          <li key={item.resultCode}>
-            <span>{item.resultCode}</span>
-            <span className="bar-chart__track">
-              <span className="bar-chart__fill" style={{ width: `${(item.count / maxCount) * 100}%` }} />
-            </span>
-            <span>{item.count}</span>
-          </li>
-        ))}
-      </ul>
-
-      <h2>Subject results</h2>
-      <div className="table-scroll">
-        <table className="data-table">
-          <caption>Subject-level official results</caption>
-          <thead>
-            <tr>
-              <th>Subject</th>
-              <th>Credits</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.subjects.map((item) => (
-              <tr key={`${item.subjectCode}-${item.semesterId}`}>
-                <td>
-                  {item.subjectCode} {item.subjectName}
-                </td>
-                <td>{item.credits ?? '—'}</td>
-                <td>
-                  {item.resultCode}
-                  {item.isEca ? ' (incomplete CA)' : ''}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Panel title="Result distribution">
+          {distribution.length === 0 ? (
+            <p className="deadline-empty">Official results are not available for this semester yet.</p>
+          ) : (
+            <ul className="bar-chart" aria-label="Result distribution">
+              {distribution.map((item) => (
+                <li key={item.resultCode}>
+                  <span className="bar-chart__label">{item.resultCode}</span>
+                  <span className="bar-chart__track">
+                    <span
+                      className="bar-chart__fill"
+                      style={{ width: `${(item.count / maxCount) * 100}%` }}
+                    />
+                  </span>
+                  <span className="bar-chart__count">{item.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
       </div>
+
+      <Panel title="Subject results">
+        <div className="table-scroll">
+          <table className="data-table">
+            <caption>Subject-level official results</caption>
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th>Credits</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subjects.map((item) => (
+                <tr key={`${item.subjectCode}-${item.semesterId}`}>
+                  <td>
+                    <span className="result-subject">{item.subjectCode}</span>{' '}
+                    {item.subjectName}
+                  </td>
+                  <td>{item.credits ?? '—'}</td>
+                  <td>
+                    <span className={item.isEca ? 'result-mark result-mark--eca' : 'result-mark'}>
+                      {item.resultCode}
+                      {item.isEca ? ' · incomplete CA' : ''}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
     </section>
   );
 }

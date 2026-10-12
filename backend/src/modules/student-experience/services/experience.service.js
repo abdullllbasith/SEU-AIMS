@@ -2,9 +2,11 @@ import mongoose from 'mongoose';
 import { ROLES } from '../../../shared/constants/roles.js';
 import { ForbiddenError, ValidationError } from '../../../shared/errors/app-error.js';
 import {
+  AcademicYear,
   getMyContext,
   getMyOfferings,
   LecturerAssignment,
+  Semester,
   Subject,
 } from '../../academic-foundation/index.js';
 import { getOwnResults } from '../../results/index.js';
@@ -340,9 +342,53 @@ export async function getPerformance(principal, query = {}) {
     'code name credits',
   );
   const byCode = new Map(subjects.map((item) => [item.code, item]));
+  const trendSource = gpa.available ? gpa.semesters : [];
+  const yearIds = [
+    ...new Set(
+      [...trendSource, ...results.all]
+        .map((item) => item.academicYearId)
+        .filter(Boolean)
+        .map(String),
+    ),
+  ];
+  const semesterIds = [
+    ...new Set(
+      [...trendSource, ...results.all]
+        .map((item) => item.semesterId)
+        .filter(Boolean)
+        .map(String),
+    ),
+  ];
+  const [years, semesters] = await Promise.all([
+    yearIds.length
+      ? AcademicYear.find({ _id: { $in: yearIds } })
+          .select('name sequence')
+          .lean()
+      : [],
+    semesterIds.length
+      ? Semester.find({ _id: { $in: semesterIds } })
+          .select('name sequence academicYearId')
+          .lean()
+      : [],
+  ]);
+  const yearById = new Map(years.map((row) => [String(row._id), row]));
+  const semesterById = new Map(semesters.map((row) => [String(row._id), row]));
+  const enrichPeriod = (item) => {
+    const year = yearById.get(String(item.academicYearId || ''));
+    const semester = semesterById.get(String(item.semesterId || ''));
+    return {
+      academicYearName: year?.name || '',
+      academicYearSequence: year?.sequence ?? null,
+      semesterName: semester?.name || '',
+      semesterSequence: semester?.sequence ?? null,
+    };
+  };
   return {
     gpa,
-    trend: gpa.available ? gpa.semesters : [],
+    trend: trendSource.map((item) => ({
+      ...item,
+      ...enrichPeriod(item),
+    })),
     distribution: Object.entries(distribution).map(([resultCode, count]) => ({ resultCode, count })),
     subjects: results.all.map((item) => ({
       subjectCode: item.subjectCode,
@@ -352,6 +398,7 @@ export async function getPerformance(principal, query = {}) {
       isEca: item.isEca,
       academicYearId: item.academicYearId,
       semesterId: item.semesterId,
+      ...enrichPeriod(item),
       updatedAt: item.updatedAt,
     })),
     completedCount: results.all.filter((item) => !item.isEca).length,

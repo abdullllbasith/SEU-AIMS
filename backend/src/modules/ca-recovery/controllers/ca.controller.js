@@ -5,6 +5,7 @@ import * as windowService from '../services/window.service.js';
 import * as scheduleService from '../services/schedule.service.js';
 import { downloadApplicationPdf } from '../services/pdf.service.js';
 import * as reconciliationService from '../services/reconciliation.service.js';
+import * as recoveryReviewService from '../services/recovery-result-review.service.js';
 
 function deps(req) {
   return {
@@ -90,6 +91,19 @@ export function createCaController() {
     }),
     complete: asyncHandler(async (req, res) => {
       sendSuccess(res, await scheduleService.completeApplication(req.principal, req.params.applicationId));
+    }),
+    listRecoveryReviews: asyncHandler(async (req, res) => {
+      sendSuccess(res, await recoveryReviewService.listRecoveryResultReviews(req.principal));
+    }),
+    decideRecoveryReview: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await recoveryReviewService.decideRecoveryResultReview(
+          req.principal,
+          req.params.reviewId,
+          req.body || {},
+        ),
+      );
     }),
     verifyToken: asyncHandler(async (req, res) => {
       sendSuccess(res, await applicationService.verifyByToken(req.params.token));

@@ -5,7 +5,7 @@
 | Command | What |
 |---|---|
 | `npm run test:unit` | Domain rules, parsers, GPA engine, queues (fake Redis) |
-| `npm run test:integration` | Mongo memory server, HTTP, sockets |
+| `npm run test:integration` | Mongo memory **replica set** (transactions), HTTP, sockets |
 | `npm run test:security` | Default-deny, IDOR, webhooks, mass assignment |
 | `npm run test:frontend` | Vitest/jsdom |
 | `npm run test:smoke` | Health + role smokes |

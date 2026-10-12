@@ -1,102 +1,210 @@
 import { useEffect, useState } from 'react';
-import { caApi } from '../ca-recovery/ca-api.js';
+import { Link } from 'react-router-dom';
+import { caApi } from './ca-api.js';
+import { RecoveryResultReviews } from './RecoveryResultReviews.jsx';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { Panel } from '../../ui/Panel.jsx';
+import { EmptyState } from '../../ui/EmptyState.jsx';
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
 
 export function LecturerCaPage() {
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [busyKey, setBusyKey] = useState('');
 
   async function reload() {
-    const [eligible, sched] = await Promise.all([caApi.lecturerEligible(), caApi.lecturerSchedules()]);
+    const [eligible, sched, reviewRes] = await Promise.all([
+      caApi.lecturerEligible(),
+      caApi.lecturerSchedules(),
+      caApi.recoveryResults(),
+    ]);
     setItems(eligible.data.items);
     setSchedules(sched.data.items);
+    setReviews(reviewRes.data.items || []);
   }
 
   useEffect(() => {
-    reload().catch((caught) => setError(caught.message || 'Unable to load CA scheduling'));
+    let cancelled = false;
+    reload()
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(caught.message || 'Unable to load CA scheduling');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  function runAction(key, fn) {
+    setBusyKey(key);
+    setError('');
+    Promise.resolve()
+      .then(fn)
+      .then(reload)
+      .catch((caught) => setError(caught.message || 'Action failed'))
+      .finally(() => setBusyKey(''));
+  }
+
+  if (loading) {
+    return <PageSkeleton title="CA scheduling" variant="list" />;
+  }
+
   return (
-    <section>
-      <h1>CA scheduling</h1>
-      {error ? <p className="form-error">{error}</p> : null}
-      <p>Only approved students for offerings assigned to you are listed. Official grades are not shown.</p>
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Application</th>
-            <th>Registration</th>
-            <th>Status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={`${item.applicationId}-${item.incompleteCaId}`}>
-              <td>{item.applicationId}</td>
-              <td>{item.registrationNumber}</td>
-              <td>{item.workflowStatus}</td>
-              <td>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const when = window.prompt('Schedule start (ISO datetime)', new Date().toISOString());
-                    if (!when) {
-                      return;
-                    }
-                    caApi
-                      .createSchedule({
-                        applicationId: item.applicationId,
-                        incompleteCaId: item.incompleteCaId,
-                        subjectOfferingId: item.subjectOfferingId,
-                        scheduledAt: when,
-                        venue: 'Department',
-                      })
-                      .then(reload)
-                      .catch((caught) => setError(caught.message));
-                  }}
-                >
-                  Schedule
-                </button>
-                {item.workflowStatus === 'SCHEDULED' || item.workflowStatus === 'APPROVED' ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!window.confirm('Mark this CA recovery as completed? This does not change the official result.')) {
-                        return;
-                      }
-                      caApi.complete(item.applicationId).then(reload).catch((caught) => setError(caught.message));
-                    }}
-                  >
-                    Mark completed
-                  </button>
-                ) : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <h2>Existing schedules</h2>
-      <ul>
-        {schedules.map((item) => (
-          <li key={item.id}>
-            {item.scheduledAt} {item.venue} {item.cancelledAt ? '(cancelled)' : ''}
-            {!item.cancelledAt ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (!window.confirm('Cancel this CA schedule?')) {
-                    return;
-                  }
-                  caApi.cancelSchedule(item.id).then(reload).catch((caught) => setError(caught.message));
-                }}
-              >
-                Cancel
-              </button>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+    <section className="record-page">
+      <PageHeader
+        title="CA scheduling"
+        purpose="Schedule approved CA applications for your offerings, and review imported CA recovery grades before they replace E(CA)."
+      />
+
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <RecoveryResultReviews
+        items={reviews}
+        busy={Boolean(busyKey)}
+        onDecide={(id, decision) => runAction(`review-${id}`, () => caApi.decideRecovery(id, decision))}
+      />
+
+      <Panel title="Eligible to schedule" kicker={`${items.length} student${items.length === 1 ? '' : 's'}`}>
+        {items.length === 0 ? (
+          <EmptyState to="/lecturer/offerings" action="View assignments">
+            No approved CA students in your assigned offerings.
+          </EmptyState>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Application</th>
+                  <th>Registration</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => {
+                  const key = `${item.applicationId}-${item.incompleteCaId}`;
+                  return (
+                    <tr key={key}>
+                      <td>{item.applicationId}</td>
+                      <td>
+                        <span className="result-subject">{item.registrationNumber}</span>
+                      </td>
+                      <td>
+                        <span className="status-pill">{item.workflowStatus}</span>
+                      </td>
+                      <td>
+                        <div className="stack-item__actions">
+                          <button
+                            type="button"
+                            disabled={Boolean(busyKey)}
+                            onClick={() => {
+                              const when = window.prompt(
+                                'Schedule start (ISO datetime)',
+                                new Date().toISOString(),
+                              );
+                              if (!when) {
+                                return;
+                              }
+                              runAction(key, () =>
+                                caApi.createSchedule({
+                                  applicationId: item.applicationId,
+                                  incompleteCaId: item.incompleteCaId,
+                                  subjectOfferingId: item.subjectOfferingId,
+                                  scheduledAt: when,
+                                  venue: 'Department',
+                                }),
+                              );
+                            }}
+                          >
+                            Schedule
+                          </button>
+                          {item.workflowStatus === 'SCHEDULED' ||
+                          item.workflowStatus === 'APPROVED' ? (
+                            <button
+                              type="button"
+                              disabled={Boolean(busyKey)}
+                              onClick={() => {
+                                if (
+                                  !window.confirm(
+                                    'Mark this CA recovery as completed? This does not change the official result.',
+                                  )
+                                ) {
+                                  return;
+                                }
+                                runAction(key, () => caApi.complete(item.applicationId));
+                              }}
+                            >
+                              Mark completed
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="panel-footnote">
+          <Link to="/">Teaching workspace</Link>
+        </p>
+      </Panel>
+
+      <Panel title="Existing schedules" kicker={`${schedules.length} total`}>
+        {schedules.length === 0 ? (
+          <p className="deadline-empty">No schedules created yet.</p>
+        ) : (
+          <ul className="stack-list">
+            {schedules.map((item) => (
+              <li key={item.id}>
+                <div className="stack-item">
+                  <span>
+                    <span className="stack-item__title">
+                      {item.scheduledAt ? new Date(item.scheduledAt).toLocaleString() : item.scheduledAt}
+                    </span>
+                    <span className="stack-item__meta">
+                      {item.venue || 'Venue not set'}
+                      {item.cancelledAt ? ' · cancelled' : ''}
+                    </span>
+                  </span>
+                  <span className="stack-item__actions">
+                    {!item.cancelledAt ? (
+                      <button
+                        type="button"
+                        disabled={Boolean(busyKey)}
+                        onClick={() => {
+                          if (!window.confirm('Cancel this CA schedule?')) {
+                            return;
+                          }
+                          runAction(item.id, () => caApi.cancelSchedule(item.id));
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    ) : (
+                      <span className="status-pill status-pill--danger">Cancelled</span>
+                    )}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
     </section>
   );
 }

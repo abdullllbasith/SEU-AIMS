@@ -29,6 +29,60 @@ test('students access offerings by current or historical batch/year/semester', (
   );
   assert.equal(canStudentAccessOffering(student, context, { ...offering, batchId: 'b2' }, []), false);
   assert.equal(canStudentAccessOffering(lecturer, context, offering, []), false);
+  assert.equal(
+    canStudentAccessOffering(
+      student,
+      { ...context, currentSemesterId: 'sem2' },
+      { ...offering, id: 'offering-1' },
+      [],
+      [
+        {
+          status: 'ACTIVE',
+          studentUserId: 's1',
+          subjectOfferingId: 'offering-1',
+          departmentId: 'd1',
+          batchId: 'b1',
+        },
+      ],
+    ),
+    true,
+  );
+  assert.equal(
+    canStudentAccessOffering(
+      student,
+      { ...context, currentSemesterId: 'sem2' },
+      { ...offering, id: 'offering-2' },
+      [],
+      [
+        {
+          status: 'ACTIVE',
+          studentUserId: 's1',
+          subjectOfferingId: 'offering-1',
+          departmentId: 'd1',
+          batchId: 'b1',
+        },
+      ],
+    ),
+    false,
+  );
+  assert.equal(
+    canStudentAccessOffering(
+      student,
+      { ...context, currentSemesterId: 'sem2' },
+      { ...offering, id: 'offering-1' },
+      [],
+      [
+        {
+          status: 'CANCELLED',
+          studentUserId: 's1',
+          subjectOfferingId: 'offering-1',
+          departmentId: 'd1',
+          batchId: 'b1',
+        },
+      ],
+    ),
+    false,
+  );
 });
 
 test('lecturers manage resources only with an active assignment', () => {
@@ -42,6 +96,45 @@ test('lecturers manage resources only with an active assignment', () => {
   );
   assert.equal(canManageOfferingResources(admin, offering, null), true);
   assert.equal(canManageOfferingResources(student, offering, null), false);
+});
+
+test('specialized offerings stay with the student who holds that specialization', () => {
+  const swt = [{ specialization: 'SWT' }];
+  const both = [{ specialization: 'SWT' }, { specialization: 'NST' }];
+  assert.equal(canStudentAccessOffering(student, { ...context, specialization: 'SWT' }, offering, [], [], swt), true);
+  assert.equal(canStudentAccessOffering(student, { ...context, specialization: 'NST' }, offering, [], [], swt), false);
+  assert.equal(canStudentAccessOffering(student, context, offering, [], [], swt), false);
+  assert.equal(canStudentAccessOffering(student, { ...context, specialization: 'NST' }, offering, [], [], both), true);
+  assert.equal(
+    canStudentAccessOffering(
+      student,
+      { ...context, specialization: 'SWT', currentSemesterId: 'sem2' },
+      { ...offering, id: 'offering-9' },
+      [{ academicYearId: 'y1', semesterId: 'sem1', specialization: 'NST' }],
+      [],
+      swt,
+    ),
+    false,
+  );
+  assert.equal(
+    canStudentAccessOffering(
+      student,
+      { ...context, currentSemesterId: 'sem2' },
+      { ...offering, id: 'offering-1' },
+      [],
+      [
+        {
+          status: 'ACTIVE',
+          studentUserId: 's1',
+          subjectOfferingId: 'offering-1',
+          departmentId: 'd1',
+          batchId: 'b1',
+        },
+      ],
+      swt,
+    ),
+    true,
+  );
 });
 
 test('students only see published resources whose files are safe and available', () => {

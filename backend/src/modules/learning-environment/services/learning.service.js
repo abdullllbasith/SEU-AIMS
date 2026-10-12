@@ -8,7 +8,10 @@ import {
   LecturerAssignment,
   StudentAcademicContext,
   StudentAcademicHistory,
+  SubjectEnrollment,
   findAssignment,
+  filterOfferingsForSpecialization,
+  mappingsForOffering,
 } from '../../academic-foundation/index.js';
 import { StoredFile } from '../../files/index.js';
 import {
@@ -72,10 +75,16 @@ async function studentEntitlement(principal, offering) {
     return false;
   }
   const context = await StudentAcademicContext.findOne({ userId: principal.userId });
-  const history = context
-    ? await StudentAcademicHistory.find({ studentAcademicContextId: context._id })
-    : [];
-  return canStudentAccessOffering(principal, context, offering, history);
+  const [history, enrollments, mappings] = await Promise.all([
+    context ? StudentAcademicHistory.find({ studentAcademicContextId: context._id }) : [],
+    SubjectEnrollment.find({
+      studentUserId: principal.userId,
+      subjectOfferingId: offering._id,
+      status: 'ACTIVE',
+    }),
+    mappingsForOffering(offering),
+  ]);
+  return canStudentAccessOffering(principal, context, offering, history, enrollments, mappings);
 }
 
 async function assertCanViewOffering(principal, offering) {
@@ -132,13 +141,34 @@ export async function listAccessibleOfferings(principal, query = {}) {
   }
 
   if (!historical) {
-    const offerings = await SubjectOffering.find({
-      departmentId: context.departmentId,
-      batchId: context.batchId,
-      academicYearId: context.currentAcademicYearId,
-      semesterId: context.currentSemesterId,
-    }).populate('subjectId', 'code name');
-    return { items: offerings.map((item) => mapOfferingSummary(item)), scope: 'current' };
+    const [offerings, enrollments] = await Promise.all([
+      SubjectOffering.find({
+        departmentId: context.departmentId,
+        batchId: context.batchId,
+        academicYearId: context.currentAcademicYearId,
+        semesterId: context.currentSemesterId,
+      }).populate('subjectId', 'code name'),
+      SubjectEnrollment.find({
+        studentUserId: principal.userId,
+        departmentId: context.departmentId,
+        batchId: context.batchId,
+        status: 'ACTIVE',
+      }).select('subjectOfferingId'),
+    ]);
+    const visible = await filterOfferingsForSpecialization(offerings, context.specialization || null);
+    const seen = new Set(visible.map((item) => String(item._id)));
+    const extraIds = enrollments
+      .map((row) => row.subjectOfferingId)
+      .filter((id) => id && !seen.has(String(id)));
+    const extras = extraIds.length
+      ? await SubjectOffering.find({
+          _id: { $in: extraIds },
+          departmentId: context.departmentId,
+          batchId: context.batchId,
+          status: 'ACTIVE',
+        }).populate('subjectId', 'code name')
+      : [];
+    return { items: [...visible, ...extras].map((item) => mapOfferingSummary(item)), scope: 'current' };
   }
 
   const history = await StudentAcademicHistory.find({ studentAcademicContextId: context._id });
@@ -154,7 +184,15 @@ export async function listAccessibleOfferings(principal, query = {}) {
     batchId: context.batchId,
     $or: keys,
   }).populate('subjectId', 'code name');
-  return { items: offerings.map((item) => mapOfferingSummary(item)), scope: 'history' };
+  const visible = await filterOfferingsForSpecialization(offerings, (offering) => {
+    const row = history.find(
+      (item) =>
+        String(item.academicYearId) === String(offering.academicYearId) &&
+        String(item.semesterId) === String(offering.semesterId),
+    );
+    return row?.specialization || null;
+  });
+  return { items: visible.map((item) => mapOfferingSummary(item)), scope: 'history' };
 }
 
 export async function getOfferingLearningPage(principal, offeringId) {

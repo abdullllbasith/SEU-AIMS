@@ -228,8 +228,24 @@ test('repeat student later file updates the same official row without moving aca
     });
   const preview = await admin.agent.get(`/api/results/imports/${import2.body.data.id}/preview`);
   const repeatRow = preview.body.data.items.find((row) => row.registrationNumber === 'SEU/IS/22/ICT/001');
-  assert.equal(repeatRow.proposedAction, 'UPDATE');
-  await admin.agent.post(`/api/results/imports/${import2.body.data.id}/commit`).set('X-CSRF-Token', admin.csrfToken).send({});
+  assert.equal(repeatRow.proposedAction, 'REVIEW');
+  assert.match(repeatRow.explanation, /official result remains E\(CA\)/i);
+  const commit2 = await admin.agent
+    .post(`/api/results/imports/${import2.body.data.id}/commit`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({});
+  assert.equal(commit2.status, 200);
+  const pending = await AcademicResult.findOne({ registrationNumber: 'SEU/IS/22/ICT/001', subjectCode: 'ICT1233' });
+  assert.equal(pending.resultCode, 'E(CA)');
+  assert.equal(pending.version, 1);
+  const reviews = await admin.agent.get('/api/ca/recovery-results');
+  assert.equal(reviews.status, 200);
+  const review = reviews.body.data.items.find((item) => item.registrationNumber === 'SEU/IS/22/ICT/001');
+  const approved = await admin.agent
+    .post(`/api/ca/recovery-results/${review.id}/decision`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({ decision: 'APPROVE' });
+  assert.equal(approved.status, 200);
   const all = await AcademicResult.find({ subjectCode: 'ICT1233' });
   assert.equal(all.length, 2);
   const updated = all.find((row) => row.registrationNumber === 'SEU/IS/22/ICT/001');
@@ -547,7 +563,9 @@ test('unknown grades are blocked, reject stops commit, and admin search stays sc
   const counts = await admin.agent.get('/api/results/analytics');
   assert.equal(counts.status, 200);
   assert.equal(counts.body.data.officialResultCount, 1);
+  assert.ok(Array.isArray(counts.body.data.subjectAttention));
   assert.equal(JSON.stringify(counts.body.data).includes('student22'), false);
+  assert.equal(JSON.stringify(counts.body.data).includes('SEU/IS'), false);
   const report = await admin.agent.get('/api/results/reconciliation');
   assert.equal(report.status, 200);
   assert.equal(typeof report.body.data.issueCount, 'number');
@@ -580,6 +598,9 @@ test('GPA read does not recalculate, and only an admin can rebuild department sn
   const quality = await admin.agent.get('/api/gpa/admin/quality');
   assert.equal(quality.status, 200);
   assert.equal(quality.body.data.current, 1);
+  assert.equal(quality.body.data.insights.verifiedSampleSize, 1);
+  assert.equal(quality.body.data.insights.ready, false);
+  assert.equal(quality.body.data.insights.averageCgpa, null);
   assert.equal(JSON.stringify(quality.body.data).includes('SEU/IS'), false);
   const rebuild = await admin.agent
     .post('/api/gpa/admin/rebuild')

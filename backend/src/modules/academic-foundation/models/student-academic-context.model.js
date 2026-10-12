@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { ENTITY_STATUSES } from '../constants.js';
+import { ENTITY_STATUSES, SPECIALIZATIONS } from '../constants.js';
 import { defineModel, objectId, persistenceOptions } from '../../../infrastructure/database/define-model.js';
 
 const studentAcademicContextSchema = new mongoose.Schema(
@@ -10,6 +10,7 @@ const studentAcademicContextSchema = new mongoose.Schema(
     registrationNumber: { type: String, required: true, trim: true, uppercase: true },
     currentAcademicYearId: { type: objectId, ref: 'AcademicYear', required: true },
     currentSemesterId: { type: objectId, ref: 'Semester', required: true },
+    specialization: { type: String, enum: [...SPECIALIZATIONS, null], default: null },
     status: { type: String, required: true, enum: ENTITY_STATUSES, default: 'ACTIVE' },
   },
   persistenceOptions,

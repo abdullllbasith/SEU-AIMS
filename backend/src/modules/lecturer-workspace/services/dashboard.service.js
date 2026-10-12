@@ -13,6 +13,7 @@ import {
   requireAssignedOffering,
   listResourcesForOffering,
 } from './offerings.service.js';
+import { listOfferingRoster } from './roster.service.js';
 
 async function settle(label, fn) {
   try {
@@ -168,11 +169,12 @@ export async function getAssignedOfferings(principal) {
 export async function getOfferingWorkspace(principal, offeringId, query = {}) {
   assertLecturer(principal);
   const { item, lecturerStatus } = await requireAssignedOffering(principal, offeringId);
-  const [resources, events, caEligible, caSchedules] = await Promise.all([
+  const [resources, events, caEligible, caSchedules, roster] = await Promise.all([
     settle('Official resources', () => listResourcesForOffering(item.id, query)),
     settle('Calendar', () => upcomingEvents(principal)),
     settle('CA eligible students', () => listApprovedForLecturer(principal)),
     settle('CA schedules', () => listSchedules(principal)),
+    settle('Offering roster', () => listOfferingRoster(principal, item.id)),
   ]);
   const offeringEvents = events.ok
     ? events.data.items.filter((row) => row.subjectOfferingId === item.id)
@@ -209,6 +211,7 @@ export async function getOfferingWorkspace(principal, offeringId, query = {}) {
       ca: '/lecturer/ca',
       calendar: '/calendar',
     },
+    roster: roster.ok ? roster.data : { items: [] },
   };
 }
 
@@ -239,6 +242,11 @@ export async function getCaEligible(principal) {
 export async function getCaSchedules(principal) {
   assertLecturer(principal);
   return listSchedules(principal);
+}
+
+export async function getOfferingRoster(principal, offeringId) {
+  assertLecturer(principal);
+  return listOfferingRoster(principal, offeringId);
 }
 
 export function rejectLecturerMutation(kind) {

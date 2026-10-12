@@ -1,9 +1,15 @@
 import { createHash } from 'node:crypto';
 import { AcademicResult } from '../../results/models/academic-result.model.js';
-import { ECA_RESULT_CODE } from '../../results/constants.js';
+import { isRecognizedNonGrade } from '../../results/services/normalize.js';
 import { Subject } from '../../academic-foundation/index.js';
 import { GpaSnapshot } from '../models/gpa-snapshot.model.js';
-import { GPA_CALCULATION_VERSION, calculateWeightedGpa, classifyDegreeByGpa, gradePointFor } from './gpa-engine.js';
+import {
+  GPA_CALCULATION_VERSION,
+  calculateWeightedGpa,
+  classifyDegreeByGpa,
+  gradePointFor,
+  round2,
+} from './gpa-engine.js';
 import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import { ForbiddenError } from '../../../shared/errors/app-error.js';
 import { ROLES } from '../../../shared/constants/roles.js';
@@ -226,6 +232,8 @@ async function departmentStudentIds(departmentId) {
   return AcademicResult.distinct('studentUserId', { departmentId });
 }
 
+const MIN_VERIFIED_CGPA_SAMPLE = 5;
+
 export async function getDepartmentGpaQuality(principal) {
   assertAdmin(principal);
   const studentIds = await departmentStudentIds(principal.departmentId);
@@ -233,6 +241,8 @@ export async function getDepartmentGpaQuality(principal) {
   let unavailable = 0;
   let stale = 0;
   let missingSnapshot = 0;
+  const verifiedCgpaValues = [];
+  const classificationCounts = new Map();
   for (const studentUserId of studentIds) {
     const overall = await GpaSnapshot.findOne({ studentUserId, scope: 'CUMULATIVE' });
     if (!overall) {
@@ -250,6 +260,13 @@ export async function getDepartmentGpaQuality(principal) {
       unavailable += 1;
     } else {
       current += 1;
+      if (typeof overall.value === 'number' && Number.isFinite(overall.value)) {
+        verifiedCgpaValues.push(overall.value);
+        const band = overall.classification || classifyDegreeByGpa(overall.value);
+        if (band) {
+          classificationCounts.set(band, (classificationCounts.get(band) || 0) + 1);
+        }
+      }
     }
   }
   const results = await AcademicResult.find({ departmentId: principal.departmentId }).select('resultCode subjectId isEca');
@@ -261,10 +278,20 @@ export async function getDepartmentGpaQuality(principal) {
     if (!subjectIds.has(String(result.subjectId))) {
       missingSubjectRows += 1;
     }
-    if (!result.isEca && result.resultCode !== ECA_RESULT_CODE && gradePointFor(result.resultCode) == null) {
+    if (!isRecognizedNonGrade(result.resultCode) && gradePointFor(result.resultCode) == null) {
       unknownGradeRows += 1;
     }
   }
+  const verifiedSampleSize = verifiedCgpaValues.length;
+  const insightsReady = verifiedSampleSize >= MIN_VERIFIED_CGPA_SAMPLE;
+  const averageCgpa = insightsReady
+    ? round2(verifiedCgpaValues.reduce((sum, value) => sum + value, 0) / verifiedSampleSize)
+    : null;
+  const classificationDistribution = insightsReady
+    ? [...classificationCounts.entries()]
+        .map(([classification, count]) => ({ classification, count }))
+        .sort((left, right) => right.count - left.count || left.classification.localeCompare(right.classification))
+    : [];
   return {
     calculationVersion: GPA_CALCULATION_VERSION,
     studentsWithResults: studentIds.length,
@@ -274,11 +301,20 @@ export async function getDepartmentGpaQuality(principal) {
     missingSnapshot,
     unknownGradeRows,
     missingSubjectRows,
+    insights: {
+      verifiedSampleSize,
+      minimumSampleSize: MIN_VERIFIED_CGPA_SAMPLE,
+      averageCgpa,
+      classificationDistribution,
+      ready: insightsReady,
+    },
     definitions: {
       current: 'Cumulative snapshot matches current official result versions and the calculation version.',
       stale: 'Stored snapshot does not match current official inputs, or the calculation failed. The student API does not present that number as current.',
       unavailable: 'Snapshot is current and no counted credits remain, so no GPA number is stored.',
       unknownGradeRows: 'Official result codes outside the DICT grade map and not E(CA). They are excluded from the average and are not assigned a grade point.',
+      averageCgpa:
+        'Mean of verified current cumulative GPA snapshots only. Shown when at least five verified numeric snapshots exist. Individual student values are never exposed.',
     },
   };
 }

@@ -4,17 +4,20 @@ import { ResultImport } from '../models/result-import.model.js';
 import { ResultImportRow } from '../models/result-import-row.model.js';
 import { AcademicResult } from '../models/academic-result.model.js';
 import { ResultRevision } from '../models/result-revision.model.js';
-import { ECA_RESULT_CODE, RESULT_PARSER_VERSION } from '../constants.js';
+import { RESULT_PARSER_VERSION } from '../constants.js';
 import { parseXlsxResults } from './xlsx-parser.js';
 import { parsePdfResults } from './pdf-parser.js';
 import {
+  countsAsIncompleteCa,
   isKnownGrade,
+  isRecognizedNonGrade,
   looksLikeRegistrationNumber,
   normalizeRegistrationNumber,
   normalizeResultCode,
   normalizeSubjectCode,
 } from './normalize.js';
 import { actionForExistingResult, blockConflictingIdentities } from './classification.js';
+import { resolveRepeatOfficialGrade } from './repeat-grade.js';
 import { mapImport, mapImportRow } from '../mappers/results.mappers.js';
 import { parsePagination, requireObjectId } from '../utils/http.js';
 import {
@@ -28,6 +31,7 @@ import {
 import {
   Subject,
   SubjectOffering,
+  StudentAcademicContext,
   findStudentByRegistrationNumber,
 } from '../../academic-foundation/index.js';
 import { JOB_NAMES } from '../../../infrastructure/queue/job-names.js';
@@ -41,7 +45,11 @@ import {
   PayloadTooLargeError,
   ValidationError,
 } from '../../../shared/errors/app-error.js';
-import { syncIncompleteCaFromResult } from '../../ca-recovery/index.js';
+import {
+  findPendingRecoveryReview,
+  submitPendingCaRecovery,
+  syncIncompleteCaFromResult,
+} from '../../ca-recovery/index.js';
 import { recalculateStudentGpa } from '../../gpa-cgpa/services/gpa.service.js';
 
 function assertAdmin(principal) {
@@ -84,12 +92,81 @@ function summarize(rows) {
     updateRows: rows.filter((row) => row.proposedAction === 'UPDATE').length,
     newRows: rows.filter((row) => row.proposedAction === 'NEW').length,
     unchangedRows: rows.filter((row) => row.proposedAction === 'UNCHANGED').length,
+    reviewRows: rows.filter((row) => row.proposedAction === 'REVIEW').length,
     conflictRows: rows.filter((row) => (row.validationErrors || []).includes('INTRA_IMPORT_CONFLICT')).length,
     duplicateRows: rows.filter((row) => (row.validationErrors || []).includes('INTRA_IMPORT_DUPLICATE')).length,
   };
 }
 
-async function classifyRow({ importDoc, parsed, seen }) {
+async function buildImportLookup(importDoc, parsedRows) {
+  const registrations = [
+    ...new Set(
+      parsedRows
+        .map((row) => normalizeRegistrationNumber(row.registrationNumber))
+        .filter((value) => looksLikeRegistrationNumber(value)),
+    ),
+  ];
+  const subjectCodes = [
+    ...new Set(parsedRows.map((row) => normalizeSubjectCode(row.subjectCode)).filter(Boolean)),
+  ];
+  const [students, subjects, existingResults] = await Promise.all([
+    registrations.length
+      ? StudentAcademicContext.find({ registrationNumber: { $in: registrations } }).lean()
+      : [],
+    subjectCodes.length
+      ? Subject.find({ departmentId: importDoc.departmentId, code: { $in: subjectCodes } }).lean()
+      : [],
+    registrations.length && subjectCodes.length
+      ? AcademicResult.find({
+          registrationNumber: { $in: registrations },
+          subjectCode: { $in: subjectCodes },
+        })
+          .select('registrationNumber subjectCode resultCode')
+          .lean()
+      : [],
+  ]);
+  const studentByRegistration = new Map(students.map((student) => [student.registrationNumber, student]));
+  const subjectByCode = new Map(subjects.map((subject) => [subject.code, subject]));
+  const offerings = subjects.length
+    ? await SubjectOffering.find({
+        departmentId: importDoc.departmentId,
+        subjectId: { $in: subjects.map((subject) => subject._id) },
+      })
+        .select('subjectId batchId academicYearId semesterId')
+        .lean()
+    : [];
+  const offeringByKey = new Map(
+    offerings.map((offering) => [
+      [offering.subjectId, offering.batchId, offering.academicYearId, offering.semesterId].map(String).join('|'),
+      offering,
+    ]),
+  );
+  const resultByIdentity = new Map(
+    existingResults.map((result) => [`${result.registrationNumber}|${result.subjectCode}`, result]),
+  );
+  return {
+    student(registrationNumber) {
+      return studentByRegistration.get(registrationNumber) || null;
+    },
+    subject(subjectCode) {
+      return subjectByCode.get(subjectCode) || null;
+    },
+    offering(subject, student) {
+      if (!subject || !student) {
+        return null;
+      }
+      const key = [subject._id, student.batchId, student.currentAcademicYearId, student.currentSemesterId]
+        .map(String)
+        .join('|');
+      return offeringByKey.get(key) || null;
+    },
+    existing(registrationNumber, subjectCode) {
+      return resultByIdentity.get(`${registrationNumber}|${subjectCode}`) || null;
+    },
+  };
+}
+
+async function classifyRow({ importDoc, parsed, seen, lookup }) {
   const errors = [];
   const sourceRegistrationNumber = String(parsed.registrationNumber || '').trim();
   const sourceSubjectCode = String(parsed.subjectCode || '').trim();
@@ -97,13 +174,19 @@ async function classifyRow({ importDoc, parsed, seen }) {
   const registrationNumber = normalizeRegistrationNumber(sourceRegistrationNumber);
   const subjectCode = normalizeSubjectCode(sourceSubjectCode);
   const resultCode = normalizeResultCode(sourceResultCode);
-  const isEca = resultCode === ECA_RESULT_CODE;
+  let isEca = countsAsIncompleteCa(resultCode);
   let rowStatus = 'VALID';
   let matchStatus = 'UNMATCHED';
   let proposedAction = 'NEW';
   let matchedStudentUserId = null;
   let subjectId = null;
   let subjectOfferingId = null;
+  let officialResultCode = resultCode;
+  let rawResultCode = resultCode;
+  let gradeCapApplied = false;
+  let gradeCapReason = '';
+  let reviewRequired = false;
+  let explanation = '';
 
   if (!looksLikeRegistrationNumber(registrationNumber)) {
     errors.push('MALFORMED_REGISTRATION_NUMBER');
@@ -116,7 +199,7 @@ async function classifyRow({ importDoc, parsed, seen }) {
   if (!resultCode) {
     errors.push('MISSING_RESULT_CODE');
     rowStatus = 'BLOCKED';
-  } else if (!isEca && !isKnownGrade(resultCode)) {
+  } else if (!isKnownGrade(resultCode) && !isRecognizedNonGrade(resultCode)) {
     errors.push('UNKNOWN_RESULT_MARKER');
     rowStatus = 'BLOCKED';
   }
@@ -139,7 +222,9 @@ async function classifyRow({ importDoc, parsed, seen }) {
   }
 
   const student = looksLikeRegistrationNumber(registrationNumber)
-    ? await findStudentByRegistrationNumber(registrationNumber)
+    ? lookup
+      ? lookup.student(registrationNumber)
+      : await findStudentByRegistrationNumber(registrationNumber)
     : null;
   if (!student) {
     if (!errors.includes('MALFORMED_REGISTRATION_NUMBER')) {
@@ -155,31 +240,71 @@ async function classifyRow({ importDoc, parsed, seen }) {
   }
 
   if (subjectCode) {
-    const subject = await Subject.findOne({
-      departmentId: importDoc.departmentId,
-      code: subjectCode,
-    });
+    const subject = lookup
+      ? lookup.subject(subjectCode)
+      : await Subject.findOne({
+          departmentId: importDoc.departmentId,
+          code: subjectCode,
+        });
     if (!subject) {
       errors.push('SUBJECT_NOT_FOUND');
       rowStatus = 'BLOCKED';
     } else {
       subjectId = subject._id;
       if (student) {
-        const offering = await SubjectOffering.findOne({
-          departmentId: importDoc.departmentId,
-          subjectId: subject._id,
-          batchId: student.batchId,
-          academicYearId: student.currentAcademicYearId,
-          semesterId: student.currentSemesterId,
-        });
+        const offering = lookup
+          ? lookup.offering(subject, student)
+          : await SubjectOffering.findOne({
+              departmentId: importDoc.departmentId,
+              subjectId: subject._id,
+              batchId: student.batchId,
+              academicYearId: student.currentAcademicYearId,
+              semesterId: student.currentSemesterId,
+            });
         subjectOfferingId = offering?._id || null;
       }
     }
   }
 
   if (rowStatus !== 'BLOCKED' && matchedStudentUserId && subjectId && proposedAction !== 'SKIP') {
-    const existing = await AcademicResult.findOne({ registrationNumber, subjectCode });
-    proposedAction = actionForExistingResult(existing?.resultCode, resultCode);
+    const existing = lookup
+      ? lookup.existing(registrationNumber, subjectCode)
+      : await AcademicResult.findOne({ registrationNumber, subjectCode });
+    const decision = resolveRepeatOfficialGrade(existing?.resultCode, resultCode);
+    officialResultCode = decision.officialResultCode;
+    rawResultCode = decision.rawResultCode;
+    gradeCapApplied = decision.gradeCapApplied;
+    gradeCapReason = decision.gradeCapReason;
+    reviewRequired = decision.reviewRequired;
+    explanation = decision.explanation;
+    isEca = countsAsIncompleteCa(officialResultCode);
+    if (decision.blockedReason) {
+      errors.push(decision.blockedReason);
+      rowStatus = 'BLOCKED';
+      proposedAction = 'SKIP';
+    } else if (decision.reviewRequired) {
+      const pending = existing ? await findPendingRecoveryReview(existing._id) : null;
+      if (pending && pending.rawResultCode === resultCode) {
+        proposedAction = 'UNCHANGED';
+        explanation = `The same CA recovery grade ${resultCode} is already pending review. The official result remains E(CA).`;
+      } else if (pending) {
+        errors.push('DUPLICATE_CA_RECOVERY_PENDING');
+        rowStatus = 'BLOCKED';
+        proposedAction = 'SKIP';
+      } else {
+        proposedAction = 'REVIEW';
+      }
+    } else {
+      proposedAction = actionForExistingResult(existing?.resultCode, officialResultCode);
+      if (
+        gradeCapApplied &&
+        existing &&
+        existing.resultCode === officialResultCode &&
+        existing.rawResultCode !== rawResultCode
+      ) {
+        proposedAction = 'UPDATE';
+      }
+    }
   }
 
   if (rowStatus === 'BLOCKED') {
@@ -207,6 +332,12 @@ async function classifyRow({ importDoc, parsed, seen }) {
     validationErrors: errors,
     proposedAction,
     isEca,
+    rawResultCode: rawResultCode || '',
+    officialResultCode: officialResultCode || '',
+    gradeCapApplied,
+    gradeCapReason,
+    reviewRequired,
+    explanation,
   };
 }
 
@@ -261,9 +392,10 @@ export async function processResultParse({ importId, infrastructure }) {
 
   await ResultImportRow.deleteMany({ importId: importDoc._id });
   const seen = new Map();
+  const lookup = await buildImportLookup(importDoc, parsed.rows);
   const classified = [];
   for (const row of parsed.rows) {
-    classified.push(await classifyRow({ importDoc, parsed: row, seen }));
+    classified.push(await classifyRow({ importDoc, parsed: row, seen, lookup }));
   }
   const finalized = blockConflictingIdentities(classified);
   if (finalized.length) {
@@ -273,7 +405,7 @@ export async function processResultParse({ importId, infrastructure }) {
   importDoc.summary = summarize(finalized);
   if (!finalized.length) {
     importDoc.processingStatus = 'PARSE_FAILED';
-    importDoc.failureCode = 'NO_ROWS';
+    importDoc.failureCode = parsed.textCharacters != null && parsed.textCharacters < 40 ? 'NO_TEXT' : 'NO_ROWS';
     importDoc.failedAt = new Date();
   } else if (finalized.some((row) => row.proposedAction === 'NEW' || row.proposedAction === 'UPDATE')) {
     importDoc.processingStatus = 'READY_FOR_REVIEW';
@@ -407,7 +539,7 @@ export async function getResultImport(principal, importId) {
 
 export async function getResultImportPreview(principal, importId, query = {}) {
   const doc = await loadDepartmentImport(principal, importId);
-  const { skip, limit, page, pageSize } = parsePagination(query);
+  const { skip, limit, page, pageSize } = parsePagination(query, { maxPageSize: 2000 });
   const filter = { importId: doc._id };
   if (query.rowStatus) {
     filter.rowStatus = String(query.rowStatus);
@@ -427,13 +559,60 @@ export async function getResultImportPreview(principal, importId, query = {}) {
 
 const COMMITTABLE_STATUSES = ['READY_FOR_REVIEW', 'VALIDATION_ISSUES', 'CONFIRMED', 'COMMIT_FAILED'];
 
+function commitBlockMessage(doc) {
+  if (doc?.failureCode === 'NO_TEXT') {
+    return 'This PDF has no selectable result text. A scanned image cannot be committed. Upload a text PDF or an XLSX sheet.';
+  }
+  if (doc?.failureCode === 'NO_ROWS') {
+    return 'No registration, subject, and result rows were found, so there is nothing to commit.';
+  }
+  if (doc?.failureCode === 'UNSAFE_FILE' || doc?.processingStatus === 'REJECTED_FILE') {
+    return 'This file was rejected by the malware scan and cannot be committed.';
+  }
+  if (doc?.failureCode === 'FILE_MISSING') {
+    return 'The uploaded file is missing, so this import cannot be committed.';
+  }
+  if (doc?.failureCode === 'PARSE_EXCEPTION') {
+    return 'The file could not be parsed, so this import cannot be committed.';
+  }
+  if (doc?.processingStatus === 'PROCESSING' || doc?.processingStatus === 'UPLOADED') {
+    return 'This file has not passed a malware scan, so it cannot be parsed or committed.';
+  }
+  return 'Import is not ready to commit';
+}
+
+async function finishResultImportProcessing(importDoc, infrastructure) {
+  const file = importDoc.fileId ? await StoredFile.findById(importDoc.fileId) : null;
+  if (
+    file &&
+    !['SAFE', 'UNSAFE', 'REJECTED'].includes(file.scanStatus) &&
+    infrastructure?.malwareScanner
+  ) {
+    await processMalwareScan({
+      fileId: file._id,
+      scanner: infrastructure.malwareScanner,
+      logger: infrastructure.logger,
+    });
+  }
+  return processResultParse({ importId: importDoc._id, infrastructure });
+}
+
 export async function commitResultImport(principal, importId, { infrastructure }) {
-  const importDoc = await loadDepartmentImport(principal, importId);
+  let importDoc = await loadDepartmentImport(principal, importId);
   if (importDoc.processingStatus === 'COMMITTED') {
     return mapImport(importDoc);
   }
   if (!COMMITTABLE_STATUSES.includes(importDoc.processingStatus)) {
-    throw new ValidationError('Import is not ready to commit');
+    if (['UPLOADED', 'PROCESSING', 'PARSE_FAILED'].includes(importDoc.processingStatus)) {
+      const prepared = await finishResultImportProcessing(importDoc, infrastructure);
+      if (prepared && COMMITTABLE_STATUSES.includes(prepared.processingStatus)) {
+        importDoc = prepared;
+      } else {
+        throw new ValidationError(commitBlockMessage(prepared || importDoc));
+      }
+    } else {
+      throw new ValidationError(commitBlockMessage(importDoc));
+    }
   }
 
   const locked = await ResultImport.findOneAndUpdate(
@@ -455,7 +634,7 @@ export async function commitResultImport(principal, importId, { infrastructure }
 
   const rows = await ResultImportRow.find({
     importId: locked._id,
-    proposedAction: { $in: ['NEW', 'UPDATE'] },
+    proposedAction: { $in: ['NEW', 'UPDATE', 'REVIEW'] },
     rowStatus: 'VALID',
     committedAt: { $exists: false },
   });
@@ -481,7 +660,30 @@ export async function commitResultImport(principal, importId, { infrastructure }
       subjectCode: row.subjectCode,
     });
     const previousResultCode = official?.resultCode || '';
-    if (official && official.resultCode === row.resultCode && Boolean(official.isEca) === Boolean(row.isEca)) {
+    const storedCode = row.officialResultCode || row.resultCode;
+    const storedIsEca = countsAsIncompleteCa(storedCode);
+    if (row.proposedAction === 'REVIEW') {
+      if (!official) {
+        throw new ConflictError('CA recovery review requires an existing E(CA) result');
+      }
+      await submitPendingCaRecovery({
+        result: official,
+        rawResultCode: row.rawResultCode || row.resultCode,
+        importId: locked._id,
+        importRowId: row._id,
+        actorUserId: principal.userId,
+      });
+      row.committedAt = new Date();
+      await row.save();
+      writtenRows += 1;
+      continue;
+    }
+    if (
+      official &&
+      official.resultCode === storedCode &&
+      Boolean(official.isEca) === storedIsEca &&
+      (!row.gradeCapApplied || official.rawResultCode === (row.rawResultCode || row.resultCode))
+    ) {
       row.proposedAction = 'UNCHANGED';
       row.committedAt = new Date();
       await row.save();
@@ -499,10 +701,13 @@ export async function commitResultImport(principal, importId, { infrastructure }
         studentSemesterId: student.currentSemesterId,
         sourceImportId: locked._id,
         sourceBatchId: student.batchId,
-        resultCode: row.resultCode,
+        resultCode: storedCode,
         previousResultCode: '',
+        rawResultCode: row.rawResultCode || row.resultCode,
+        gradeCapApplied: Boolean(row.gradeCapApplied),
+        gradeCapReason: row.gradeCapReason || '',
         version: 1,
-        isEca: row.isEca,
+        isEca: storedIsEca,
         committedByUserId: principal.userId,
       });
     } else {
@@ -510,8 +715,11 @@ export async function commitResultImport(principal, importId, { infrastructure }
         throw new ConflictError('Registration number is bound to a different student');
       }
       official.previousResultCode = official.resultCode;
-      official.resultCode = row.resultCode;
-      official.isEca = row.isEca;
+      official.resultCode = storedCode;
+      official.rawResultCode = row.rawResultCode || row.resultCode;
+      official.gradeCapApplied = Boolean(row.gradeCapApplied);
+      official.gradeCapReason = row.gradeCapReason || '';
+      official.isEca = storedIsEca;
       official.sourceImportId = locked._id;
       official.committedByUserId = principal.userId;
       official.version += 1;
@@ -525,7 +733,10 @@ export async function commitResultImport(principal, importId, { infrastructure }
       registrationNumber: row.registrationNumber,
       subjectCode: row.subjectCode,
       previousResultCode,
-      newResultCode: row.resultCode,
+      newResultCode: storedCode,
+      rawResultCode: row.rawResultCode || row.resultCode,
+      gradeCapApplied: Boolean(row.gradeCapApplied),
+      gradeCapReason: row.gradeCapReason || '',
     });
     await persistAudit({
       actorUserId: principal.userId,
@@ -536,7 +747,7 @@ export async function commitResultImport(principal, importId, { infrastructure }
       metadata: {
         subjectCode: row.subjectCode,
         previousResultCode,
-        newResultCode: row.resultCode,
+        newResultCode: storedCode,
         importId: String(locked._id),
       },
     });
@@ -653,7 +864,7 @@ export async function reprocessResultImport(principal, importId, { infrastructur
   importDoc.failureCode = undefined;
   importDoc.failedAt = undefined;
   await importDoc.save();
-  await processResultParse({ importId: importDoc._id, infrastructure });
+  await finishResultImportProcessing(importDoc, infrastructure);
   await recordAudit({
     actorUserId: principal.userId,
     action: 'results.import.reprocess',

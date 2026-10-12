@@ -3,7 +3,9 @@ import {
   findActiveAssignmentsForLecturer,
   findOfferingsForBatchSemester,
   findStudentContextByUserId,
+  filterOfferingsForSpecialization,
   SubjectOffering,
+  SubjectEnrollment,
 } from '../../academic-foundation/index.js';
 import { ROLES } from '../../../shared/constants/roles.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
@@ -44,7 +46,20 @@ async function studentOfferingIds(principal) {
     academicYearId: context.currentAcademicYearId,
     semesterId: context.currentSemesterId,
   });
-  return { context, offeringIds: offerings.map((item) => item._id) };
+  const visible = await filterOfferingsForSpecialization(offerings, context.specialization || null);
+  const enrollments = await SubjectEnrollment.find({
+    studentUserId: principal.userId,
+    departmentId: context.departmentId,
+    batchId: context.batchId,
+    status: 'ACTIVE',
+  }).select('subjectOfferingId');
+  const offeringIds = [
+    ...new Set([
+      ...visible.map((item) => String(item._id)),
+      ...enrollments.map((row) => String(row.subjectOfferingId)),
+    ]),
+  ];
+  return { context, offeringIds };
 }
 
 export async function listEvents(principal, query = {}) {

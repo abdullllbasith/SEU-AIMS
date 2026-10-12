@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { experienceApi } from './experience-api.js';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { Panel } from '../../ui/Panel.jsx';
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import {
+  formatBatchLabel,
+  formatSemesterLabel,
+  formatYearLabel,
+} from '../../ui/academic-labels.js';
 
 export function ProfilePage() {
   const [state, setState] = useState({ loading: true, error: '', data: null, saved: '' });
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   async function load() {
     setState((current) => ({ ...current, loading: true, error: '' }));
@@ -11,7 +21,12 @@ export function ProfilePage() {
       const body = await experienceApi.profile();
       setState({ loading: false, error: '', data: body.data, saved: '' });
     } catch (caught) {
-      setState({ loading: false, error: caught.message || 'Unable to load profile', data: null, saved: '' });
+      setState({
+        loading: false,
+        error: caught.message || 'Unable to load profile',
+        data: null,
+        saved: '',
+      });
     }
   }
 
@@ -21,87 +36,174 @@ export function ProfilePage() {
 
   async function onSubmit(event) {
     event.preventDefault();
+    if (saving) {
+      return;
+    }
     const form = new FormData(event.target);
+    setSaving(true);
     try {
       const body = await experienceApi.updateProfile({
         displayName: String(form.get('displayName') || ''),
         phone: String(form.get('phone') || ''),
         expectedRevision: state.data.profileRevision,
       });
-      setState({ loading: false, error: '', data: body.data, saved: 'Saved.' });
+      setState({ loading: false, error: '', data: body.data, saved: 'Contact details saved.' });
     } catch (caught) {
-      setState((current) => ({ ...current, error: caught.message || 'Unable to save', saved: '' }));
+      setState((current) => ({
+        ...current,
+        error: caught.message || 'Unable to save',
+        saved: '',
+      }));
+    } finally {
+      setSaving(false);
     }
   }
 
   async function onPhoto(event) {
     const file = event.target.files?.[0];
+    if (uploading) {
+      return;
+    }
     if (!file) {
       return;
     }
+    setUploading(true);
     try {
       const body = await experienceApi.uploadPhoto(file);
       setState({ loading: false, error: '', data: body.data, saved: 'Photo updated.' });
     } catch (caught) {
-      setState((current) => ({ ...current, error: caught.message || 'Photo upload failed' }));
+      setState((current) => ({
+        ...current,
+        error: caught.message || 'Photo upload failed',
+      }));
+    } finally {
+      setUploading(false);
+      event.target.value = '';
     }
   }
 
   if (state.loading) {
-    return <p>Loading profile…</p>;
+    return <PageSkeleton title="My profile" variant="record" />;
   }
+
   if (!state.data) {
-    return <p className="form-error">{state.error}</p>;
+    return (
+      <section className="record-page">
+        <PageHeader title="My profile" />
+        <p className="form-error" role="alert">
+          {state.error}
+        </p>
+        <button type="button" onClick={load}>
+          Try again
+        </button>
+      </section>
+    );
   }
 
   const identity = state.data.academicIdentity;
 
   return (
-    <section>
-      <h1>My profile</h1>
+    <section className="record-page">
+      <PageHeader
+        title="My profile"
+        purpose="Contact details you can edit. Registration number and role are academic identity and cannot be changed here."
+      />
+
       {state.error ? (
         <p className="form-error" role="alert">
           {state.error}
         </p>
       ) : null}
-      {state.saved ? <p>{state.saved}</p> : null}
-      {state.data.hasProfileImage ? (
-        <p>
-          <img className="profile-photo" src="/api/me/profile/photo" alt="" width={96} height={96} />
+      {state.saved ? (
+        <p className="auth-card__status" role="status">
+          {state.saved}
         </p>
       ) : null}
-      <dl>
-        <dt>Email</dt>
-        <dd>{state.data.email}</dd>
-        <dt>Registration number</dt>
-        <dd>{identity?.registrationNumber || 'Not a student record'}</dd>
-        <dt>Department</dt>
-        <dd>{state.data.department?.name || '—'}</dd>
-        <dt>Batch</dt>
-        <dd>{identity?.batch?.name || '—'}</dd>
-        <dt>Academic year</dt>
-        <dd>{identity?.academicYear?.name || '—'}</dd>
-        <dt>Semester</dt>
-        <dd>{identity?.semester?.name || '—'}</dd>
-      </dl>
-      <form onSubmit={onSubmit}>
-        <label>
-          Display name
-          <input name="displayName" defaultValue={state.data.displayName} maxLength={80} required />
-        </label>
-        <label>
-          Phone / WhatsApp
-          <input name="phone" defaultValue={state.data.phone} autoComplete="tel" />
-        </label>
-        <button type="submit">Save contact details</button>
-      </form>
-      <label>
-        Profile photo
-        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onPhoto} />
-      </label>
-      <p>
-        Notification preferences stay in the <Link to="/notifications">notifications</Link> area. Registration
-        number and role cannot be edited here.
+
+      <div className="dashboard-grid dashboard-grid--primary">
+        <Panel title="Academic identity" kicker="Read-only">
+          <div className="profile-identity">
+            {state.data.hasProfileImage ? (
+              <img
+                className="profile-photo"
+                src="/api/me/profile/photo"
+                alt=""
+                width={96}
+                height={96}
+              />
+            ) : (
+              <div className="profile-photo profile-photo--placeholder" aria-hidden="true">
+                {(state.data.displayName || state.data.email || '?').slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <dl className="record-dl">
+              <div>
+                <dt>Email</dt>
+                <dd>{state.data.email}</dd>
+              </div>
+              <div>
+                <dt>Registration number</dt>
+                <dd>{identity?.registrationNumber || 'Not a student record'}</dd>
+              </div>
+              <div>
+                <dt>Department</dt>
+                <dd>{state.data.department?.name || '—'}</dd>
+              </div>
+              <div>
+                <dt>Batch</dt>
+                <dd>{formatBatchLabel(identity?.batch) || '—'}</dd>
+              </div>
+              <div>
+                <dt>Academic year</dt>
+                <dd>{formatYearLabel(identity?.academicYear) || '—'}</dd>
+              </div>
+              <div>
+                <dt>Semester</dt>
+                <dd>
+                  {formatSemesterLabel(identity?.semester, identity?.academicYear) || '—'}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </Panel>
+
+        <Panel title="Contact details" kicker="Editable">
+          <form className="settings-form" onSubmit={onSubmit}>
+            <label>
+              Display name
+              <input
+                name="displayName"
+                defaultValue={state.data.displayName}
+                maxLength={80}
+                required
+              />
+            </label>
+            <label>
+              Phone / WhatsApp
+              <input name="phone" defaultValue={state.data.phone} autoComplete="tel" />
+            </label>
+            <button type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save contact details'}
+            </button>
+          </form>
+
+          <div className="panel-subsection">
+            <h3>Profile photo</h3>
+            <label className="file-label">
+              {uploading ? 'Uploading…' : 'Upload image'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={onPhoto}
+                disabled={uploading}
+              />
+            </label>
+          </div>
+        </Panel>
+      </div>
+
+      <p className="panel-footnote">
+        Notification preferences stay in the <Link to="/notifications">notifications</Link> area.
       </p>
     </section>
   );

@@ -1,8 +1,9 @@
 import { ROLES } from '../../../shared/constants/roles.js';
 import { canLecturerAccessOffering } from '../../academic-foundation/policies/academic.policies.js';
+import { offeringMatchesStudentSpecialization } from '../../academic-foundation/policies/specialization.policies.js';
 import { canActAsDepartmentAdmin } from '../../authentication/policies/authorization.policies.js';
 
-export function canStudentAccessOffering(principal, context, offering, historyRows = []) {
+export function canStudentAccessOffering(principal, context, offering, historyRows = [], enrollments = [], mappings = []) {
   if (!principal || principal.role !== ROLES.STUDENT || !context || !offering) {
     return false;
   }
@@ -16,17 +17,34 @@ export function canStudentAccessOffering(principal, context, offering, historyRo
     return false;
   }
 
+  const offeringId = String(offering._id || offering.id || '');
+  const enrolledHere = enrollments.some((row) => {
+    if (!row || row.status !== 'ACTIVE' || !offeringId) {
+      return false;
+    }
+    return (
+      String(row.studentUserId) === String(principal.userId) &&
+      String(row.subjectOfferingId) === offeringId &&
+      String(row.departmentId) === String(offering.departmentId) &&
+      String(row.batchId) === String(offering.batchId)
+    );
+  });
+  if (enrolledHere) {
+    return true;
+  }
+
   const currentMatch =
     String(context.currentAcademicYearId) === String(offering.academicYearId) &&
     String(context.currentSemesterId) === String(offering.semesterId);
   if (currentMatch) {
-    return true;
+    return offeringMatchesStudentSpecialization(context.specialization, mappings);
   }
 
   return historyRows.some(
     (row) =>
       String(row.academicYearId) === String(offering.academicYearId) &&
-      String(row.semesterId) === String(offering.semesterId),
+      String(row.semesterId) === String(offering.semesterId) &&
+      offeringMatchesStudentSpecialization(row.specialization, mappings),
   );
 }
 

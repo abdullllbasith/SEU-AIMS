@@ -25,9 +25,9 @@ export function NotificationBell() {
       to="/notifications"
       className="notice-chip"
       aria-label={`Notifications${count ? ` (${count} unread)` : ''}`}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.85rem' }}
     >
       <svg
+        className="notice-chip__icon"
         width="16"
         height="16"
         viewBox="0 0 24 24"
@@ -42,22 +42,7 @@ export function NotificationBell() {
         <path d="M13.73 21a2 2 0 0 1-3.46 0" />
       </svg>
       <span>Notifications</span>
-      {count ? (
-        <span
-          className="notice-chip__count"
-          style={{
-            background: 'var(--brand-600)',
-            color: '#fff',
-            borderRadius: '999px',
-            padding: '1px 6px',
-            fontSize: '0.7rem',
-            fontWeight: 700,
-            lineHeight: 1.2,
-          }}
-        >
-          {count}
-        </span>
-      ) : null}
+      {count ? <span className="notice-chip__count">{count}</span> : null}
     </Link>
   );
 }

@@ -4,10 +4,18 @@ import { experienceApi } from '../student-experience/experience-api.js';
 import { useAuth } from '../../state/AuthProvider.jsx';
 import { ROLES } from '../../constants/roles.js';
 import { academicApi } from '../admin/academic-api.js';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { Panel } from '../../ui/Panel.jsx';
+import { DeadlineList } from '../../ui/DeadlineList.jsx';
+import { EmptyState } from '../../ui/EmptyState.jsx';
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import { formatEventType } from '../../ui/status-labels.js';
 
 export function CalendarPage() {
   const { user } = useAuth();
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [items, setItems] = useState([]);
   const [upcoming, setUpcoming] = useState([]);
   const [groups, setGroups] = useState(null);
@@ -31,131 +39,217 @@ export function CalendarPage() {
   }
 
   useEffect(() => {
-    reload().catch((caught) => setError(caught.message));
+    let cancelled = false;
+    reload()
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(caught.message || 'Unable to load calendar');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
     if (user?.role === ROLES.LECTURER) {
       academicApi
         .myOfferings()
         .then((body) => setOfferings(body.data.items || []))
         .catch(() => {});
     }
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
+  if (loading) {
+    return <PageSkeleton title="Academic calendar" variant="list" />;
+  }
+
+  const emptyGroups =
+    groups &&
+    !groups.today?.length &&
+    !groups.nextFewDays?.length &&
+    !groups.nextWeek?.length &&
+    !groups.later?.length;
+
   return (
-    <section>
-      <h1>Academic calendar</h1>
-      <p>Agenda list of dated events. There is no external calendar sync.</p>
-      {error ? <p className="form-error">{error}</p> : null}
-      <h2>Upcoming</h2>
-      {groups ? (
-        <>
-          <h3>Today</h3>
-          <ul>
-            {groups.today.map((item) => (
-              <li key={item.id}>
-                {item.title} — {new Date(item.startsAt).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-          <h3>Next few days</h3>
-          <ul>
-            {groups.nextFewDays.map((item) => (
-              <li key={item.id}>
-                {item.title} — {new Date(item.startsAt).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-          <h3>This week</h3>
-          <ul>
-            {groups.nextWeek.map((item) => (
-              <li key={item.id}>
-                {item.title} — {new Date(item.startsAt).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-          <h3>Later</h3>
-          <ul>
-            {groups.later.map((item) => (
-              <li key={item.id}>
-                {item.title} — {new Date(item.startsAt).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : (
-        <ul>
-          {upcoming.map((item) => (
-            <li key={item.id}>
-              {item.title} — {new Date(item.startsAt).toLocaleString()} ({item.eventType})
-            </li>
-          ))}
-        </ul>
-      )}
-      {user?.role === ROLES.DEPARTMENT_ADMINISTRATOR ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            communicationApi
-              .adminCreateEvent({ title: form.title, startsAt: new Date(form.startsAt).toISOString(), eventType: 'DEPARTMENT' })
-              .then(reload)
-              .catch((caught) => setError(caught.message));
-          }}
-        >
-          <label>
-            Department event
-            <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
-          </label>
-          <label>
-            Starts
-            <input type="datetime-local" value={form.startsAt} onChange={(event) => setForm({ ...form, startsAt: event.target.value })} />
-          </label>
-          <button type="submit">Create event</button>
-        </form>
+    <section className="record-page">
+      <PageHeader
+        title="Academic calendar"
+        purpose="Agenda list of dated events for your role. There is no external calendar sync."
+      />
+
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
       ) : null}
-      {user?.role === ROLES.LECTURER ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            communicationApi
-              .lecturerCreateEvent({
-                title: form.title,
-                startsAt: new Date(form.startsAt).toISOString(),
-                subjectOfferingId: form.subjectOfferingId,
-              })
-              .then(reload)
-              .catch((caught) => setError(caught.message));
-          }}
-        >
-          <label>
-            Assignment deadline
-            <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
-          </label>
-          <label>
-            Offering
-            <select value={form.subjectOfferingId} onChange={(event) => setForm({ ...form, subjectOfferingId: event.target.value })}>
-              <option value="">Select offering</option>
-              {(Array.isArray(offerings) ? offerings : []).map((item) => (
-                <option key={item.id || item._id} value={item.id || item._id}>
-                  {item.subjectCode || item.name || item.id}
-                </option>
+
+      <div className="dashboard-grid dashboard-grid--primary">
+        <Panel title="Upcoming" kicker="Next windows">
+          {groups ? (
+            emptyGroups ? (
+              <p className="deadline-empty">No upcoming events in the next windows.</p>
+            ) : (
+              <>
+                <DeadlineList title="Today" items={groups.today || []} />
+                <DeadlineList title="Next few days" items={groups.nextFewDays || []} />
+                <DeadlineList title="This week" items={groups.nextWeek || []} />
+                <DeadlineList title="Later" items={groups.later || []} />
+              </>
+            )
+          ) : upcoming.length === 0 ? (
+            <p className="deadline-empty">No upcoming events.</p>
+          ) : (
+            <ul className="stack-list">
+              {upcoming.map((item) => (
+                <li key={item.id}>
+                  <span className="stack-item__title">{item.title}</span>
+                  <span className="stack-item__meta">
+                    {item.startsAt ? new Date(item.startsAt).toLocaleString() : ''}
+                    {item.eventType ? ` · ${formatEventType(item.eventType)}` : ''}
+                  </span>
+                </li>
               ))}
-            </select>
-          </label>
-          <label>
-            Starts
-            <input type="datetime-local" value={form.startsAt} onChange={(event) => setForm({ ...form, startsAt: event.target.value })} />
-          </label>
-          <button type="submit">Create deadline</button>
-        </form>
-      ) : null}
-      <h2>Range</h2>
-      <ul>
-        {items.map((item) => (
-          <li key={item.id}>
-            {item.title} — {new Date(item.startsAt).toLocaleString()} ({item.eventType})
-            {item.cancelledAt ? ' cancelled' : ''}
-          </li>
-        ))}
-      </ul>
+            </ul>
+          )}
+        </Panel>
+
+        {user?.role === ROLES.DEPARTMENT_ADMINISTRATOR ? (
+          <Panel title="Create department event" kicker="Admin">
+            <form
+              className="settings-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setBusy(true);
+                setError('');
+                communicationApi
+                  .adminCreateEvent({
+                    title: form.title,
+                    startsAt: new Date(form.startsAt).toISOString(),
+                    eventType: 'DEPARTMENT',
+                  })
+                  .then(() => {
+                    setForm({ title: '', startsAt: '', subjectOfferingId: '' });
+                    return reload();
+                  })
+                  .catch((caught) => setError(caught.message))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              <label>
+                Title
+                <input
+                  value={form.title}
+                  onChange={(event) => setForm({ ...form, title: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Starts
+                <input
+                  type="datetime-local"
+                  value={form.startsAt}
+                  onChange={(event) => setForm({ ...form, startsAt: event.target.value })}
+                  required
+                />
+              </label>
+              <button type="submit" disabled={busy}>
+                {busy ? 'Creating…' : 'Create event'}
+              </button>
+            </form>
+          </Panel>
+        ) : null}
+
+        {user?.role === ROLES.LECTURER ? (
+          <Panel title="Create assignment deadline" kicker="Lecturer">
+            <form
+              className="settings-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setBusy(true);
+                setError('');
+                communicationApi
+                  .lecturerCreateEvent({
+                    title: form.title,
+                    startsAt: new Date(form.startsAt).toISOString(),
+                    subjectOfferingId: form.subjectOfferingId,
+                  })
+                  .then(() => {
+                    setForm({ title: '', startsAt: '', subjectOfferingId: '' });
+                    return reload();
+                  })
+                  .catch((caught) => setError(caught.message))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              <label>
+                Title
+                <input
+                  value={form.title}
+                  onChange={(event) => setForm({ ...form, title: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Offering
+                <select
+                  value={form.subjectOfferingId}
+                  onChange={(event) => setForm({ ...form, subjectOfferingId: event.target.value })}
+                  required
+                >
+                  <option value="">Select offering</option>
+                  {(Array.isArray(offerings) ? offerings : []).map((item) => (
+                    <option key={item.id || item._id} value={item.id || item._id}>
+                      {item.subjectCode || item.name || item.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Starts
+                <input
+                  type="datetime-local"
+                  value={form.startsAt}
+                  onChange={(event) => setForm({ ...form, startsAt: event.target.value })}
+                  required
+                />
+              </label>
+              <button type="submit" disabled={busy}>
+                {busy ? 'Creating…' : 'Create deadline'}
+              </button>
+            </form>
+          </Panel>
+        ) : null}
+      </div>
+
+      <Panel title="Full range" kicker={`${items.length} event${items.length === 1 ? '' : 's'}`}>
+        {items.length === 0 ? (
+          <EmptyState to="/" action="Back to home">
+            No calendar events in range.
+          </EmptyState>
+        ) : (
+          <ul className="stack-list">
+            {items.map((item) => (
+              <li key={item.id}>
+                <div className="stack-item">
+                  <span>
+                    <span className="stack-item__title">{item.title}</span>
+                    <span className="stack-item__meta">
+                      {item.startsAt ? new Date(item.startsAt).toLocaleString() : ''}
+                      {item.eventType ? ` · ${formatEventType(item.eventType)}` : ''}
+                    </span>
+                  </span>
+                  {item.cancelledAt ? (
+                    <span className="status-pill status-pill--danger">Cancelled</span>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
     </section>
   );
 }

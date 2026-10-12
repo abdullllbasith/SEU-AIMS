@@ -23,10 +23,12 @@ export {
   AcademicYear,
   Semester,
   Subject,
+  CurriculumMapping,
   SubjectOffering,
   LecturerAssignment,
   StudentAcademicContext,
   StudentAcademicHistory,
+  SubjectEnrollment,
 } from './models/index.js';
 export {
   findStudentByRegistrationNumber,
@@ -35,4 +37,7 @@ export {
   findAssignment,
   findOfferingsForBatchSemester,
 } from './repositories/academic-foundation.repository.js';
+export { isOfferingInStudentCurrentContext } from './policies/academic.policies.js';
+export { offeringMatchesStudentSpecialization } from './policies/specialization.policies.js';
+export { filterOfferingsForSpecialization, mappingsForOffering } from './services/student-specialization.service.js';
 export { getMyContext, getMyOfferings } from './services/academic.service.js';

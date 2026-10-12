@@ -5,6 +5,7 @@ import { ProtectedRoute } from './ProtectedRoute.jsx';
 import { ForgotPasswordPage } from '../modules/auth/ForgotPasswordPage.jsx';
 import { ResetPasswordPage } from '../modules/auth/ResetPasswordPage.jsx';
 import { AcademicAdminPage } from '../modules/admin/AcademicAdminPage.jsx';
+import { AdminBatchDetailPage } from '../modules/admin/AdminBatchDetailPage.jsx';
 import { AdminResourcesPage } from '../modules/admin/AdminResourcesPage.jsx';
 import { StudentAcademicPage } from '../modules/academic/StudentAcademicPage.jsx';
 import { LecturerOfferingsPage } from '../modules/academic/LecturerOfferingsPage.jsx';
@@ -128,6 +129,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
             <AdminOfferingHealthPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/academic/batches/:batchId"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminBatchDetailPage />
           </ProtectedRoute>
         }
       />

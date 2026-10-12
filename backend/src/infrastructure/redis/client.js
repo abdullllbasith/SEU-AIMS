@@ -36,7 +36,16 @@ export async function disconnectRedis(redis, { logger } = {}) {
     return;
   }
 
-  await redis.quit();
+  try {
+    if (redis.status === 'wait' || redis.status === 'end' || redis.status === 'close') {
+      redis.disconnect();
+    } else {
+      await redis.quit();
+    }
+  } catch (error) {
+    redis.disconnect();
+    logger?.warn('Redis disconnect failed', { message: error.message });
+  }
   client = undefined;
   logger?.info('Redis disconnected');
 }

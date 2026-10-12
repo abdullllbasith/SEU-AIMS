@@ -6,28 +6,14 @@ import { Panel } from '../../ui/Panel.jsx';
 import { StatCard } from '../../ui/StatCard.jsx';
 import { AttentionList } from '../../ui/AttentionList.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
+import { DeadlineList } from '../../ui/DeadlineList.jsx';
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
 
-function DeadlineList({ title, items }) {
-  return (
-    <div className="agenda-block">
-      <h3>{title}</h3>
-      {items.length === 0 ? <p className="empty-state">None.</p> : null}
-      {items.length ? (
-        <ul className="stack-list">
-          {items.map((item) => (
-            <li key={item.id}>
-              <Link to="/calendar">
-                <span className="stack-item__title">{item.title}</span>
-                <span className="stack-item__meta">
-                  {item.startsAt ? new Date(item.startsAt).toLocaleString() : ''}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
+function SectionError({ message }) {
+  if (!message) {
+    return null;
+  }
+  return <p className="section-error">{message}</p>;
 }
 
 export function StudentDashboardPage() {
@@ -49,17 +35,14 @@ export function StudentDashboardPage() {
     load(false);
   }, []);
 
-  if (state.loading) {
-    return (
-      <section aria-busy="true">
-        <PageHeader title="Your academic workspace" purpose="Loading your current semester from the academic record…" />
-      </section>
-    );
+  if (state.loading && !state.data) {
+    return <PageSkeleton title="Your academic workspace" variant="dashboard" stats={4} />;
   }
+
   if (state.error && !state.data) {
     return (
-      <section>
-        <PageHeader title="Your academic workspace" />
+      <section className="home-dashboard">
+        <PageHeader title="Your academic workspace" purpose="We could not compose your home view." />
         <p className="form-error" role="alert">
           {state.error}
         </p>
@@ -74,53 +57,68 @@ export function StudentDashboardPage() {
   const sections = data.sections || {};
   const groups = data.deadlineGroups || { today: [], nextFewDays: [], nextWeek: [], later: [] };
   const registration = data.academicContext?.registrationNumber;
+  const attentionCount = data.attention?.length ?? 0;
 
   return (
-    <section>
+    <section className="home-dashboard">
       <PageHeader
         title="Your academic workspace"
-        purpose={`Current semester comes from your academic record${
-          registration ? ` (${registration})` : ' (not yet recorded)'
+        purpose={`Current semester from your academic record${
+          registration ? ` · ${registration}` : ' · registration not yet recorded'
         }. This page composes other modules; it does not store official grades.`}
         meta={data.generatedAt ? `Updated ${new Date(data.generatedAt).toLocaleString()}` : null}
         actions={
-          <button type="button" onClick={() => load(true)}>
-            Refresh
+          <button type="button" onClick={() => load(true)} disabled={state.loading}>
+            {state.loading ? 'Refreshing…' : 'Refresh'}
           </button>
         }
       />
 
       <div className="stat-row">
-        <StatCard label="Current subjects" value={data.currentSubjects?.length ?? 0} to="/learning" />
+        <StatCard
+          label="Current subjects"
+          value={data.currentSubjects?.length ?? 0}
+          icon="subjects"
+          to="/learning"
+        />
         <StatCard
           label="Needs attention"
-          value={data.attention?.length ?? 0}
-          hint="Open items from the academic record"
+          value={attentionCount}
+          icon="attention"
+          hint="Open items from academic records"
         />
         <StatCard
-          label="Unread notices inbox"
+          label="Unread notifications"
           value={data.notifications?.unreadCount ?? 0}
+          icon="notifications"
           to="/notifications"
         />
-        <StatCard label="CGPA" value={data.performance?.available ? data.performance.cgpa : '—'} to="/performance" />
+        <StatCard
+          label="CGPA"
+          value={data.performance?.available ? data.performance.cgpa : '—'}
+          icon="gpa"
+          to="/performance"
+        />
       </div>
 
-      <Panel
-        tone="attention"
-        kicker={data.attention?.length ? `${data.attention.length} open` : 'Clear'}
-        title="What needs my attention?"
-      >
-        <AttentionList
-          items={data.attention}
-          empty="No outstanding actions from the records we could load."
-          emptyTo="/calendar"
-          emptyAction="Open calendar"
-        />
-      </Panel>
+      <div className="home-dashboard__band">
+        <Panel
+          tone="attention"
+          kicker={attentionCount ? `${attentionCount} open` : 'Clear'}
+          title="What needs my attention?"
+        >
+          <AttentionList
+            items={data.attention}
+            empty="No outstanding actions from the records we could load."
+            emptyTo="/calendar"
+            emptyAction="Open calendar"
+          />
+        </Panel>
+      </div>
 
-      <div className="dashboard-grid">
+      <div className="dashboard-grid dashboard-grid--primary">
         <Panel title="Upcoming deadlines and events">
-          {!sections.calendar?.ok ? <p>{sections.calendar?.error}</p> : null}
+          <SectionError message={!sections.calendar?.ok ? sections.calendar?.error : ''} />
           {sections.calendar?.ok ? (
             <>
               <DeadlineList title="Today" items={groups.today} />
@@ -129,6 +127,9 @@ export function StudentDashboardPage() {
               <DeadlineList title="Later" items={groups.later} />
             </>
           ) : null}
+          <p className="panel-footnote">
+            <Link to="/calendar">Open calendar</Link>
+          </p>
         </Panel>
 
         <Panel title="Current subjects">
@@ -138,7 +139,8 @@ export function StudentDashboardPage() {
                 <li key={item.id}>
                   <Link className="offering-card" to={item.learningPath}>
                     <p className="offering-card__code">
-                      {item.subjectCode} {item.subjectName}
+                      {item.subjectCode}{' '}
+                      <span className="offering-card__name">{item.subjectName}</span>
                     </p>
                     <p className="offering-card__meta">
                       {item.credits != null ? `${item.credits} credits` : 'Credits not listed'}
@@ -147,8 +149,10 @@ export function StudentDashboardPage() {
                     </p>
                     {item.nextEvent ? (
                       <p className="offering-card__meta">
-                        Next: {item.nextEvent.title}{' '}
-                        {item.nextEvent.startsAt ? new Date(item.nextEvent.startsAt).toLocaleString() : ''}
+                        Next: {item.nextEvent.title}
+                        {item.nextEvent.startsAt
+                          ? ` · ${new Date(item.nextEvent.startsAt).toLocaleString()}`
+                          : ''}
                       </p>
                     ) : null}
                   </Link>
@@ -161,33 +165,42 @@ export function StudentDashboardPage() {
             </EmptyState>
           )}
         </Panel>
+      </div>
 
+      <div className="dashboard-grid">
         <Panel title="Recently published official resources">
-          {!sections.learning?.ok ? <p>{sections.learning?.error}</p> : null}
+          <SectionError message={!sections.learning?.ok ? sections.learning?.error : ''} />
           {sections.learning?.ok && !data.resources?.latestResources?.length ? (
-            <p className="empty-state">No published official resources in your current offerings yet.</p>
+            <EmptyState to="/learning" action="Browse official resources">
+              No published official resources in your current offerings yet.
+            </EmptyState>
           ) : null}
-          <ul className="stack-list">
-            {(data.resources?.latestResources || []).map((item) => (
-              <li key={item.id}>
-                <Link to={item.learningPath}>
-                  <span className="stack-item__title">
-                    {item.subjectCode}: {item.title}
-                  </span>
-                  {item.publishedAt ? (
-                    <span className="stack-item__meta">{new Date(item.publishedAt).toLocaleString()}</span>
-                  ) : null}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {(data.resources?.latestResources || []).length ? (
+            <ul className="stack-list">
+              {(data.resources?.latestResources || []).map((item) => (
+                <li key={item.id}>
+                  <Link to={item.learningPath}>
+                    <span className="stack-item__title">
+                      {item.subjectCode}: {item.title}
+                    </span>
+                    {item.publishedAt ? (
+                      <span className="stack-item__meta">
+                        {new Date(item.publishedAt).toLocaleString()}
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <p className="panel-footnote">
-            These are official course files, not Study Room shares. <Link to="/learning">All official resources</Link>
+            Official course files only — not Study Room shares.{' '}
+            <Link to="/learning">All official resources</Link>
           </p>
         </Panel>
 
         <Panel title="Performance">
-          {!sections.gpa?.ok ? <p>{sections.gpa?.error}</p> : null}
+          <SectionError message={!sections.gpa?.ok ? sections.gpa?.error : ''} />
           <p className="figure-line">{formatGpaDisplay(data.performance)}</p>
           {data.results?.eca?.length ? (
             <p className="stack-item__meta">
@@ -196,17 +209,19 @@ export function StudentDashboardPage() {
             </p>
           ) : null}
           <p className="panel-footnote">
-            <Link to="/performance">Full analytics</Link> · <Link to="/results/me">Official results</Link>
+            <Link to="/performance">Full analytics</Link>
+            <span className="panel-footnote__sep">·</span>
+            <Link to="/results/me">Official results</Link>
           </p>
         </Panel>
 
         <Panel title="CA recovery">
-          {!sections.ca?.ok ? <p>{sections.ca?.error}</p> : null}
+          <SectionError message={!sections.ca?.ok ? sections.ca?.error : ''} />
           {data.caRecovery?.window?.lifecycle ? (
-            <p>
-              Application window: {data.caRecovery.window.lifecycle}
+            <p className="panel-lead">
+              Application window: <strong>{data.caRecovery.window.lifecycle}</strong>
               {data.caRecovery.window.closesAt
-                ? ` (closes ${new Date(data.caRecovery.window.closesAt).toLocaleString()})`
+                ? ` · closes ${new Date(data.caRecovery.window.closesAt).toLocaleString()}`
                 : ''}
             </p>
           ) : null}
@@ -220,11 +235,12 @@ export function StudentDashboardPage() {
               ))}
             </ul>
           ) : (
-            <p className="empty-state">No open incomplete CA conditions.</p>
+            <p className="deadline-empty">No open incomplete CA conditions.</p>
           )}
           {data.caRecovery?.application ? (
             <p className="stack-item__meta">
-              Application {data.caRecovery.application.applicationId}: {data.caRecovery.application.workflowStatus}
+              Application {data.caRecovery.application.applicationId}:{' '}
+              {data.caRecovery.application.workflowStatus}
             </p>
           ) : null}
           <p className="panel-footnote">
@@ -233,37 +249,52 @@ export function StudentDashboardPage() {
         </Panel>
 
         <Panel title="Notices">
-          {!sections.notices?.ok ? <p>{sections.notices?.error}</p> : null}
-          {sections.notices?.ok && !data.notices.length ? <p className="empty-state">No current notices.</p> : null}
-          <ul className="stack-list">
-            {data.notices.map((item) => (
-              <li key={item.id}>
-                <Link to={`/notices/${item.id}`}>
-                  <span className="stack-item__title">{item.title}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <SectionError message={!sections.notices?.ok ? sections.notices?.error : ''} />
+          {sections.notices?.ok && !(data.notices?.length) ? (
+            <p className="deadline-empty">No current notices.</p>
+          ) : null}
+          {data.notices?.length ? (
+            <ul className="stack-list">
+              {data.notices.map((item) => (
+                <li key={item.id}>
+                  <Link to={`/notices/${item.id}`}>
+                    <span className="stack-item__title">{item.title}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <p className="panel-footnote">
+            <Link to="/notices">All notices</Link>
+          </p>
         </Panel>
 
         <Panel title="Notifications">
-          {!sections.notifications?.ok ? <p>{sections.notifications?.error}</p> : null}
-          <p className="figure-line">Unread {data.notifications?.unreadCount ?? 'unavailable'}</p>
-          <ul className="stack-list">
-            {(data.notifications?.recent || []).map((item) => (
-              <li key={item.id}>
-                {item.actionPath ? (
-                  <Link to={item.actionPath}>
+          <SectionError
+            message={!sections.notifications?.ok ? sections.notifications?.error : ''}
+          />
+          <p className="figure-line">
+            Unread {data.notifications?.unreadCount ?? 'unavailable'}
+          </p>
+          {(data.notifications?.recent || []).length ? (
+            <ul className="stack-list">
+              {(data.notifications?.recent || []).map((item) => (
+                <li key={item.id}>
+                  {item.actionPath ? (
+                    <Link to={item.actionPath}>
+                      <span className="stack-item__title">{item.title}</span>
+                    </Link>
+                  ) : (
                     <span className="stack-item__title">{item.title}</span>
-                  </Link>
-                ) : (
-                  <span className="stack-item__title">{item.title}</span>
-                )}
-              </li>
-            ))}
-          </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="deadline-empty">No recent notifications.</p>
+          )}
           <p className="panel-footnote">
-            <Link to="/notifications">Inbox</Link>
+            <Link to="/notifications">Open inbox</Link>
           </p>
         </Panel>
       </div>

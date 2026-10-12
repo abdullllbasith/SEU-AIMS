@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { lecturerApi, offeringLabel } from './lecturer-api.js';
+import { PageHeader } from '../../ui/PageHeader.jsx';
+import { Panel } from '../../ui/Panel.jsx';
+import { EmptyState } from '../../ui/EmptyState.jsx';
+import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import {
+  formatBatchLabel,
+  formatSemesterLabel,
+  formatYearLabel,
+} from '../../ui/academic-labels.js';
 
 export function LecturerOfferingWorkspacePage() {
   const { offeringId } = useParams();
@@ -31,84 +40,227 @@ export function LecturerOfferingWorkspacePage() {
   }, [offeringId]);
 
   if (state.loading) {
-    return <p>Loading subject offering workspace…</p>;
+    return <PageSkeleton title="Subject offering" variant="workspace" />;
   }
+
   if (state.error) {
     return (
-      <section>
-        <h1>Subject offering</h1>
+      <section className="record-page">
+        <PageHeader
+          title="Subject offering"
+          purpose="If this assignment was revoked, management is no longer available."
+        />
         <p className="form-error" role="alert">
           {state.error}
         </p>
-        <p>If this assignment was revoked, management is no longer available.</p>
-        <Link to="/">Back to teaching workspace</Link>
+        <p className="panel-footnote">
+          <Link to="/">Back to teaching workspace</Link>
+        </p>
       </section>
     );
   }
 
   const data = state.data;
   const offering = data.offering;
+  const resources = data.resources?.items || [];
+  const eligible = data.caRecovery?.eligible || [];
+  const deadlines = data.deadlines || [];
 
   return (
-    <section>
-      <p>
-        <Link to="/">Teaching workspace</Link>
-      </p>
-      <h1>{offeringLabel(offering)}</h1>
+    <section className="record-page">
+      <PageHeader
+        title={offeringLabel(offering)}
+        purpose="Teaching workspace for one assigned offering. Official results are not edited here."
+        meta={`Status ${offering.status}`}
+        actions={
+          <Link className="text-action" to="/lecturer/offerings">
+            All assignments
+          </Link>
+        }
+      />
+
       {!data.canManage ? (
-        <p role="status">This assignment is read-only. You cannot publish resources or schedule CA here.</p>
+        <p className="status-banner" role="status">
+          This assignment is <strong>read-only</strong>. You cannot publish resources or schedule CA here.
+        </p>
       ) : null}
 
-      <h2>Overview</h2>
-      <p>
-        Status {offering.status}. Batch {offering.batchName || offering.batchId}. Year{' '}
-        {offering.academicYearName || offering.academicYearId}. Semester {offering.semesterName || offering.semesterId}.
-      </p>
+      <div className="workspace-tools">
+        <Link className="workspace-tool" to={data.links.learning}>
+          <span className="workspace-tool__title">Resource manager</span>
+          <span className="workspace-tool__meta">Upload, publish, and archive official files</span>
+        </Link>
+        <Link className="workspace-tool" to="/lecturer/ca">
+          <span className="workspace-tool__title">CA scheduling</span>
+          <span className="workspace-tool__meta">Approved students for your offerings</span>
+        </Link>
+        <Link className="workspace-tool" to="/calendar">
+          <span className="workspace-tool__title">Calendar</span>
+          <span className="workspace-tool__meta">Assignment deadlines and events</span>
+        </Link>
+      </div>
 
-      <h2>Official resources</h2>
-      {!data.sections?.resources?.ok ? <p>{data.sections?.resources?.error}</p> : null}
-      {data.resources?.items?.length ? (
-        <ul>
-          {data.resources.items.map((item) => (
-            <li key={item.id}>
-              {item.title} — {item.publicationState} (v{item.version})
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No official resources on this offering yet.</p>
-      )}
-      <p>
-        <Link to={data.links.learning}>Open resource manager</Link>
-      </p>
+      <Panel title="Overview" kicker="Academic foundation">
+        <dl className="record-dl record-dl--inline">
+          <div>
+            <dt>Batch</dt>
+            <dd>
+              {formatBatchLabel({ code: offering.batchCode, name: offering.batchName }) ||
+                offering.batchId ||
+                '—'}
+            </dd>
+          </div>
+          <div>
+            <dt>Academic year</dt>
+            <dd>
+              {formatYearLabel({
+                name: offering.academicYearName,
+                sequence: offering.academicYearSequence,
+              }) ||
+                offering.academicYearName ||
+                '—'}
+            </dd>
+          </div>
+          <div>
+            <dt>Semester</dt>
+            <dd>
+              {formatSemesterLabel(
+                { name: offering.semesterName, sequence: offering.semesterSequence },
+                { name: offering.academicYearName, sequence: offering.academicYearSequence },
+              ) ||
+                offering.semesterName ||
+                '—'}
+            </dd>
+          </div>
+          <div>
+            <dt>Management</dt>
+            <dd>
+              {data.canManage ? (
+                <span className="status-pill status-pill--ok">Active</span>
+              ) : (
+                <span className="status-pill">Read-only</span>
+              )}
+            </dd>
+          </div>
+        </dl>
+      </Panel>
 
-      <h2>Assignment deadlines</h2>
-      {data.deadlines?.length ? (
-        <ul>
-          {data.deadlines.map((item) => (
-            <li key={item.id}>
-              {item.title} — {item.startsAt ? new Date(item.startsAt).toLocaleString() : ''}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No assignment-deadline calendar events for this offering in the upcoming window.</p>
-      )}
-      <p>
-        Deadlines are calendar events. <Link to="/calendar">Open calendar</Link>
-      </p>
+      <div className="dashboard-grid dashboard-grid--primary">
+        <Panel title="Official resources" kicker={`${resources.length} item${resources.length === 1 ? '' : 's'}`}>
+          {!data.sections?.resources?.ok ? (
+            <p className="section-error">{data.sections?.resources?.error}</p>
+          ) : null}
+          {resources.length === 0 ? (
+            <EmptyState to={data.links.learning} action="Open resource manager">
+              No official resources on this offering yet.
+            </EmptyState>
+          ) : (
+            <ul className="resource-list">
+              {resources.map((item) => (
+                <li key={item.id} className="resource-row">
+                  <div className="resource-row__main">
+                    <p className="resource-row__title">{item.title}</p>
+                    <p className="resource-row__meta">Version {item.version}</p>
+                  </div>
+                  <div className="resource-row__aside">
+                    <span
+                      className={
+                        item.publicationState === 'PUBLISHED'
+                          ? 'status-pill status-pill--ok'
+                          : 'status-pill'
+                      }
+                    >
+                      {item.publicationState}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="panel-footnote">
+            <Link to={data.links.learning}>Open resource manager</Link>
+          </p>
+        </Panel>
 
-      <h2>CA recovery</h2>
-      {!data.sections?.ca?.ok ? <p>{data.sections?.ca?.error}</p> : null}
-      <p>Approved students for this offering only. Names are not listed as a directory.</p>
-      <ul>
-        {(data.caRecovery?.eligible || []).map((item) => (
-          <li key={`${item.applicationId}-${item.registrationNumber}`}>
-            {item.registrationNumber} — {item.workflowStatus}
-          </li>
-        ))}
-      </ul>
-      <Link to="/lecturer/ca">Schedule CA</Link>
+        <Panel title="Assignment deadlines" kicker={`${deadlines.length} upcoming`}>
+          {deadlines.length === 0 ? (
+            <p className="deadline-empty">
+              No assignment-deadline calendar events for this offering in the upcoming window.
+            </p>
+          ) : (
+            <ul className="stack-list">
+              {deadlines.map((item) => (
+                <li key={item.id}>
+                  <Link to="/calendar">
+                    <span className="stack-item__title">{item.title}</span>
+                    <span className="stack-item__meta">
+                      {item.startsAt ? new Date(item.startsAt).toLocaleString() : ''}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="panel-footnote">
+            Deadlines are calendar events. <Link to="/calendar">Open calendar</Link>
+          </p>
+        </Panel>
+      </div>
+
+      <Panel title="Students" kicker={`${(data.roster?.items || []).length} on this offering`}>
+        <p className="panel-lead">
+          Students in this offering&apos;s current period, plus active repeat or arrear enrollments for this offering
+          only.
+        </p>
+        {(data.roster?.items || []).length === 0 ? (
+          <p className="deadline-empty">No students are on this offering.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Registration</th>
+                  <th>Name</th>
+                  <th>Association</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.roster.items.map((row) => (
+                  <tr key={row.studentUserId}>
+                    <td>{row.registrationNumber}</td>
+                    <td>{row.displayName || '—'}</td>
+                    <td>{(row.associations || []).join(', ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="CA recovery" kicker={`${eligible.length} eligible`}>
+        {!data.sections?.ca?.ok ? (
+          <p className="section-error">{data.sections?.ca?.error}</p>
+        ) : null}
+        <p className="panel-lead">
+          Approved students for this offering only. Names are not listed as a directory.
+        </p>
+        {eligible.length === 0 ? (
+          <p className="deadline-empty">No approved CA students for this offering.</p>
+        ) : (
+          <ul className="stack-list">
+            {eligible.map((item) => (
+              <li key={`${item.applicationId}-${item.registrationNumber}`}>
+                <span className="stack-item__title">{item.registrationNumber}</span>
+                <span className="stack-item__meta">{item.workflowStatus}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="panel-footnote">
+          <Link to="/lecturer/ca">Schedule CA</Link>
+        </p>
+      </Panel>
     </section>
   );
 }

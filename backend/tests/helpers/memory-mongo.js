@@ -2,21 +2,30 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { registerModels } from '../../src/infrastructure/database/register-models.js';
 
 let mongod;
-let dbPath;
-
-function workspaceScratchRoot() {
-  return path.resolve(process.cwd(), '..', '.local-storage', 'mongo-memory');
-}
 
 async function connect(uri, serverSelectionTimeoutMS = 5000) {
   await mongoose.connect(uri, { serverSelectionTimeoutMS });
   registerModels();
   await mongoose.connection.syncIndexes();
   return uri;
+}
+
+async function supportsTransactions() {
+  const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+  return Boolean(hello.setName);
+}
+
+async function connectTransactional(uri, serverSelectionTimeoutMS) {
+  await connect(uri, serverSelectionTimeoutMS);
+  if (await supportsTransactions()) {
+    return uri;
+  }
+  await mongoose.disconnect();
+  return null;
 }
 
 function cachedMongodBinary() {
@@ -35,37 +44,38 @@ export async function startIsolatedMongo() {
 
   if (process.env.MONGODB_TEST_URI) {
     try {
-      return await connect(process.env.MONGODB_TEST_URI, 5000);
+      const uri = await connectTransactional(process.env.MONGODB_TEST_URI, 5000);
+      if (uri) {
+        return uri;
+      }
+      errors.push('MONGODB_TEST_URI: transactions require a replica set');
     } catch (error) {
       errors.push(`MONGODB_TEST_URI: ${error.message}`);
     }
   }
 
   try {
-    return await connect('mongodb://127.0.0.1:27017/seu_aims_test', 3000);
+    const uri = await connectTransactional('mongodb://127.0.0.1:27017/seu_aims_test', 3000);
+    if (uri) {
+      return uri;
+    }
+    errors.push('local:27017: standalone server does not support transactions');
   } catch (error) {
     errors.push(`local:27017: ${error.message}`);
   }
 
   const systemBinary = cachedMongodBinary();
-  dbPath = path.join(workspaceScratchRoot(), `pid-${process.pid}`);
-  fs.mkdirSync(dbPath, { recursive: true });
 
   try {
-    mongod = await MongoMemoryServer.create({
-      instance: {
-        dbPath,
-        storageEngine: 'wiredTiger',
-        args: ['--wiredTigerCacheSizeGB', '0.25'],
-        launchTimeout: 20000,
-      },
+    mongod = await MongoMemoryReplSet.create({
+      replSet: { count: 1, storageEngine: 'wiredTiger' },
       binary: systemBinary
         ? { systemBinary, version: '7.0.24' }
         : { version: '7.0.24' },
     });
-    return await connect(mongod.getUri('seu_aims_test'));
+    return await connect(mongod.getUri('seu_aims_test'), 30000);
   } catch (error) {
-    errors.push(`MongoMemoryServer: ${error.message}`);
+    errors.push(`MongoMemoryReplSet: ${error.message}`);
     throw new Error(`Isolated MongoDB is required and could not start. ${errors.join(' | ')}`);
   }
 }
@@ -78,14 +88,6 @@ export async function stopIsolatedMongo() {
   if (mongod) {
     await mongod.stop();
     mongod = undefined;
-  }
-  if (dbPath && fs.existsSync(dbPath)) {
-    try {
-      fs.rmSync(dbPath, { recursive: true, force: true });
-    } catch {
-      // Windows can keep mongod file handles briefly after stop.
-    }
-    dbPath = undefined;
   }
 }
 

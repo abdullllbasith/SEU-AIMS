@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { SPECIALIZATIONS } from '../constants.js';
 import { defineModel, objectId, persistenceOptions } from '../../../infrastructure/database/define-model.js';
 
 const studentAcademicHistorySchema = new mongoose.Schema(
@@ -7,6 +8,7 @@ const studentAcademicHistorySchema = new mongoose.Schema(
     userId: { type: objectId, ref: 'User', required: true },
     academicYearId: { type: objectId, ref: 'AcademicYear', required: true },
     semesterId: { type: objectId, ref: 'Semester', required: true },
+    specialization: { type: String, enum: [...SPECIALIZATIONS, null], default: null },
     recordedAt: { type: Date, required: true, default: Date.now },
   },
   persistenceOptions,

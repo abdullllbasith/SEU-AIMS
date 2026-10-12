@@ -1,4 +1,5 @@
 import { apiRequest } from '../../services/api-client.js';
+import { formatOfferingLabel } from '../../ui/academic-labels.js';
 
 export const lecturerApi = {
   dashboard: (refresh = false) => apiRequest(`/lecturer/dashboard${refresh ? '?refresh=true' : ''}`),
@@ -12,12 +13,5 @@ export const lecturerApi = {
 };
 
 export function offeringLabel(item) {
-  if (!item) {
-    return 'Subject offering';
-  }
-  const subject = [item.subjectCode, item.subjectName].filter(Boolean).join(' — ');
-  const period = [item.batchName || item.batchCode, item.academicYearName, item.semesterName]
-    .filter(Boolean)
-    .join(' · ');
-  return period ? `${subject} (${period})` : subject || item.id;
+  return formatOfferingLabel(item) || 'Subject offering';
 }
