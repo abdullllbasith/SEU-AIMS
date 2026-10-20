@@ -2182,6 +2182,18 @@ a.ops-metric:hover {
   max-width: 36rem;
 }
 
+.filter-bar--records {
+  max-width: none;
+  grid-template-columns: minmax(14rem, 1.6fr) repeat(3, minmax(9rem, 1fr));
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 900px) {
+  .filter-bar--records {
+    grid-template-columns: 1fr;
+  }
+}
+
 .filter-bar__hint {
   margin: 0;
   font-size: 0.78rem;

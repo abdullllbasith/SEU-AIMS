@@ -216,19 +216,41 @@ export function StudyRoomPage() {
 
   const decrypted = useMemo(() => messages, [messages]);
 
-  async function searchPeers(event) {
-    event.preventDefault();
-    setSearchBusy(true);
-    setError('');
-    try {
-      const result = await studyRoomApi.searchStudents(query);
-      setPeers(result.data.items);
-    } catch (caught) {
-      setError(caught.message || 'Student search failed');
-    } finally {
-      setSearchBusy(false);
+  useEffect(() => {
+    if (tab !== 'private') {
+      return undefined;
     }
-  }
+    const value = query.trim();
+    if (value.length < 2) {
+      setPeers([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      setSearchBusy(true);
+      studyRoomApi
+        .searchStudents(value)
+        .then((result) => {
+          if (!cancelled) {
+            setPeers(result.data.items || []);
+          }
+        })
+        .catch((caught) => {
+          if (!cancelled) {
+            setError(caught.message || 'Student search failed');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setSearchBusy(false);
+          }
+        });
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [query, tab]);
 
   async function openPrivate(peerId) {
     setError('');
@@ -391,21 +413,17 @@ export function StudyRoomPage() {
         <div className="study-room__workspace">
           {tab === 'private' ? (
             <Panel title="Find a classmate" kicker="Your batch">
-              <form className="inline-form study-room__search" onSubmit={searchPeers}>
+              <form className="inline-form study-room__search" onSubmit={(event) => event.preventDefault()}>
                 <label>
                   Search by name or registration number
                   <input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    minLength={2}
-                    placeholder="At least 2 characters"
+                    placeholder="Type a name or registration number"
+                    autoComplete="off"
                   />
                 </label>
-                <div className="panel-actions">
-                  <button type="submit" disabled={searchBusy || query.trim().length < 2}>
-                    {searchBusy ? 'Searching…' : 'Search'}
-                  </button>
-                </div>
+                {searchBusy ? <p className="filter-bar__hint">Searching…</p> : null}
               </form>
               {peers.length === 0 ? (
                 <p className="deadline-empty">

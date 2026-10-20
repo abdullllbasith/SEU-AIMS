@@ -1806,14 +1806,50 @@ export async function listStudentContexts(principal, query) {
     requireObjectId(query.batchId, 'batch');
     filter.batchId = query.batchId;
   }
-  if (query.q) {
-    Object.assign(filter, textFilter(query, ['registrationNumber']));
+  if (query.currentAcademicYearId) {
+    requireObjectId(query.currentAcademicYearId, 'academic year');
+    filter.currentAcademicYearId = query.currentAcademicYearId;
+  }
+  if (query.currentSemesterId) {
+    requireObjectId(query.currentSemesterId, 'semester');
+    filter.currentSemesterId = query.currentSemesterId;
+  }
+  const q = typeof query.q === 'string' ? query.q.trim() : '';
+  if (q) {
+    const pattern = new RegExp(escapeRegex(q), 'i');
+    const namedUsers = await User.find({
+      departmentId,
+      role: ROLES.STUDENT,
+      $or: [{ displayName: pattern }, { email: pattern }],
+    })
+      .select('_id')
+      .limit(200);
+    filter.$or = [
+      { registrationNumber: pattern },
+      { userId: { $in: namedUsers.map((user) => user._id) } },
+    ];
   }
   const [items, total] = await Promise.all([
     StudentAcademicContext.find(filter).sort({ registrationNumber: 1 }).skip(skip).limit(limit),
     StudentAcademicContext.countDocuments(filter),
   ]);
-  return paginatedResult({ items: items.map(mapStudentContext), total, page, pageSize });
+  const users = await User.find({ _id: { $in: items.map((item) => item.userId) } }).select(
+    'displayName email',
+  );
+  const userById = new Map(users.map((user) => [String(user._id), user]));
+  return paginatedResult({
+    items: items.map((item) => {
+      const user = userById.get(String(item.userId));
+      return {
+        ...mapStudentContext(item),
+        displayName: user?.displayName || '',
+        email: user?.email || '',
+      };
+    }),
+    total,
+    page,
+    pageSize,
+  });
 }
 
 async function assertStudentSpecialization(departmentId, year, value) {

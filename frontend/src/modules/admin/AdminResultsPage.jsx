@@ -181,6 +181,43 @@ export function AdminResultsPage() {
   }
 
   useEffect(() => {
+    const value = query.trim();
+    if (value.length < 3) {
+      setRecords(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      const params = value.includes('/') ? { registrationNumber: value } : { subjectCode: value };
+      setBusy(true);
+      resultsApi
+        .records(params)
+        .then((response) => {
+          if (cancelled) {
+            return;
+          }
+          setError('');
+          setRecords(response.data);
+          setVersions(null);
+        })
+        .catch((caught) => {
+          if (!cancelled) {
+            setError(caught.message || 'Search failed');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setBusy(false);
+          }
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [query]);
+
+  useEffect(() => {
     let cancelled = false;
     reload()
       .catch((caught) => {
@@ -435,40 +472,17 @@ export function AdminResultsPage() {
         </Panel>
       ) : null}
       <Panel title="Official records" kicker="Lookup">
-        <form
-          className="import-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const value = query.trim();
-            if (!value) {
-              setError('Enter a registration number or subject code');
-              return;
-            }
-            const params = value.includes('/') ? { registrationNumber: value } : { subjectCode: value };
-            setBusy(true);
-            resultsApi
-              .records(params)
-              .then((response) => {
-                setError('');
-                setRecords(response.data);
-                setVersions(null);
-              })
-              .catch((caught) => setError(caught.message || 'Search failed'))
-              .finally(() => setBusy(false));
-          }}
-        >
+        <form className="import-search" onSubmit={(event) => event.preventDefault()}>
           <label>
             Registration number or subject code
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="e.g. SEU/IS/19/IS/001 or CSC1101"
+              placeholder="Type a registration number or subject code"
               autoComplete="off"
             />
           </label>
-          <button type="submit" disabled={busy}>
-            Search
-          </button>
+          {busy ? <p className="filter-bar__hint">Searching…</p> : null}
         </form>
         {records ? (
           <table className="data-table">

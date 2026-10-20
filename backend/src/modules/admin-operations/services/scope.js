@@ -49,6 +49,10 @@ export function prefixRegex(value) {
   return new RegExp(`^${value}`, 'i');
 }
 
+export function containsRegex(value) {
+  return new RegExp(value, 'i');
+}
+
 export function ignoreClientDepartment(query = {}) {
   if (query.departmentId) {
     return true;
