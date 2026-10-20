@@ -22,5 +22,7 @@ This is an implementation log, not marketing. Dates are engineering session date
 - **18** Department admin operational dashboard (`/api/admin`), bounded student CSV, KPI catalog. No rankings, no job force-success.
 - **19** Student academic workspace: attention list, deadline groups, official search, composed dashboard. GPA still server-side.
 - **20** Lecturer teaching workspace (`/api/lecturer`): assignment-scoped dashboard, offering workspace, prefix search. Resource/CA/calendar writes stay in owning modules. No CA approval, result mutation, Study Room, or invented workload policy.
+- **29** System-wide QA on 2026-10-20. Backend 272/272 and frontend 38/38 passed, 0 skipped. Production dependency audit was clean after `proxy-addr` 2.0.8. See `docs/qa/prompt-29-report.md`. Load, restore, and browser E2E were not run.
+- **30** Deployment hardening: compose binds Mongo and Redis to localhost, caps API/worker resources, adds an API healthcheck, and requires `https://` on `API_PUBLIC_URL`. Compose config validated; containers were not started. Decision: not production ready. See `docs/qa/prompt-30-report.md`.
 
 GPA class bands and grade map: copied from the inspected DICT-SEUSL GPA Calculator (`gpa-engine.js`), not invented in this changelog.

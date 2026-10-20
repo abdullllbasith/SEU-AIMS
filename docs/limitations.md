@@ -17,4 +17,6 @@ These are current facts, not a promise they will be fixed in this prompt.
 | Login id | Email is the implemented login identifier; **unconfirmed** if the institution requires registration-number login |
 | Retention | `AUDIT_RETENTION_DAYS=0` means no auto-delete; legal retention **unconfirmed** |
 | Backups | Documented, restore not demonstrated |
+| Hosted deploy | Compose file validates; `docker compose up` and a public TLS deploy were not run on 2026-10-20 |
+| Dependencies | Production `npm audit --omit=dev` was clean on 2026-10-20 after `proxy-addr` 2.0.8. Dev-only Vitest/`tinypool` advisories remain; they are not in the production install |
 | Admin analytics | Derived counts only; export capped at 500; queue/file totals not department-split |

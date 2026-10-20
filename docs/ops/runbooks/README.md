@@ -76,6 +76,38 @@ Department-admin dashboard runbooks: [admin-analytics.md](./admin-analytics.md).
 - **Verify:** smoke.
 - **Escalate:** releaser.
 
+## Object storage outage
+
+- **Symptoms:** uploads return an error; downloads of already stored files fail; file reconciliation reports missing objects.
+- **Checks:** `FILE_STORAGE_DRIVER`; storage credentials; bucket reachability. Do not log the secret.
+- **Safe actions:** leave new uploads failed. Do not mark a missing object as available. Academic rows are not deleted to “fix” a missing file.
+- **Verify:** one known safe file downloads after storage returns; reconciliation no longer reports that object missing.
+- **Escalate:** storage operator. A restore of objects was **not** demonstrated in this repository.
+
+## Malware found
+
+- **Symptoms:** scan result is not safe; the file stays unavailable.
+- **Checks:** worker log for `files.malware-scan`; stored-file status. Do not download the bytes onto an operator laptop to “check”.
+- **Safe actions:** keep the file unavailable. Do not set it clean by hand. Preserve the audit row.
+- **Verify:** students and lecturers still cannot download it.
+- **Escalate:** security operator.
+
+## Notification provider outage
+
+- **Symptoms:** in-app notices exist; email or WhatsApp deliveries fail or retry.
+- **Checks:** provider status; delivery rows; worker is running.
+- **Safe actions:** leave the academic record as written. Retry delivery. Do not turn a failed send into a second official result or CA decision.
+- **Verify:** the in-app notification is still the user’s copy; a later retry does not create a second academic row.
+- **Escalate:** provider owner.
+
+## Security incident
+
+- **Symptoms:** unexpected admin audit events, credential leak, or a report of cross-department data.
+- **Checks:** `GET /api/audit/events` for the affected department; rotate the leaked secret in the secret store.
+- **Safe actions:** disable the affected account (`SUSPENDED`). Do not edit or delete audit documents. Roll the JWT secret only with a planned logout of all sessions.
+- **Verify:** the suspended account receives 401; a fresh login with the old password fails.
+- **Escalate:** security operator. Do not paste registration numbers or message text into a public ticket.
+
 ## Database restore
 
 - **Symptoms:** corruption or accidental drop.

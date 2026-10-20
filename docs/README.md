@@ -23,7 +23,7 @@ This tree describes **this repository**. Product decisions in the Architecture p
 | [troubleshooting/](./troubleshooting/) | Developer + ops links |
 | [integrations/](./integrations/) | Providers and webhooks |
 | [decisions/](./decisions/) | ADRs |
-| [qa/](./qa/) | Prompt 14–17 evidence, including [final-audit.md](./qa/final-audit.md) |
+| [qa/](./qa/) | Prompt 14–17 evidence, including [final-audit.md](./qa/final-audit.md), [prompt-29-report.md](./qa/prompt-29-report.md), and [prompt-30-report.md](./qa/prompt-30-report.md) |
 | [ops/admin-operations.md](./ops/admin-operations.md) | Prompt 18 admin dashboard |
 | [qa/student-experience-map.md](./qa/student-experience-map.md) | Prompt 19 student workspace map |
 | [ops/lecturer-workspace.md](./ops/lecturer-workspace.md) | Prompt 20 lecturer workspace |

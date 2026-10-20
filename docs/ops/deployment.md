@@ -35,7 +35,16 @@ Compose file: `deploy/docker-compose.yml`. Dockerfiles: `deploy/Dockerfile.api`,
 
 Prompt 15 did **not** claim a successful `docker compose up` against a live host unless that command was run in the same session.
 
-Compose does **not** load `.env` automatically from this file. Pass secrets at run time, for example `docker compose --env-file .env -f deploy/docker-compose.yml up --build`. Do not commit that file.
+MongoDB and Redis host ports bind to `127.0.0.1` only. API and worker are limited to 512 MB and 1 CPU in this compose file. That is a local ceiling, not a measured production capacity.
+
+The API and worker read `../.env` when that file exists (`required: false`). From `SEU-AIMS/`:
+
+```text
+docker compose -f deploy/docker-compose.yml config
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+Do not commit `.env`. `stop_grace_period` is 20s so SIGTERM can finish the API and worker shutdown handlers. The API healthcheck calls `GET /api/health/live` inside the container.
 
 ## MongoDB replica set (batch progression)
 

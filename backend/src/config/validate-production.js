@@ -28,6 +28,8 @@ export function validateProductionConfig(config) {
   const publicUrl = String(config.api?.publicUrl || '');
   if (!publicUrl || publicUrl.includes('localhost')) {
     problems.push('API_PUBLIC_URL must be a public origin in production (not localhost)');
+  } else if (!publicUrl.startsWith('https://')) {
+    problems.push('API_PUBLIC_URL must use https in production');
   }
   if (String(config.api?.corsOrigin || '').includes('localhost')) {
     problems.push('CORS_ORIGIN must not use localhost in production');
