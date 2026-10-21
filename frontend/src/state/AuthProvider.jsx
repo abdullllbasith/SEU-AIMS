@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { apiRequest, setCsrfToken, SESSION_EXPIRED_EVENT } from '../services/api-client.js';
+import { apiRequest, getCsrfToken, setCsrfToken, SESSION_EXPIRED_EVENT } from '../services/api-client.js';
 
 const AuthContext = createContext(null);
 export { AuthContext };
@@ -32,17 +32,27 @@ export function AuthProvider({ children }) {
     bootstrap();
   }, [bootstrap]);
 
+  const ensureCsrf = useCallback(async () => {
+    if (getCsrfToken()) {
+      return;
+    }
+    const csrf = await apiRequest('/auth/csrf');
+    setCsrfToken(csrf.data.csrfToken);
+  }, []);
+
   useEffect(() => {
     function onExpired() {
       setCsrfToken('');
       applyUser(null);
+      ensureCsrf().catch(() => setCsrfToken(''));
     }
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
-  }, [applyUser]);
+  }, [applyUser, ensureCsrf]);
 
   const login = useCallback(
     async ({ identifier, password }) => {
+      await ensureCsrf();
       const result = await apiRequest('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ identifier, password }),
@@ -50,7 +60,7 @@ export function AuthProvider({ children }) {
       applyUser(result.data.user, result.data.csrfToken);
       return result.data.user;
     },
-    [applyUser],
+    [applyUser, ensureCsrf],
   );
 
   const logout = useCallback(async () => {
@@ -59,8 +69,13 @@ export function AuthProvider({ children }) {
     } finally {
       setCsrfToken('');
       applyUser(null);
+      try {
+        await ensureCsrf();
+      } catch {
+        setCsrfToken('');
+      }
     }
-  }, [applyUser]);
+  }, [applyUser, ensureCsrf]);
 
   const value = useMemo(
     () => ({ status, user, login, logout, bootstrap }),

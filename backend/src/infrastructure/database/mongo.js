@@ -2,18 +2,18 @@ import dns from 'node:dns';
 import mongoose from 'mongoose';
 
 function lookup(hostname, options, callback) {
-  dns.lookup(hostname, options, (error, address, family) => {
-    if (!error) {
-      callback(null, address, family);
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
+  // Windows getaddrinfo can return ENOTFOUND for Atlas shard hosts that still
+  // have A records. Resolve those first so server selection does not time out.
+  dns.resolve4(hostname, (error, addresses) => {
+    if (!error && addresses?.length) {
+      callback(null, addresses[0], 4);
       return;
     }
-    dns.resolve4(hostname, (resolveError, addresses) => {
-      if (resolveError || !addresses?.length) {
-        callback(error);
-        return;
-      }
-      callback(null, addresses[0], 4);
-    });
+    dns.lookup(hostname, { ...options, family: 4 }, callback);
   });
 }
 

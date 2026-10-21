@@ -4,7 +4,7 @@ This tree describes **this repository**. Product decisions in the Architecture p
 
 | Path | Use |
 |---|---|
-| [handbook.md](./handbook.md) | How to learn the system |
+| [handbook.md](./handbook.md) | Developer handbook (Prompt 31): start here |
 | [terminology.md](./terminology.md) | Words we do and do not use |
 | [frontend/ui-contract.md](./frontend/ui-contract.md) | Academic LMS workspace UI |
 | [limitations.md](./limitations.md) | What is not claimed |
@@ -23,7 +23,7 @@ This tree describes **this repository**. Product decisions in the Architecture p
 | [troubleshooting/](./troubleshooting/) | Developer + ops links |
 | [integrations/](./integrations/) | Providers and webhooks |
 | [decisions/](./decisions/) | ADRs |
-| [qa/](./qa/) | Prompt 14–17 evidence, including [final-audit.md](./qa/final-audit.md), [prompt-29-report.md](./qa/prompt-29-report.md), and [prompt-30-report.md](./qa/prompt-30-report.md) |
+| [qa/](./qa/) | Prompt 14–17 evidence, including [final-audit.md](./qa/final-audit.md), [prompt-29-report.md](./qa/prompt-29-report.md), [prompt-30-report.md](./qa/prompt-30-report.md), [prompt-31-report.md](./qa/prompt-31-report.md), [prompt-32-report.md](./qa/prompt-32-report.md), and [prompt-33-idea-lock.md](./qa/prompt-33-idea-lock.md) |
 | [ops/admin-operations.md](./ops/admin-operations.md) | Prompt 18 admin dashboard |
 | [qa/student-experience-map.md](./qa/student-experience-map.md) | Prompt 19 student workspace map |
 | [ops/lecturer-workspace.md](./ops/lecturer-workspace.md) | Prompt 20 lecturer workspace |
