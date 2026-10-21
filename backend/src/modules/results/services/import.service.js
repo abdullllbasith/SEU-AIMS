@@ -4,7 +4,8 @@ import { ResultImport } from '../models/result-import.model.js';
 import { ResultImportRow } from '../models/result-import-row.model.js';
 import { AcademicResult } from '../models/academic-result.model.js';
 import { ResultRevision } from '../models/result-revision.model.js';
-import { RESULT_PARSER_VERSION } from '../constants.js';
+import { RESULT_COMMIT_LOCK_MS, RESULT_PARSER_VERSION } from '../constants.js';
+import { RESULT_PERIOD_VERSION, deriveResultPeriods } from './result-period.js';
 import { parseXlsxResults } from './xlsx-parser.js';
 import { parsePdfResults } from './pdf-parser.js';
 import {
@@ -341,6 +342,20 @@ async function classifyRow({ importDoc, parsed, seen, lookup }) {
   };
 }
 
+async function ensureResultPeriods(importDoc) {
+  if (!importDoc || importDoc.resultPeriodsVersion === RESULT_PERIOD_VERSION) {
+    return importDoc;
+  }
+  const rows = await ResultImportRow.find({ importId: importDoc._id }).select('subjectId matchedStudentUserId').lean();
+  const resultPeriods = await deriveResultPeriods(importDoc.departmentId, rows);
+  const updated = await ResultImport.findOneAndUpdate(
+    { _id: importDoc._id, resultPeriodsVersion: { $ne: RESULT_PERIOD_VERSION } },
+    { $set: { resultPeriods, resultPeriodsVersion: RESULT_PERIOD_VERSION } },
+    { new: true },
+  );
+  return updated || (await ResultImport.findById(importDoc._id));
+}
+
 export async function processResultParse({ importId, infrastructure }) {
   const importDoc = await ResultImport.findById(importId);
   if (!importDoc) {
@@ -349,74 +364,149 @@ export async function processResultParse({ importId, infrastructure }) {
   if (['COMMITTED', 'COMMITTING', 'REJECTED_FILE', 'CANCELLED'].includes(importDoc.processingStatus)) {
     return importDoc;
   }
-
-  const file = await StoredFile.findById(importDoc.fileId);
-  if (!file) {
-    importDoc.processingStatus = 'PARSE_FAILED';
-    importDoc.failureCode = 'FILE_MISSING';
-    importDoc.failedAt = new Date();
-    await importDoc.save();
+  if (parseIsFresh(importDoc)) {
     return importDoc;
+  }
+
+  const claimed = await ResultImport.findOneAndUpdate(
+    {
+      _id: importDoc._id,
+      processingStatus: { $nin: ['COMMITTED', 'COMMITTING', 'REJECTED_FILE', 'CANCELLED'] },
+      $or: [
+        { processingStatus: { $ne: 'PROCESSING' } },
+        { parseStartedAt: null },
+        { parseStartedAt: { $lte: new Date(Date.now() - PARSE_LOCK_MS) } },
+      ],
+    },
+    { $set: { processingStatus: 'PROCESSING', parserVersion: RESULT_PARSER_VERSION, parseStartedAt: new Date() } },
+    { new: true },
+  );
+  if (!claimed) {
+    return ResultImport.findById(importDoc._id);
+  }
+
+  let file = await StoredFile.findById(claimed.fileId);
+  if (!file) {
+    await ResultImport.updateOne(
+      { _id: claimed._id, processingStatus: 'PROCESSING' },
+      { $set: { processingStatus: 'PARSE_FAILED', failureCode: 'FILE_MISSING', failedAt: new Date() } },
+    );
+    return ResultImport.findById(claimed._id);
   }
   if (file.scanStatus === 'UNSAFE' || file.scanStatus === 'REJECTED') {
-    importDoc.processingStatus = 'REJECTED_FILE';
-    importDoc.failureCode = 'UNSAFE_FILE';
-    importDoc.failedAt = new Date();
-    await importDoc.save();
-    return importDoc;
+    await ResultImport.updateOne(
+      { _id: claimed._id, processingStatus: 'PROCESSING' },
+      { $set: { processingStatus: 'REJECTED_FILE', failureCode: 'UNSAFE_FILE', failedAt: new Date() } },
+    );
+    return ResultImport.findById(claimed._id);
   }
   if (file.scanStatus !== 'SAFE') {
-    importDoc.processingStatus = 'PROCESSING';
-    await importDoc.save();
-    return importDoc;
+    if (infrastructure?.malwareScanner && !['UNSAFE', 'REJECTED'].includes(file.scanStatus)) {
+      await processMalwareScan({
+        fileId: file._id,
+        scanner: infrastructure.malwareScanner,
+        logger: infrastructure.logger,
+      });
+      file = await StoredFile.findById(file._id);
+    }
   }
-
-  importDoc.processingStatus = 'PROCESSING';
-  importDoc.parserVersion = RESULT_PARSER_VERSION;
-  importDoc.parseStartedAt = new Date();
-  await importDoc.save();
+  if (!file || file.scanStatus !== 'SAFE') {
+    const waiting = file && ['UPLOADED', 'SCANNING'].includes(file.scanStatus);
+    await ResultImport.updateOne(
+      { _id: claimed._id, processingStatus: 'PROCESSING' },
+      waiting
+        ? { $set: { processingStatus: 'UPLOADED' }, $unset: { failureCode: 1, failedAt: 1 } }
+        : {
+            $set: {
+              processingStatus: 'PARSE_FAILED',
+              failureCode: 'SCAN_UNAVAILABLE',
+              failedAt: new Date(),
+            },
+          },
+    );
+    return ResultImport.findById(claimed._id);
+  }
 
   let parsed;
   try {
     const object = await infrastructure.storage.getObject(file.storageKey);
     parsed =
-      importDoc.sourceType === 'PDF' ? await parsePdfResults(object.body) : await parseXlsxResults(object.body);
+      claimed.sourceType === 'PDF' ? await parsePdfResults(object.body) : await parseXlsxResults(object.body);
   } catch (error) {
-    importDoc.processingStatus = 'PARSE_FAILED';
-    importDoc.failureCode = 'PARSE_EXCEPTION';
-    importDoc.failedAt = new Date();
-    await importDoc.save();
+    await ResultImport.updateOne(
+      { _id: claimed._id, processingStatus: 'PROCESSING' },
+      { $set: { processingStatus: 'PARSE_FAILED', failureCode: 'PARSE_EXCEPTION', failedAt: new Date() } },
+    );
     infrastructure.logger?.warn('Result parse failed', { importId: String(importId), message: error.message });
-    return importDoc;
+    return ResultImport.findById(claimed._id);
   }
 
-  await ResultImportRow.deleteMany({ importId: importDoc._id });
-  const seen = new Map();
-  const lookup = await buildImportLookup(importDoc, parsed.rows);
-  const classified = [];
-  for (const row of parsed.rows) {
-    classified.push(await classifyRow({ importDoc, parsed: row, seen, lookup }));
-  }
-  const finalized = blockConflictingIdentities(classified);
-  if (finalized.length) {
-    await ResultImportRow.insertMany(finalized);
+  let finalized;
+  try {
+    await ResultImportRow.deleteMany({ importId: claimed._id });
+    const seen = new Map();
+    const lookup = await buildImportLookup(claimed, parsed.rows);
+    const classified = [];
+    for (let index = 0; index < parsed.rows.length; index += 1) {
+      if (index % 25 === 0) {
+        await ResultImport.updateOne(
+          { _id: claimed._id, processingStatus: 'PROCESSING' },
+          { $set: { parseStartedAt: new Date() } },
+        );
+      }
+      classified.push(await classifyRow({ importDoc: claimed, parsed: parsed.rows[index], seen, lookup }));
+    }
+    finalized = blockConflictingIdentities(classified);
+    if (finalized.length) {
+      await ResultImportRow.insertMany(finalized);
+    }
+  } catch (error) {
+    await ResultImport.updateOne(
+      { _id: claimed._id, processingStatus: 'PROCESSING' },
+      { $set: { processingStatus: 'PARSE_FAILED', failureCode: 'PARSE_EXCEPTION', failedAt: new Date() } },
+    );
+    infrastructure.logger?.warn('Result parse failed', { importId: String(importId), message: error.message });
+    return ResultImport.findById(claimed._id);
   }
 
-  importDoc.summary = summarize(finalized);
+  let resultPeriods = [];
+  try {
+    resultPeriods = await deriveResultPeriods(claimed.departmentId, finalized);
+  } catch (error) {
+    await ResultImport.updateOne(
+      { _id: claimed._id, processingStatus: 'PROCESSING' },
+      { $set: { processingStatus: 'PARSE_FAILED', failureCode: 'PARSE_EXCEPTION', failedAt: new Date() } },
+    );
+    infrastructure.logger?.warn('Result parse failed', { importId: String(importId), message: error.message });
+    return ResultImport.findById(claimed._id);
+  }
+  const summary = summarize(finalized);
+  const update = {
+    summary,
+    resultPeriods,
+    resultPeriodsVersion: RESULT_PERIOD_VERSION,
+    parseFinishedAt: new Date(),
+  };
   if (!finalized.length) {
-    importDoc.processingStatus = 'PARSE_FAILED';
-    importDoc.failureCode = parsed.textCharacters != null && parsed.textCharacters < 40 ? 'NO_TEXT' : 'NO_ROWS';
-    importDoc.failedAt = new Date();
+    update.processingStatus = 'PARSE_FAILED';
+    update.failureCode = parsed.textCharacters != null && parsed.textCharacters < 40 ? 'NO_TEXT' : 'NO_ROWS';
+    update.failedAt = new Date();
   } else if (finalized.some((row) => row.proposedAction === 'NEW' || row.proposedAction === 'UPDATE')) {
-    importDoc.processingStatus = 'READY_FOR_REVIEW';
-    importDoc.failureCode = undefined;
-    importDoc.failedAt = undefined;
+    update.processingStatus = 'READY_FOR_REVIEW';
   } else {
-    importDoc.processingStatus = 'VALIDATION_ISSUES';
+    update.processingStatus = 'VALIDATION_ISSUES';
   }
-  importDoc.parseFinishedAt = new Date();
-  await importDoc.save();
-  return importDoc;
+  const parsedDoc = await ResultImport.findOneAndUpdate(
+    { _id: claimed._id, processingStatus: 'PROCESSING' },
+    {
+      $set: update,
+      ...(update.processingStatus === 'READY_FOR_REVIEW' || update.processingStatus === 'VALIDATION_ISSUES'
+        ? { $unset: { failureCode: 1, failedAt: 1 } }
+        : {}),
+    },
+    { new: true },
+  );
+  return parsedDoc || ResultImport.findById(claimed._id);
 }
 
 export async function createResultImport(principal, file, body, { config, infrastructure }) {
@@ -437,10 +527,14 @@ export async function createResultImport(principal, file, body, { config, infras
   const existingOpen = await ResultImport.findOne({
     departmentId: principal.departmentId,
     checksumSha256,
-    processingStatus: { $nin: ['FAILED', 'REJECTED_FILE', 'PARSE_FAILED', 'COMMITTED'] },
+    processingStatus: { $nin: ['FAILED', 'REJECTED_FILE', 'PARSE_FAILED', 'COMMITTED', 'CANCELLED'] },
   });
+  if (existingOpen && ['UPLOADED', 'PROCESSING'].includes(existingOpen.processingStatus) && !parseIsFresh(existingOpen)) {
+    await runImportPipeline(existingOpen._id, infrastructure);
+    return mapImport(await ensureResultPeriods(await ResultImport.findById(existingOpen._id)));
+  }
   if (existingOpen) {
-    return mapImport(existingOpen);
+    return mapImport(await ensureResultPeriods(existingOpen));
   }
 
   const committedDuplicate = await ResultImport.findOne({
@@ -490,14 +584,6 @@ export async function createResultImport(principal, file, body, { config, infras
   });
 
   await enqueueMalwareScan({ queue: infrastructure.queue, fileId: stored._id });
-  if (infrastructure.malwareScanner) {
-    await processMalwareScan({
-      fileId: stored._id,
-      scanner: infrastructure.malwareScanner,
-      logger: infrastructure.logger,
-    });
-  }
-
   if (infrastructure.queue?.enqueue) {
     await infrastructure.queue.enqueue({
       name: JOB_NAMES.RESULT_PARSE,
@@ -505,7 +591,7 @@ export async function createResultImport(principal, file, body, { config, infras
       jobId: `results.parse:${importDoc._id}`,
     });
   }
-  await processResultParse({ importId: importDoc._id, infrastructure });
+  await runImportPipeline(importDoc._id, infrastructure);
 
   await recordAudit({
     actorUserId: principal.userId,
@@ -518,7 +604,7 @@ export async function createResultImport(principal, file, body, { config, infras
   return mapImport(await ResultImport.findById(importDoc._id));
 }
 
-export async function listResultImports(principal, query = {}) {
+export async function listResultImports(principal, query = {}, infrastructure) {
   assertAdmin(principal);
   const { skip, limit, page, pageSize } = parsePagination(query);
   const filter = { departmentId: principal.departmentId };
@@ -529,16 +615,28 @@ export async function listResultImports(principal, query = {}) {
     ResultImport.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
     ResultImport.countDocuments(filter),
   ]);
-  return { items: items.map(mapImport), total, page, pageSize };
+  const withPeriods = await Promise.all(items.map((item) => ensureResultPeriods(item)));
+  for (const item of withPeriods) {
+    if (!['UPLOADED', 'PROCESSING'].includes(item.processingStatus) || parseIsFresh(item)) {
+      continue;
+    }
+    runImportPipeline(item._id, infrastructure).catch((error) => {
+      infrastructure?.logger?.warn('Queued result parse failed', {
+        importId: String(item._id),
+        message: error.message,
+      });
+    });
+  }
+  return { items: withPeriods.map(mapImport), total, page, pageSize };
 }
 
 export async function getResultImport(principal, importId) {
-  const doc = await loadDepartmentImport(principal, importId);
+  const doc = await ensureResultPeriods(await loadDepartmentImport(principal, importId));
   return mapImport(doc);
 }
 
 export async function getResultImportPreview(principal, importId, query = {}) {
-  const doc = await loadDepartmentImport(principal, importId);
+  const doc = await ensureResultPeriods(await loadDepartmentImport(principal, importId));
   const { skip, limit, page, pageSize } = parsePagination(query, { maxPageSize: 2000 });
   const filter = { importId: doc._id };
   if (query.rowStatus) {
@@ -558,6 +656,34 @@ export async function getResultImportPreview(principal, importId, query = {}) {
 }
 
 const COMMITTABLE_STATUSES = ['READY_FOR_REVIEW', 'VALIDATION_ISSUES', 'CONFIRMED', 'COMMIT_FAILED'];
+const PARSE_LOCK_MS = 3 * 60 * 1000;
+
+function parseIsFresh(doc) {
+  if (doc?.processingStatus !== 'PROCESSING' || !doc.parseStartedAt) {
+    return false;
+  }
+  return Date.now() - new Date(doc.parseStartedAt).getTime() < PARSE_LOCK_MS;
+}
+
+async function runImportPipeline(importId, infrastructure) {
+  const importDoc = await ResultImport.findById(importId);
+  if (!importDoc) {
+    return null;
+  }
+  const file = importDoc.fileId ? await StoredFile.findById(importDoc.fileId) : null;
+  if (
+    file &&
+    infrastructure?.malwareScanner &&
+    !['SAFE', 'UNSAFE', 'REJECTED'].includes(file.scanStatus)
+  ) {
+    await processMalwareScan({
+      fileId: file._id,
+      scanner: infrastructure.malwareScanner,
+      logger: infrastructure.logger,
+    });
+  }
+  return processResultParse({ importId, infrastructure });
+}
 
 function commitBlockMessage(doc) {
   if (doc?.failureCode === 'NO_TEXT') {
@@ -597,12 +723,42 @@ async function finishResultImportProcessing(importDoc, infrastructure) {
   return processResultParse({ importId: importDoc._id, infrastructure });
 }
 
+function commitLockIsFresh(importDoc) {
+  if (importDoc?.processingStatus !== 'COMMITTING') {
+    return false;
+  }
+  if (!importDoc.committingStartedAt) {
+    return false;
+  }
+  return Date.now() - new Date(importDoc.committingStartedAt).getTime() < RESULT_COMMIT_LOCK_MS;
+}
+
+async function markImportCommitted(locked, principal, commitToken) {
+  const updated = await ResultImport.findOneAndUpdate(
+    { _id: locked._id, processingStatus: 'COMMITTING', commitToken },
+    {
+      $set: {
+        processingStatus: 'COMMITTED',
+        committedAt: new Date(),
+        committedByUserId: principal.userId,
+      },
+      $unset: { failureCode: 1, failedAt: 1, committingStartedAt: 1, commitToken: 1 },
+    },
+    { new: true },
+  );
+  return updated || ResultImport.findById(locked._id);
+}
+
 export async function commitResultImport(principal, importId, { infrastructure }) {
   let importDoc = await loadDepartmentImport(principal, importId);
   if (importDoc.processingStatus === 'COMMITTED') {
     return mapImport(importDoc);
   }
-  if (!COMMITTABLE_STATUSES.includes(importDoc.processingStatus)) {
+  const resumeStale = importDoc.processingStatus === 'COMMITTING' && !commitLockIsFresh(importDoc);
+  if (importDoc.processingStatus === 'COMMITTING' && !resumeStale) {
+    throw new ConflictError('This import is still committing. Wait a moment, then refresh.');
+  }
+  if (!resumeStale && !COMMITTABLE_STATUSES.includes(importDoc.processingStatus)) {
     if (['UPLOADED', 'PROCESSING', 'PARSE_FAILED'].includes(importDoc.processingStatus)) {
       const prepared = await finishResultImportProcessing(importDoc, infrastructure);
       if (prepared && COMMITTABLE_STATUSES.includes(prepared.processingStatus)) {
@@ -615,13 +771,33 @@ export async function commitResultImport(principal, importId, { infrastructure }
     }
   }
 
+  const now = new Date();
+  const commitToken = randomUUID();
+  const lockFilter = resumeStale
+    ? {
+        _id: importDoc._id,
+        departmentId: principal.departmentId,
+        processingStatus: 'COMMITTING',
+        $or: [
+          { committingStartedAt: null },
+          { committingStartedAt: { $lte: new Date(Date.now() - RESULT_COMMIT_LOCK_MS) } },
+        ],
+      }
+    : {
+        _id: importDoc._id,
+        departmentId: principal.departmentId,
+        processingStatus: { $in: COMMITTABLE_STATUSES },
+      };
   const locked = await ResultImport.findOneAndUpdate(
+    lockFilter,
     {
-      _id: importDoc._id,
-      departmentId: principal.departmentId,
-      processingStatus: { $in: COMMITTABLE_STATUSES },
+      $set: {
+        processingStatus: 'COMMITTING',
+        committingStartedAt: now,
+        commitToken,
+        confirmedAt: importDoc.confirmedAt || now,
+      },
     },
-    { $set: { processingStatus: 'COMMITTING', confirmedAt: importDoc.confirmedAt || new Date() } },
     { new: true },
   );
   if (!locked) {
@@ -629,7 +805,7 @@ export async function commitResultImport(principal, importId, { infrastructure }
     if (current?.processingStatus === 'COMMITTED') {
       return mapImport(current);
     }
-    throw new ConflictError('Import is already being committed');
+    throw new ConflictError('This import is still committing. Wait a moment, then refresh.');
   }
 
   const rows = await ResultImportRow.find({
@@ -639,16 +815,38 @@ export async function commitResultImport(principal, importId, { infrastructure }
     committedAt: { $exists: false },
   });
   if (!rows.length) {
-    locked.processingStatus = 'VALIDATION_ISSUES';
-    locked.failureCode = 'NO_COMMITTABLE_ROWS';
-    await locked.save();
+    const wroteRows = await ResultImportRow.exists({ importId: locked._id, committedAt: { $ne: null } });
+    if (wroteRows) {
+      const committed = await markImportCommitted(locked, principal, commitToken);
+      if (committed?.processingStatus !== 'COMMITTED') {
+        throw new ConflictError('Import commit was interrupted');
+      }
+      return mapImport(committed);
+    }
+    await ResultImport.updateOne(
+      { _id: locked._id, processingStatus: 'COMMITTING', commitToken },
+      {
+        $set: { processingStatus: 'VALIDATION_ISSUES', failureCode: 'NO_COMMITTABLE_ROWS' },
+        $unset: { committingStartedAt: 1, commitToken: 1 },
+      },
+    );
     throw new ValidationError('No new or updated rows are available to commit');
   }
 
   const affectedStudents = new Set();
   let writtenRows = 0;
   try {
-  for (const row of rows) {
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (index % 5 === 0) {
+      const heartbeat = await ResultImport.updateOne(
+        { _id: locked._id, processingStatus: 'COMMITTING', commitToken },
+        { $set: { committingStartedAt: new Date() } },
+      );
+      if (!heartbeat.matchedCount) {
+        throw new ConflictError('Import commit was interrupted');
+      }
+    }
     const student = await findStudentByRegistrationNumber(row.registrationNumber);
     const subject = await Subject.findById(row.subjectId);
     if (!student || !subject || String(student.departmentId) !== String(locked.departmentId)) {
@@ -758,19 +956,22 @@ export async function commitResultImport(principal, importId, { infrastructure }
     affectedStudents.add(String(student.userId));
   }
   } catch (error) {
-    locked.processingStatus = 'COMMIT_FAILED';
-    locked.failureCode = 'COMMIT_EXCEPTION';
-    locked.failedAt = new Date();
-    await locked.save();
+    if (error?.message !== 'Import commit was interrupted') {
+      await ResultImport.updateOne(
+        { _id: locked._id, processingStatus: 'COMMITTING', commitToken },
+        {
+          $set: { processingStatus: 'COMMIT_FAILED', failureCode: 'COMMIT_EXCEPTION', failedAt: new Date() },
+          $unset: { committingStartedAt: 1, commitToken: 1 },
+        },
+      );
+    }
     throw error;
   }
 
-  locked.processingStatus = 'COMMITTED';
-  locked.committedAt = new Date();
-  locked.committedByUserId = principal.userId;
-  locked.failureCode = undefined;
-  locked.failedAt = undefined;
-  await locked.save();
+  const committed = await markImportCommitted(locked, principal, commitToken);
+  if (committed?.processingStatus !== 'COMMITTED') {
+    throw new ConflictError('Import commit was interrupted');
+  }
 
   const downstreamFailures = [];
   for (const studentUserId of affectedStudents) {

@@ -23,7 +23,7 @@ export function createResultsController() {
       });
     }),
     listImports: asyncHandler(async (req, res) => {
-      sendSuccess(res, await importService.listResultImports(req.principal, req.query));
+      sendSuccess(res, await importService.listResultImports(req.principal, req.query, deps(req).infrastructure));
     }),
     getImport: asyncHandler(async (req, res) => {
       sendSuccess(res, await importService.getResultImport(req.principal, req.params.importId));

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { gpaApi, resultsApi } from '../results/results-api.js';
+import { formatSemesterLabel } from '../../ui/academic-labels.js';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -135,7 +136,56 @@ const FAILURE_TEXT = {
   UNSAFE_FILE: 'The malware scan rejected this file.',
   FILE_MISSING: 'The uploaded file is missing.',
   PARSE_EXCEPTION: 'The file could not be parsed.',
+  SCAN_UNAVAILABLE: 'The file could not be scanned, so it was not parsed.',
 };
+
+const QUEUED_IMPORT_STATUSES = ['UPLOADED', 'PROCESSING', 'COMMITTING'];
+
+function importStatusClass(status) {
+  switch (status) {
+    case 'COMMITTED':
+      return 'status-pill status-pill--ok';
+    case 'READY_FOR_REVIEW':
+    case 'CONFIRMED':
+    case 'PARSED':
+      return 'status-pill status-pill--info';
+    case 'UPLOADED':
+    case 'PROCESSING':
+    case 'COMMITTING':
+      return 'status-pill status-pill--pending';
+    case 'VALIDATION_ISSUES':
+      return 'status-pill status-pill--warning';
+    case 'PARSE_FAILED':
+    case 'COMMIT_FAILED':
+    case 'FAILED':
+    case 'REJECTED_FILE':
+      return 'status-pill status-pill--danger';
+    default:
+      return 'status-pill status-pill--muted';
+  }
+}
+
+function formatResultPeriod(period) {
+  if (!period) {
+    return '';
+  }
+  const year =
+    period.academicYearName || period.academicYearSequence != null
+      ? { name: period.academicYearName, sequence: period.academicYearSequence }
+      : null;
+  const semester =
+    period.semesterName || period.semesterSequence != null
+      ? { name: period.semesterName, sequence: period.semesterSequence }
+      : null;
+  const batch = period.batchCode || period.batchName || '';
+  const periodLabel = formatSemesterLabel(semester, year);
+  return [batch, periodLabel].filter(Boolean).join(' · ');
+}
+
+function formatResultPeriods(periods = []) {
+  const labels = periods.map(formatResultPeriod).filter(Boolean);
+  return labels.length ? labels.join('; ') : '—';
+}
 
 function summaryLine(summary = {}) {
   return [
@@ -166,9 +216,10 @@ export function AdminResultsPage() {
   const [versions, setVersions] = useState(null);
   const [chosenFile, setChosenFile] = useState(null);
   const [issueStudent, setIssueStudent] = useState(null);
+  const resumeStarted = useRef('');
 
   async function reload() {
-    const response = await resultsApi.imports();
+    const response = await resultsApi.imports({ pageSize: 50 });
     setItems(response.data.items);
   }
 
@@ -179,6 +230,61 @@ export function AdminResultsPage() {
     const response = await resultsApi.preview(id, { pageSize: 2000 });
     setPreview(response.data);
   }
+
+  useEffect(() => {
+    if (!items.some((item) => QUEUED_IMPORT_STATUSES.includes(item.processingStatus))) {
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      reload().catch(() => {});
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [items]);
+
+  useEffect(() => {
+    if (!QUEUED_IMPORT_STATUSES.includes(preview?.import?.processingStatus) || !selectedId) {
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      openPreview(selectedId)
+        .then(() => reload())
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [preview?.import?.processingStatus, selectedId]);
+
+  useEffect(() => {
+    const stuck = items.find((item) => item.processingStatus === 'COMMITTING' && item.commitStale);
+    if (!stuck || resumeStarted.current === stuck.id) {
+      return undefined;
+    }
+    resumeStarted.current = stuck.id;
+    let cancelled = false;
+    setBusy(true);
+    resultsApi
+      .commit(stuck.id)
+      .then(() => {
+        if (cancelled) {
+          return null;
+        }
+        return reload().then(() => (selectedId === stuck.id ? openPreview(stuck.id) : null));
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(caught.message || 'Commit failed');
+          return reload();
+        }
+        return null;
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBusy(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [items, selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,7 +309,8 @@ export function AdminResultsPage() {
   }
 
   const status = preview?.import?.processingStatus;
-  const canCommit = status && !['COMMITTED', 'COMMITTING', 'CANCELLED', 'REJECTED_FILE'].includes(status);
+  const queueBusy = items.some((item) => item.processingStatus === 'UPLOADED' || item.processingStatus === 'PROCESSING');
+  const canCommit = status && !['COMMITTED', 'COMMITTING', 'CANCELLED', 'REJECTED_FILE', 'UPLOADED', 'PROCESSING'].includes(status);
   const canReject = status && !['COMMITTED', 'COMMITTING', 'CANCELLED'].includes(status);
   const canReprocess = status && !['COMMITTED', 'COMMITTING'].includes(status);
 
@@ -267,8 +374,12 @@ export function AdminResultsPage() {
               />
             </label>
             <div className="import-upload__actions">
-              <button type="submit" disabled={busy || !chosenFile}>
-                {busy ? 'Uploading…' : 'Upload and parse'}
+              <button
+                type="submit"
+                className={busy || queueBusy ? 'is-busy' : undefined}
+                disabled={busy || !chosenFile}
+              >
+                {busy || queueBusy ? 'Processing…' : 'Upload and parse'}
               </button>
               {chosenFile ? (
                 <button
@@ -293,6 +404,7 @@ export function AdminResultsPage() {
                 <thead>
                   <tr>
                     <th>Status</th>
+                    <th>Batch and semester</th>
                     <th>Type</th>
                     <th>Rows</th>
                     <th>Unmatched</th>
@@ -304,8 +416,9 @@ export function AdminResultsPage() {
                   {items.map((item) => (
                     <tr key={item.id} className={selectedId === item.id ? 'is-selected' : undefined}>
                       <td>
-                        <span className="status-pill">{item.processingStatus}</span>
+                        <span className={importStatusClass(item.processingStatus)}>{item.processingStatus}</span>
                       </td>
+                      <td>{formatResultPeriods(item.resultPeriods)}</td>
                       <td>{item.sourceType}</td>
                       <td>{item.summary?.totalRows ?? 0}</td>
                       <td>{item.summary?.unmatchedRows ?? 0}</td>
@@ -329,12 +442,16 @@ export function AdminResultsPage() {
       {preview ? (
         <Panel title="Review" kicker={preview.import.processingStatus}>
           <p>
-            {preview.import.processingStatus}
+            <span className={importStatusClass(preview.import.processingStatus)}>{preview.import.processingStatus}</span>
             {preview.import.parserVersion ? ` · parser ${preview.import.parserVersion}` : ''}
             {preview.import.processingAttempt ? ` · attempt ${preview.import.processingAttempt}` : ''}
           </p>
           <p>{summaryLine(preview.import.summary)}</p>
           {preview.import.originalFilename ? <p>File: {preview.import.originalFilename}</p> : null}
+          <p>Batch and semester: {formatResultPeriods(preview.import.resultPeriods)}</p>
+          {status === 'COMMITTING' ? (
+            <p>{preview.import.commitStale ? 'The previous commit stopped before it finished.' : 'Commit in progress.'}</p>
+          ) : null}
           {preview.import.duplicateOfImportId ? (
             <p>This file checksum matches a previously committed import. Review before committing.</p>
           ) : null}
@@ -370,15 +487,27 @@ export function AdminResultsPage() {
             </div>
           ) : null}
           <div className="page-header__actions">
-            {canCommit ? (
+            {canCommit || (status === 'COMMITTING' && preview.import.commitStale) ? (
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => {
-                  if (!window.confirm('Commit new and updated official results in this import? Blocked rows stay out.')) {
+                  const resuming = status === 'COMMITTING';
+                  if (
+                    !window.confirm(
+                      resuming
+                        ? 'Resume this commit? Rows already written are kept, and the remaining new or updated rows are stored.'
+                        : 'Commit new and updated official results in this import? Blocked rows stay out.',
+                    )
+                  ) {
                     return;
                   }
                   setBusy(true);
+                  const timer = setInterval(() => {
+                    openPreview(selectedId)
+                      .then(() => reload())
+                      .catch(() => {});
+                  }, 3000);
                   resultsApi
                     .commit(selectedId)
                     .then(() => openPreview(selectedId).then(reload))
@@ -386,10 +515,13 @@ export function AdminResultsPage() {
                       setError(caught.message || 'Commit failed');
                       await openPreview(selectedId).then(reload).catch(() => {});
                     })
-                    .finally(() => setBusy(false));
+                    .finally(() => {
+                      clearInterval(timer);
+                      setBusy(false);
+                    });
                 }}
               >
-                Commit new and updated rows
+                {busy ? 'Committing…' : status === 'COMMITTING' ? 'Resume commit' : 'Commit new and updated rows'}
               </button>
             ) : null}
             {canReprocess ? (

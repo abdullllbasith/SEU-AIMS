@@ -18,6 +18,25 @@ const resultImportSchema = new mongoose.Schema(
     sourceBatchId: { type: objectId, ref: 'Batch' },
     sourceAcademicYearId: { type: objectId, ref: 'AcademicYear' },
     sourceSemesterId: { type: objectId, ref: 'Semester' },
+    resultPeriodsVersion: { type: Number, default: 0 },
+    resultPeriods: {
+      type: [
+        {
+          batchId: { type: objectId, ref: 'Batch' },
+          batchCode: { type: String, trim: true, default: '' },
+          batchName: { type: String, trim: true, default: '' },
+          academicYearId: { type: objectId, ref: 'AcademicYear' },
+          academicYearName: { type: String, trim: true, default: '' },
+          academicYearSequence: { type: Number },
+          semesterId: { type: objectId, ref: 'Semester' },
+          semesterName: { type: String, trim: true, default: '' },
+          semesterSequence: { type: Number },
+        },
+      ],
+      default: undefined,
+    },
+    committingStartedAt: Date,
+    commitToken: { type: String, trim: true },
     processingStatus: {
       type: String,
       required: true,

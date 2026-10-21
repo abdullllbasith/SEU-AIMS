@@ -1,7 +1,24 @@
+import { RESULT_COMMIT_LOCK_MS } from '../constants.js';
+
+function mapResultPeriod(period) {
+  return {
+    batchCode: period.batchCode || '',
+    batchName: period.batchName || '',
+    academicYearName: period.academicYearName || '',
+    academicYearSequence: period.academicYearSequence ?? null,
+    semesterName: period.semesterName || '',
+    semesterSequence: period.semesterSequence ?? null,
+  };
+}
+
 export function mapImport(doc) {
   if (!doc) {
     return null;
   }
+  const committingStartedAt = doc.committingStartedAt ? new Date(doc.committingStartedAt).getTime() : 0;
+  const commitStale =
+    doc.processingStatus === 'COMMITTING' &&
+    (!committingStartedAt || Date.now() - committingStartedAt >= RESULT_COMMIT_LOCK_MS);
   return {
     id: String(doc._id),
     departmentId: String(doc.departmentId),
@@ -18,6 +35,8 @@ export function mapImport(doc) {
     sourceBatchId: doc.sourceBatchId ? String(doc.sourceBatchId) : null,
     sourceAcademicYearId: doc.sourceAcademicYearId ? String(doc.sourceAcademicYearId) : null,
     sourceSemesterId: doc.sourceSemesterId ? String(doc.sourceSemesterId) : null,
+    resultPeriods: Array.isArray(doc.resultPeriods) ? doc.resultPeriods.map(mapResultPeriod) : [],
+    commitStale,
     committedAt: doc.committedAt || null,
     createdAt: doc.createdAt,
     failureCode: doc.failureCode || null,
