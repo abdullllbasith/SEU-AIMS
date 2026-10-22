@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { caApi } from './ca-api.js';
 import { RecoveryResultReviews } from './RecoveryResultReviews.jsx';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -73,8 +74,8 @@ export function LecturerCaPage() {
 
       <RecoveryResultReviews
         items={reviews}
-        busy={Boolean(busyKey)}
-        onDecide={(id, decision) => runAction(`review-${id}`, () => caApi.decideRecovery(id, decision))}
+        pending={busyKey}
+        onDecide={(id, decision) => runAction(`${decision}:${id}`, () => caApi.decideRecovery(id, decision))}
       />
 
       <Panel title="Eligible to schedule" kicker={`${items.length} student${items.length === 1 ? '' : 's'}`}>
@@ -107,8 +108,9 @@ export function LecturerCaPage() {
                       </td>
                       <td>
                         <div className="stack-item__actions">
-                          <button
-                            type="button"
+                          <ActionButton
+                            busy={busyKey === `schedule:${key}`}
+                            busyLabel="Scheduling…"
                             disabled={Boolean(busyKey)}
                             onClick={() => {
                               const when = window.prompt(
@@ -118,7 +120,7 @@ export function LecturerCaPage() {
                               if (!when) {
                                 return;
                               }
-                              runAction(key, () =>
+                              runAction(`schedule:${key}`, () =>
                                 caApi.createSchedule({
                                   applicationId: item.applicationId,
                                   incompleteCaId: item.incompleteCaId,
@@ -130,11 +132,12 @@ export function LecturerCaPage() {
                             }}
                           >
                             Schedule
-                          </button>
+                          </ActionButton>
                           {item.workflowStatus === 'SCHEDULED' ||
                           item.workflowStatus === 'APPROVED' ? (
-                            <button
-                              type="button"
+                            <ActionButton
+                              busy={busyKey === `complete:${key}`}
+                              busyLabel="Saving…"
                               disabled={Boolean(busyKey)}
                               onClick={() => {
                                 if (
@@ -144,11 +147,11 @@ export function LecturerCaPage() {
                                 ) {
                                   return;
                                 }
-                                runAction(key, () => caApi.complete(item.applicationId));
+                                runAction(`complete:${key}`, () => caApi.complete(item.applicationId));
                               }}
                             >
                               Mark completed
-                            </button>
+                            </ActionButton>
                           ) : null}
                         </div>
                       </td>
@@ -183,18 +186,19 @@ export function LecturerCaPage() {
                   </span>
                   <span className="stack-item__actions">
                     {!item.cancelledAt ? (
-                      <button
-                        type="button"
+                      <ActionButton
+                        busy={busyKey === `cancel:${item.id}`}
+                        busyLabel="Cancelling…"
                         disabled={Boolean(busyKey)}
                         onClick={() => {
                           if (!window.confirm('Cancel this CA schedule?')) {
                             return;
                           }
-                          runAction(item.id, () => caApi.cancelSchedule(item.id));
+                          runAction(`cancel:${item.id}`, () => caApi.cancelSchedule(item.id));
                         }}
                       >
                         Cancel
-                      </button>
+                      </ActionButton>
                     ) : (
                       <span className="status-pill status-pill--danger">Cancelled</span>
                     )}

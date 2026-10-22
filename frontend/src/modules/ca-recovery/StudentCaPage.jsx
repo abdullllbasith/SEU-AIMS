@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { caApi } from './ca-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -17,7 +18,8 @@ export function StudentCaPage() {
   const [windowInfo, setWindowInfo] = useState(null);
   const [applications, setApplications] = useState([]);
   const [selected, setSelected] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
+  const busy = Boolean(pending);
   const [timeline, setTimeline] = useState(null);
 
   async function reload() {
@@ -113,15 +115,16 @@ export function StudentCaPage() {
           </ul>
         )}
         <div className="panel-actions">
-          <button
-            type="button"
+          <ActionButton
+            busy={pending === 'apply'}
+            busyLabel="Submitting…"
             disabled={busy || !selected.length}
             onClick={() => {
               const first = openConditions[0];
               if (!first) {
                 return;
               }
-              setBusy(true);
+              setPending('apply');
               setError('');
               caApi
                 .create({
@@ -136,11 +139,11 @@ export function StudentCaPage() {
                   return reload();
                 })
                 .catch((caught) => setError(caught.message))
-                .finally(() => setBusy(false));
+                .finally(() => setPending(''));
             }}
           >
-            {busy ? 'Submitting…' : 'Create and submit application'}
-          </button>
+            Create and submit application
+          </ActionButton>
         </div>
       </Panel>
 
@@ -162,17 +165,21 @@ export function StudentCaPage() {
                     </span>
                   </span>
                   <span className="stack-item__actions">
-                    <button
-                      type="button"
-                      onClick={() =>
+                    <ActionButton
+                      busy={pending === `timeline:${item.applicationId}`}
+                      busyLabel="Loading…"
+                      disabled={busy && pending !== `timeline:${item.applicationId}`}
+                      onClick={() => {
+                        setPending(`timeline:${item.applicationId}`);
                         caApi
                           .get(item.applicationId)
                           .then((response) => setTimeline(response.data))
                           .catch((caught) => setError(caught.message))
-                      }
+                          .finally(() => setPending(''));
+                      }}
                     >
                       Timeline
-                    </button>
+                    </ActionButton>
                     {item.pdfStatus === 'READY' ? (
                       <a className="text-action" href={caApi.pdfUrl(item.applicationId)}>
                         Download PDF

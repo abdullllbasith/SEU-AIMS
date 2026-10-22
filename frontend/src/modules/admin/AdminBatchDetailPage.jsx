@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { academicApi } from './academic-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { StatCard } from '../../ui/StatCard.jsx';
@@ -15,7 +16,8 @@ export function AdminBatchDetailPage() {
   const [batch, setBatch] = useState(null);
   const [years, setYears] = useState([]);
   const [semesters, setSemesters] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
+  const busy = Boolean(pending);
   const [preview, setPreview] = useState(null);
   const [generation, setGeneration] = useState(null);
   const [generating, setGenerating] = useState(false);
@@ -103,7 +105,7 @@ export function AdminBatchDetailPage() {
                 onSubmit={(event) => {
                   event.preventDefault();
                   const form = new FormData(event.target);
-                  setBusy(true);
+                  setPending('context');
                   academicApi
                     .assignBatchContext(batch.id, {
                       currentAcademicYearId: form.get('currentAcademicYearId'),
@@ -111,7 +113,7 @@ export function AdminBatchDetailPage() {
                     })
                     .then(() => load())
                     .catch((caught) => setError(caught.message || 'Unable to assign academic context'))
-                    .finally(() => setBusy(false));
+                    .finally(() => setPending(''));
                 }}
               >
                 <p className="panel-lead">
@@ -151,9 +153,9 @@ export function AdminBatchDetailPage() {
                   </select>
                 </label>
                 <div className="panel-actions">
-                  <button type="submit" disabled={busy}>
+                  <ActionButton type="submit" busy={pending === 'context'} busyLabel="Saving…" disabled={busy}>
                     Assign verified context
-                  </button>
+                  </ActionButton>
                 </div>
               </form>
             )}
@@ -168,12 +170,12 @@ export function AdminBatchDetailPage() {
               onSubmit={(event) => {
                 event.preventDefault();
                 const form = new FormData(event.target);
-                setBusy(true);
+                setPending('specialization');
                 academicApi
                   .updateBatch(batch.id, { specialization: form.get('specialization') || null })
                   .then(() => load())
                   .catch((caught) => setError(caught.message || 'Unable to save specialization'))
-                  .finally(() => setBusy(false));
+                  .finally(() => setPending(''));
               }}
             >
               <label>
@@ -184,9 +186,9 @@ export function AdminBatchDetailPage() {
                   <option value="NST">Network & Security Technologies (NST)</option>
                 </select>
               </label>
-              <button type="submit" disabled={busy}>
+              <ActionButton type="submit" busy={pending === 'specialization'} busyLabel="Saving…" disabled={busy}>
                 Save specialization
-              </button>
+              </ActionButton>
             </form>
           </Panel>
           {verified && batch.status === 'ACTIVE' ? (
@@ -205,9 +207,10 @@ export function AdminBatchDetailPage() {
                 <p>{progression?.reason || 'Progression is not available for this batch.'}</p>
               )}
               <div className="panel-actions">
-                <button
-                  type="button"
-                  disabled={progressing || !progression?.canProgress}
+                <ActionButton
+                  busy={progressing}
+                  busyLabel="Progressing…"
+                  disabled={!progression?.canProgress}
                   onClick={() => {
                     const next = progression?.next;
                     const confirmed = window.confirm(
@@ -229,8 +232,8 @@ export function AdminBatchDetailPage() {
                       .finally(() => setProgressing(false));
                   }}
                 >
-                  {progressing ? 'Progressing…' : 'Progress to next semester'}
-                </button>
+                  Progress to next semester
+                </ActionButton>
               </div>
               {progressResult ? (
                 <p className="figure-line" role="status">
@@ -266,9 +269,9 @@ export function AdminBatchDetailPage() {
                 <p className="panel-lead">{preview.skipped.length} mapped subject(s) will be skipped because they are not active.</p>
               ) : null}
               <div className="panel-actions">
-                <button
-                  type="button"
-                  disabled={generating}
+                <ActionButton
+                  busy={generating}
+                  busyLabel="Generating…"
                   onClick={() => {
                     setGenerating(true);
                     setGeneration(null);
@@ -283,8 +286,8 @@ export function AdminBatchDetailPage() {
                       .finally(() => setGenerating(false));
                   }}
                 >
-                  {generating ? 'Generating…' : 'Generate offerings'}
-                </button>
+                  Generate offerings
+                </ActionButton>
               </div>
               {generation ? (
                 <p className="figure-line" role="status">

@@ -4,6 +4,7 @@ import { experienceApi } from '../student-experience/experience-api.js';
 import { useAuth } from '../../state/AuthProvider.jsx';
 import { ROLES } from '../../constants/roles.js';
 import { academicApi } from '../admin/academic-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { DeadlineList } from '../../ui/DeadlineList.jsx';
@@ -155,9 +156,9 @@ export function CalendarPage() {
                   required
                 />
               </label>
-              <button type="submit" disabled={busy}>
-                {busy ? 'Creating…' : 'Create event'}
-              </button>
+              <ActionButton type="submit" busy={busy} busyLabel="Creating…" disabled={busy}>
+                Create event
+              </ActionButton>
             </form>
           </Panel>
         ) : null}
@@ -216,9 +217,9 @@ export function CalendarPage() {
                   required
                 />
               </label>
-              <button type="submit" disabled={busy}>
-                {busy ? 'Creating…' : 'Create deadline'}
-              </button>
+              <ActionButton type="submit" busy={busy} busyLabel="Creating…" disabled={busy}>
+                Create deadline
+              </ActionButton>
             </form>
           </Panel>
         ) : null}

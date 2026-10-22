@@ -2,6 +2,7 @@ import { sendSuccess } from '../../../shared/http/api-response.js';
 import { asyncHandler } from '../../../shared/http/async-handler.js';
 import { ValidationError } from '../../../shared/errors/app-error.js';
 import * as importService from '../services/import.service.js';
+import { RESULT_TEMPLATE_FILENAME, buildResultImportTemplate } from '../services/result-template.js';
 import * as studentResultsService from '../services/student-results.service.js';
 import * as operationsService from '../services/result-operations.service.js';
 
@@ -21,6 +22,14 @@ export function createResultsController() {
       sendSuccess(res, await importService.createResultImport(req.principal, req.file, req.body || {}, deps(req)), {
         statusCode: 201,
       });
+    }),
+    downloadTemplate: asyncHandler(async (req, res) => {
+      const body = await buildResultImportTemplate();
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.setHeader('Content-Disposition', `attachment; filename="${RESULT_TEMPLATE_FILENAME}"`);
+      res.send(body);
     }),
     listImports: asyncHandler(async (req, res) => {
       sendSuccess(res, await importService.listResultImports(req.principal, req.query, deps(req).infrastructure));

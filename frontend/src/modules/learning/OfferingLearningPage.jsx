@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../state/AuthProvider.jsx';
 import { ROLES } from '../../constants/roles.js';
 import { learningApi } from './learning-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -33,7 +34,8 @@ export function OfferingLearningPage() {
   const backTo = user?.role === ROLES.STUDENT ? '/learning' : '/lecturer/learning';
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
+  const busy = Boolean(pending);
   const [page, setPage] = useState(null);
   const [resources, setResources] = useState([]);
   const [sectionName, setSectionName] = useState('Lecture Materials');
@@ -81,16 +83,16 @@ export function OfferingLearningPage() {
     };
   }, [offeringId]);
 
-  async function run(fn) {
+  async function run(key, fn) {
     setError('');
-    setBusy(true);
+    setPending(key);
     try {
       await fn();
       await reload();
     } catch (caught) {
       setError(caught.message || 'Request failed');
     } finally {
-      setBusy(false);
+      setPending('');
     }
   }
 
@@ -144,7 +146,7 @@ export function OfferingLearningPage() {
               className="inline-form"
               onSubmit={(event) => {
                 event.preventDefault();
-                run(() => learningApi.createSection(offeringId, { name: sectionName }));
+                run('section', () => learningApi.createSection(offeringId, { name: sectionName }));
               }}
             >
               <label>
@@ -155,9 +157,9 @@ export function OfferingLearningPage() {
                   required
                 />
               </label>
-              <button type="submit" disabled={busy}>
-                {busy ? 'Working…' : 'Create section'}
-              </button>
+              <ActionButton type="submit" busy={pending === 'section'} busyLabel="Creating…" disabled={busy}>
+                Create section
+              </ActionButton>
             </form>
             <form
               className="inline-form"
@@ -168,7 +170,7 @@ export function OfferingLearningPage() {
                 data.append('category', category);
                 data.append('sectionId', sectionId);
                 data.append('file', file);
-                run(async () => {
+                run('upload', async () => {
                   await learningApi.createResource(offeringId, data);
                   setTitle('');
                   setFile(null);
@@ -208,9 +210,9 @@ export function OfferingLearningPage() {
                 File
                 <input type="file" onChange={(event) => setFile(event.target.files[0])} required />
               </label>
-              <button type="submit" disabled={busy || !file || !sectionId}>
-                {busy ? 'Uploading…' : 'Upload draft'}
-              </button>
+              <ActionButton type="submit" busy={pending === 'upload'} busyLabel="Uploading…" disabled={busy || !file || !sectionId}>
+                Upload draft
+              </ActionButton>
             </form>
           </div>
         </Panel>
@@ -258,41 +260,47 @@ export function OfferingLearningPage() {
                         {canManage &&
                         item.scanStatus === 'SAFE' &&
                         item.publicationState !== 'PUBLISHED' ? (
-                          <button
-                            type="button"
+                          <ActionButton
+                            busy={pending === `publish:${item.id}`}
+                            busyLabel="Publishing…"
                             disabled={busy}
-                            onClick={() => run(() => learningApi.publish(item.id))}
+                            onClick={() => run(`publish:${item.id}`, () => learningApi.publish(item.id))}
                           >
                             Publish
-                          </button>
+                          </ActionButton>
                         ) : null}
                         {canManage && item.publicationState === 'PUBLISHED' ? (
-                          <button
-                            type="button"
+                          <ActionButton
+                            busy={pending === `unpublish:${item.id}`}
+                            busyLabel="Unpublishing…"
                             disabled={busy}
-                            onClick={() => run(() => learningApi.unpublish(item.id))}
+                            onClick={() => run(`unpublish:${item.id}`, () => learningApi.unpublish(item.id))}
                           >
                             Unpublish
-                          </button>
+                          </ActionButton>
                         ) : null}
                         {canManage ? (
                           <>
-                            <button
-                              type="button"
+                            <ActionButton
+                              busy={pending === `versions:${item.id}`}
+                              busyLabel="Loading…"
                               disabled={busy}
-                              onClick={() =>
+                              onClick={() => {
+                                setPending(`versions:${item.id}`);
                                 learningApi
                                   .versions(item.id)
                                   .then((response) =>
                                     setHistory({ title: item.title, ...response.data }),
                                   )
                                   .catch((caught) => setError(caught.message))
-                              }
+                                  .finally(() => setPending(''));
+                              }}
                             >
                               Versions
-                            </button>
-                            <button
-                              type="button"
+                            </ActionButton>
+                            <ActionButton
+                              busy={pending === `archive:${item.id}`}
+                              busyLabel="Archiving…"
                               disabled={busy}
                               onClick={() => {
                                 if (
@@ -300,12 +308,12 @@ export function OfferingLearningPage() {
                                     'Archive this official resource? Students will no longer see it.',
                                   )
                                 ) {
-                                  run(() => learningApi.archive(item.id));
+                                  run(`archive:${item.id}`, () => learningApi.archive(item.id));
                                 }
                               }}
                             >
                               Archive
-                            </button>
+                            </ActionButton>
                           </>
                         ) : null}
                       </div>

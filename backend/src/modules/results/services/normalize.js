@@ -36,7 +36,10 @@ export function normalizeResultCode(value) {
   if (raw === 'AB' || raw === 'ABSENT') {
     return ABSENT_RESULT_CODE;
   }
-  const compact = raw.replace('−', '-').replace(/\s+/g, '');
+  const compact = raw.replace(/[−–—]/g, '-').replace(/\s+/g, '');
+  if (compact === '-') {
+    return '';
+  }
   if (compact === 'E(CA)' || compact === 'ECA' || compact === 'E(CA.)') {
     return ECA_RESULT_CODE;
   }

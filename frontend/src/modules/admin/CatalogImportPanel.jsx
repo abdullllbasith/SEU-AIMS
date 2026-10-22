@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { academicApi } from './academic-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 
 function countLine(label, value) {
@@ -9,10 +10,11 @@ function countLine(label, value) {
 export function CatalogImportPanel() {
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
+  const busy = Boolean(pending);
 
-  function run(fn) {
-    setBusy(true);
+  function run(key, fn) {
+    setPending(key);
     setError('');
     return Promise.resolve()
       .then(fn)
@@ -23,7 +25,7 @@ export function CatalogImportPanel() {
       .catch((caught) => {
         setError(caught.message || 'Catalog import failed');
       })
-      .finally(() => setBusy(false));
+      .finally(() => setPending(''));
   }
 
   return (
@@ -33,21 +35,22 @@ export function CatalogImportPanel() {
           Years 1 and 2 stay common. Years 3 and 4 are stored as SWT or NST. Batch offerings are not created.
         </p>
       <div className="panel-actions">
-        <button type="button" disabled={busy} onClick={() => run(() => academicApi.catalogPreview())}>
+        <ActionButton busy={pending === 'preview'} busyLabel="Previewing…" disabled={busy} onClick={() => run('preview', () => academicApi.catalogPreview())}>
           Preview catalog
-        </button>
-        <button
-          type="button"
+        </ActionButton>
+        <ActionButton
+          busy={pending === 'import'}
+          busyLabel="Importing…"
           disabled={busy || !report}
           onClick={() => {
             if (!window.confirm('Import the catalog subjects and curriculum mappings for this department?')) {
               return;
             }
-            run(() => academicApi.catalogCommit());
+            run('import', () => academicApi.catalogCommit());
           }}
         >
           Import catalog
-        </button>
+        </ActionButton>
       </div>
       {error ? (
         <p className="form-error" role="alert">

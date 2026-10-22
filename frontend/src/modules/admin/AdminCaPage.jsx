@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { caApi } from '../ca-recovery/ca-api.js';
 import { RecoveryResultReviews } from '../ca-recovery/RecoveryResultReviews.jsx';
 import { academicApi } from './academic-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -20,7 +21,8 @@ export function AdminCaPage() {
   const [reviews, setReviews] = useState([]);
   const [years, setYears] = useState([]);
   const [semesters, setSemesters] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
+  const busy = Boolean(pending);
   const [form, setForm] = useState({
     academicYearId: '',
     semesterId: '',
@@ -60,14 +62,14 @@ export function AdminCaPage() {
     };
   }, []);
 
-  function run(fn) {
-    setBusy(true);
+  function run(key, fn) {
+    setPending(key);
     setError('');
     Promise.resolve()
       .then(fn)
       .then(reload)
       .catch((caught) => setError(caught.message || 'Action failed'))
-      .finally(() => setBusy(false));
+      .finally(() => setPending(''));
   }
 
   const yearById = useMemo(() => indexById(Array.isArray(years) ? years : []), [years]);
@@ -91,26 +93,31 @@ export function AdminCaPage() {
 
       <RecoveryResultReviews
         items={reviews}
-        busy={busy}
-        onDecide={(id, decision) => run(() => caApi.decideRecovery(id, decision))}
+        pending={pending}
+        onDecide={(id, decision) => run(`${decision}:${id}`, () => caApi.decideRecovery(id, decision))}
       />
 
       <Panel title="Diagnostics" kicker="Conditions">
         <div className="stack-item__actions">
-          <button
-            type="button"
+          <ActionButton
+            busy={pending === 'checks'}
+            busyLabel="Checking…"
             disabled={busy}
-            onClick={() =>
+            onClick={() => {
+              setPending('checks');
+              setError('');
               caApi
                 .reconciliation()
                 .then((response) => setReport(response.data))
                 .catch((caught) => setError(caught.message))
-            }
+                .finally(() => setPending(''));
+            }}
           >
             Check CA conditions
-          </button>
-          <button
-            type="button"
+          </ActionButton>
+          <ActionButton
+            busy={pending === 'backfill'}
+            busyLabel="Backfilling…"
             disabled={busy}
             onClick={() => {
               if (
@@ -120,15 +127,18 @@ export function AdminCaPage() {
               ) {
                 return;
               }
+              setPending('backfill');
+              setError('');
               caApi
                 .backfill()
                 .then(() => caApi.reconciliation())
                 .then((response) => setReport(response.data))
-                .catch((caught) => setError(caught.message));
+                .catch((caught) => setError(caught.message))
+                .finally(() => setPending(''));
             }}
           >
             Backfill missing conditions
-          </button>
+          </ActionButton>
         </div>
         {report ? (
           <div className="panel-subsection">
@@ -145,6 +155,7 @@ export function AdminCaPage() {
           className="settings-form"
           onSubmit={(event) => {
             event.preventDefault();
+            setPending('window');
             caApi
               .saveWindow({
                 academicYearId: form.academicYearId,
@@ -155,7 +166,8 @@ export function AdminCaPage() {
                 suspended: false,
               })
               .then(() => setError(''))
-              .catch((caught) => setError(caught.message));
+              .catch((caught) => setError(caught.message))
+              .finally(() => setPending(''));
           }}
         >
           <label>
@@ -208,7 +220,9 @@ export function AdminCaPage() {
               required
             />
           </label>
-          <button type="submit">Publish window</button>
+          <ActionButton type="submit" busy={pending === 'window'} busyLabel="Publishing…" disabled={busy}>
+            Publish window
+          </ActionButton>
         </form>
       </Panel>
 
@@ -242,48 +256,52 @@ export function AdminCaPage() {
                     <td>{item.physicalVerificationStatus}</td>
                     <td>
                       <div className="stack-item__actions">
-                        <button
-                          type="button"
+                        <ActionButton
+                          busy={pending === `verify:${item.applicationId}`}
+                          busyLabel="Saving…"
                           disabled={busy}
                           onClick={() =>
-                            run(() =>
+                            run(`verify:${item.applicationId}`, () =>
                               caApi.verify(item.applicationId, { outcome: 'verified' }),
                             )
                           }
                         >
                           Physical OK
-                        </button>
-                        <button
-                          type="button"
+                        </ActionButton>
+                        <ActionButton
+                          busy={pending === `approve:${item.applicationId}`}
+                          busyLabel="Approving…"
                           disabled={busy}
-                          onClick={() => run(() => caApi.approve(item.applicationId))}
+                          onClick={() => run(`approve:${item.applicationId}`, () => caApi.approve(item.applicationId))}
                         >
                           Approve
-                        </button>
-                        <button
-                          type="button"
+                        </ActionButton>
+                        <ActionButton
+                          busy={pending === `reject:${item.applicationId}`}
+                          busyLabel="Rejecting…"
                           disabled={busy}
                           onClick={() => {
                             const reason = window.prompt('Rejection reason');
                             if (reason) {
-                              run(() => caApi.reject(item.applicationId, { reason }));
+                              run(`reject:${item.applicationId}`, () => caApi.reject(item.applicationId, { reason }));
                             }
                           }}
                         >
                           Reject
-                        </button>
-                        <button
-                          type="button"
+                        </ActionButton>
+                        <ActionButton
+                          busy={pending === `reopen:${item.applicationId}`}
+                          busyLabel="Reopening…"
                           disabled={busy}
                           onClick={() => {
                             const reason = window.prompt('Reopen reason');
                             if (reason) {
-                              run(() => caApi.reopen(item.applicationId, { reason }));
+                              run(`reopen:${item.applicationId}`, () => caApi.reopen(item.applicationId, { reason }));
                             }
                           }}
                         >
                           Reopen
-                        </button>
+                        </ActionButton>
                       </div>
                     </td>
                   </tr>

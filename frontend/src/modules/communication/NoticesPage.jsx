@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { communicationApi } from './communication-api.js';
 import { useAuth } from '../../state/AuthProvider.jsx';
 import { ROLES } from '../../constants/roles.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -107,9 +108,9 @@ export function NoticesPage() {
                 rows={5}
               />
             </label>
-            <button type="submit" disabled={busy}>
-              {busy ? 'Publishing…' : 'Publish notice'}
-            </button>
+            <ActionButton type="submit" busy={busy} busyLabel="Publishing…" disabled={busy}>
+              Publish notice
+            </ActionButton>
           </form>
         </Panel>
       ) : null}

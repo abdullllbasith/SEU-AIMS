@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { learningApi } from '../learning/learning-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -95,9 +96,9 @@ export function AdminResourcesPage() {
                     </td>
                     <td>
                       {item.publicationState === 'PUBLISHED' ? (
-                        <button
-                          type="button"
-                          disabled={busyId === item.id}
+                        <ActionButton
+                          busy={busyId === item.id}
+                          busyLabel="Unpublishing…"
                           onClick={() => {
                             if (!window.confirm('Unpublish this resource from students?')) {
                               return;
@@ -111,7 +112,7 @@ export function AdminResourcesPage() {
                           }}
                         >
                           Unpublish
-                        </button>
+                        </ActionButton>
                       ) : (
                         <span className="deadline-empty">—</span>
                       )}

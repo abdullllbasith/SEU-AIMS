@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { academicApi } from './academic-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { formatSemesterLabel, formatYearLabel, indexById } from '../../ui/academic-labels.js';
@@ -81,13 +82,14 @@ export function EnrollmentTable({ enrollments, offeringsById, subjectsById, year
                 {onCancel ? (
                   <td>
                     {row.status === 'ACTIVE' ? (
-                      <button
-                        type="button"
-                        disabled={cancellingId === row.id}
+                      <ActionButton
+                        busy={cancellingId === row.id}
+                        busyLabel="Cancelling…"
+                        disabled={Boolean(cancellingId)}
                         onClick={() => onCancel(row)}
                       >
-                        {cancellingId === row.id ? 'Cancelling…' : 'Cancel'}
-                      </button>
+                        Cancel
+                      </ActionButton>
                     ) : (
                       '—'
                     )}
@@ -216,7 +218,8 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
   const [studentContextId, setStudentContextId] = useState('');
   const [enrollmentType, setEnrollmentType] = useState('REPEAT');
   const [formError, setFormError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
+  const busy = Boolean(pending);
   const [cancellingId, setCancellingId] = useState('');
 
   const yearsById = useMemo(() => indexById(years), [years]);
@@ -303,7 +306,7 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
             if (!selectedOffering || !query) {
               return;
             }
-            setBusy(true);
+            setPending('search');
             setFormError('');
             setSearched(false);
             academicApi
@@ -317,7 +320,7 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
                 setStudentContextId(items.length === 1 ? items[0].id : '');
               })
               .catch((caught) => setFormError(caught.message || 'Unable to search students'))
-              .finally(() => setBusy(false));
+              .finally(() => setPending(''));
           }}
         >
           <label>
@@ -351,9 +354,14 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
             />
           </label>
           <div className="panel-actions">
-            <button type="submit" disabled={busy || !offeringId || !registrationNumber.trim()}>
-              {busy ? 'Searching…' : 'Find student'}
-            </button>
+            <ActionButton
+              type="submit"
+              busy={pending === 'search'}
+              busyLabel="Searching…"
+              disabled={busy || !offeringId || !registrationNumber.trim()}
+            >
+              Find student
+            </ActionButton>
           </div>
         </form>
       ) : null}
@@ -368,7 +376,7 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
             if (!offeringId || !studentContextId || !enrollmentType) {
               return;
             }
-            setBusy(true);
+            setPending('enroll');
             setFormError('');
             academicApi
               .createOfferingEnrollment(offeringId, {
@@ -382,7 +390,7 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
               .catch((caught) => {
                 setFormError(caught.message || 'Unable to create enrollment');
               })
-              .finally(() => setBusy(false));
+              .finally(() => setPending(''));
           }}
         >
           <label>
@@ -413,9 +421,9 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
             </select>
           </label>
           <div className="panel-actions">
-            <button type="submit" disabled={busy || !studentContextId}>
-              {busy ? 'Enrolling…' : 'Enroll student'}
-            </button>
+            <ActionButton type="submit" busy={pending === 'enroll'} busyLabel="Enrolling…" disabled={busy || !studentContextId}>
+              Enroll student
+            </ActionButton>
           </div>
         </form>
       ) : null}

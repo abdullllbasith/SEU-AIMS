@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { studyRoomApi } from '../study-room/study-room-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -11,7 +12,8 @@ export function AdminStudyRoomModerationPage() {
   const [settings, setSettings] = useState(null);
   const [queue, setQueue] = useState([]);
   const [reports, setReports] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
+  const busy = Boolean(pending);
 
   async function reload() {
     const [mode, items, reportItems] = await Promise.all([
@@ -42,14 +44,14 @@ export function AdminStudyRoomModerationPage() {
     };
   }, []);
 
-  function run(fn) {
-    setBusy(true);
+  function run(key, fn) {
+    setPending(key);
     setError('');
     Promise.resolve()
       .then(fn)
       .then(reload)
       .catch((caught) => setError(caught.message || 'Action failed'))
-      .finally(() => setBusy(false));
+      .finally(() => setPending(''));
   }
 
   if (loading) {
@@ -90,11 +92,12 @@ export function AdminStudyRoomModerationPage() {
           </strong>
         </p>
         <div className="panel-actions">
-          <button
-            type="button"
+          <ActionButton
+            busy={pending === 'mode'}
+            busyLabel="Saving…"
             disabled={busy}
             onClick={() =>
-              run(() =>
+              run('mode', () =>
                 studyRoomApi.updateModerationSettings({
                   moderationMode: reviewMode ? 'NON_REVIEW' : 'ADMIN_REVIEW',
                 }),
@@ -102,7 +105,7 @@ export function AdminStudyRoomModerationPage() {
             }
           >
             Switch moderation mode
-          </button>
+          </ActionButton>
         </div>
       </Panel>
 
@@ -120,12 +123,22 @@ export function AdminStudyRoomModerationPage() {
                   <p className="resource-row__meta">{item.moderationState}</p>
                 </div>
                 <div className="resource-row__aside">
-                  <button type="button" disabled={busy} onClick={() => run(() => studyRoomApi.approve(item.id))}>
+                  <ActionButton
+                    busy={pending === `approve:${item.id}`}
+                    busyLabel="Approving…"
+                    disabled={busy}
+                    onClick={() => run(`approve:${item.id}`, () => studyRoomApi.approve(item.id))}
+                  >
                     Approve
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => run(() => studyRoomApi.reject(item.id))}>
+                  </ActionButton>
+                  <ActionButton
+                    busy={pending === `reject:${item.id}`}
+                    busyLabel="Rejecting…"
+                    disabled={busy}
+                    onClick={() => run(`reject:${item.id}`, () => studyRoomApi.reject(item.id))}
+                  >
                     Reject
-                  </button>
+                  </ActionButton>
                 </div>
               </li>
             ))}

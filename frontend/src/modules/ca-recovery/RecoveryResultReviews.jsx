@@ -1,7 +1,8 @@
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 
-export function RecoveryResultReviews({ items = [], busy = false, onDecide }) {
+export function RecoveryResultReviews({ items = [], pending = '', onDecide }) {
   return (
     <Panel title="CA recovery results" kicker={`${items.length} pending`}>
       <p>
@@ -28,12 +29,22 @@ export function RecoveryResultReviews({ items = [], busy = false, onDecide }) {
                   <td>{item.subjectCode}</td>
                   <td>{item.rawResultCode}</td>
                   <td>
-                    <button type="button" disabled={busy} onClick={() => onDecide(item.id, 'APPROVE')}>
+                    <ActionButton
+                      busy={pending === `APPROVE:${item.id}`}
+                      busyLabel="Approving…"
+                      disabled={Boolean(pending)}
+                      onClick={() => onDecide(item.id, 'APPROVE')}
+                    >
                       Approve
-                    </button>
-                    <button type="button" disabled={busy} onClick={() => onDecide(item.id, 'REJECT')}>
+                    </ActionButton>
+                    <ActionButton
+                      busy={pending === `REJECT:${item.id}`}
+                      busyLabel="Rejecting…"
+                      disabled={Boolean(pending)}
+                      onClick={() => onDecide(item.id, 'REJECT')}
+                    >
                       Reject
-                    </button>
+                    </ActionButton>
                   </td>
                 </tr>
               ))}
