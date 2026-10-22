@@ -24,6 +24,9 @@ export function AdminBatchDetailPage() {
   const [progression, setProgression] = useState(null);
   const [progressing, setProgressing] = useState(false);
   const [progressResult, setProgressResult] = useState(null);
+  const [contextYearId, setContextYearId] = useState('');
+  const [contextSemesterId, setContextSemesterId] = useState('');
+  const [editingPeriod, setEditingPeriod] = useState(false);
 
   function load() {
     setLoading(true);
@@ -56,6 +59,9 @@ export function AdminBatchDetailPage() {
   }
 
   useEffect(() => {
+    setEditingPeriod(false);
+    setContextYearId('');
+    setContextSemesterId('');
     load();
   }, [batchId]);
 
@@ -64,20 +70,20 @@ export function AdminBatchDetailPage() {
   }
 
   const verified = Boolean(batch?.academicContextVerifiedAt);
-  const yearLabel = batch?.currentAcademicYearName || 'Not verified';
-  const semesterLabel = batch?.currentSemesterName
-    ? `${batch.currentAcademicYearName ? `${batch.currentAcademicYearName} · ` : ''}${batch.currentSemesterName}`
-    : 'Not verified';
+  const yearLabel = batch?.currentAcademicYearName || 'Not set';
+  const semesterLabel = batch?.currentSemesterName || 'Not set';
+  const periodLabel = verified ? `${yearLabel}, ${semesterLabel}` : 'Not set';
+  const semesterChoices = semesters.filter(
+    (semester) => semester.status === 'ACTIVE' && contextYearId && semester.academicYearId === contextYearId,
+  );
 
   return (
-    <section className="admin-page record-page">
+    <section className="admin-page record-page batch-page">
       <PageHeader
         title={batch ? `${batch.code} — ${batch.name}` : 'Batch'}
-        purpose="Batch identity and its verified current academic period. Student registration numbers are not changed here."
+        purpose="A batch is a student group. It has no year until you choose one for progression."
+        actions={<Link to="/admin/academic">Back to academic admin</Link>}
       />
-      <p>
-        <Link to="/admin/academic">Back to academic admin</Link>
-      </p>
       {error ? (
         <p className="form-error" role="alert">
           {error}
@@ -85,43 +91,80 @@ export function AdminBatchDetailPage() {
       ) : null}
       {batch ? (
         <>
-          <div className="stat-grid">
-            <StatCard label="Code" value={batch.code} />
+          <div className="stat-row batch-facts">
             <StatCard label="Status" value={batch.status} />
-            <StatCard label="Current year" value={yearLabel} />
-            <StatCard label="Current semester" value={semesterLabel} />
             <StatCard label="Students" value={String(batch.studentCount ?? 0)} />
             <StatCard label="Specialization" value={batch.specialization || 'Not set'} />
+            <StatCard label="Current period" value={periodLabel} />
           </div>
-          <Panel title="Current academic context" kicker={verified ? 'Verified' : 'Needs verification'}>
-            {verified ? (
-              <p>
-                This batch is verified at {yearLabel}, {batch.currentSemesterName}. Changing the period is reserved
-                for batch progression and is not available on this screen.
-              </p>
+          <div className="batch-detail__grid">
+          <Panel title="Current period" kicker={verified ? 'Set' : 'Optional'}>
+            {verified && !editingPeriod ? (
+              <>
+                <p className="panel-lead">
+                  {batch.code} is at {periodLabel}. Edit period corrects the year and semester. Students stay where they are.
+                  Progress batch moves students who are already in this period.
+                </p>
+                <div className="panel-actions">
+                  <ActionButton
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setContextYearId(batch.currentAcademicYearId || '');
+                      setContextSemesterId(batch.currentSemesterId || '');
+                      setEditingPeriod(true);
+                    }}
+                  >
+                    Edit period
+                  </ActionButton>
+                </div>
+              </>
             ) : (
               <form
                 className="settings-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  const form = new FormData(event.target);
+                  if (verified) {
+                    const confirmed = window.confirm(
+                      `Change ${batch.code} from ${periodLabel}? Students stay in their current period. Offerings stay as they are.`,
+                    );
+                    if (!confirmed) {
+                      return;
+                    }
+                  }
+                  const payload = {
+                    currentAcademicYearId: contextYearId,
+                    currentSemesterId: contextSemesterId,
+                  };
+                  const request = verified
+                    ? academicApi.reviseBatchContext(batch.id, payload)
+                    : academicApi.assignBatchContext(batch.id, payload);
                   setPending('context');
-                  academicApi
-                    .assignBatchContext(batch.id, {
-                      currentAcademicYearId: form.get('currentAcademicYearId'),
-                      currentSemesterId: form.get('currentSemesterId'),
+                  request
+                    .then(() => {
+                      setEditingPeriod(false);
+                      return load();
                     })
-                    .then(() => load())
-                    .catch((caught) => setError(caught.message || 'Unable to assign academic context'))
+                    .catch((caught) => setError(caught.message || 'Unable to save the period'))
                     .finally(() => setPending(''));
                 }}
               >
                 <p className="panel-lead">
-                  Choose the period this batch is in now. This does not move students or rewrite their history.
+                  {verified
+                    ? 'Choose the corrected year and semester. Students and offerings stay as they are.'
+                    : 'Save a period only when this batch should move forward with its students. Subject offerings do not need it.'}
                 </p>
                 <label>
                   Academic year
-                  <select name="currentAcademicYearId" required defaultValue="">
+                  <select
+                    name="currentAcademicYearId"
+                    required
+                    value={contextYearId}
+                    onChange={(event) => {
+                      setContextYearId(event.target.value);
+                      setContextSemesterId('');
+                    }}
+                  >
                     <option value="" disabled>
                       Select year
                     </option>
@@ -136,26 +179,35 @@ export function AdminBatchDetailPage() {
                 </label>
                 <label>
                   Semester
-                  <select name="currentSemesterId" required defaultValue="">
+                  <select
+                    name="currentSemesterId"
+                    required
+                    value={contextSemesterId}
+                    disabled={!contextYearId}
+                    onChange={(event) => setContextSemesterId(event.target.value)}
+                  >
                     <option value="" disabled>
-                      Select semester
+                      {contextYearId ? 'Select semester' : 'Select a year first'}
                     </option>
-                    {semesters
-                      .filter((semester) => semester.status === 'ACTIVE')
-                      .map((semester) => {
-                        const year = years.find((item) => item.id === semester.academicYearId);
-                        return (
-                          <option key={semester.id} value={semester.id}>
-                            {formatSemesterLabel(semester, year)}
-                          </option>
-                        );
-                      })}
+                    {semesterChoices.map((semester) => {
+                      const year = years.find((item) => item.id === semester.academicYearId);
+                      return (
+                        <option key={semester.id} value={semester.id}>
+                          {formatSemesterLabel(semester, year)}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
                 <div className="panel-actions">
                   <ActionButton type="submit" busy={pending === 'context'} busyLabel="Saving…" disabled={busy}>
-                    Assign verified context
+                    Save period
                   </ActionButton>
+                  {verified ? (
+                    <ActionButton type="button" disabled={busy} onClick={() => setEditingPeriod(false)}>
+                      Cancel
+                    </ActionButton>
+                  ) : null}
                 </div>
               </form>
             )}
@@ -191,7 +243,9 @@ export function AdminBatchDetailPage() {
               </ActionButton>
             </form>
           </Panel>
+          </div>
           {verified && batch.status === 'ACTIVE' ? (
+          <div className="batch-detail__grid">
             <Panel title="Progress batch" kicker="Next semester">
               <p className="panel-lead">
                 This moves {batch.code} from {yearLabel}, {batch.currentSemesterName} to the next semester. Active
@@ -242,8 +296,6 @@ export function AdminBatchDetailPage() {
                 </p>
               ) : null}
             </Panel>
-          ) : null}
-          {verified && batch.status === 'ACTIVE' ? (
             <Panel title="Generate subject offerings" kicker="Current period only">
               <p className="panel-lead">
                 This creates offerings for {batch.code} at {yearLabel}, {batch.currentSemesterName || 'the verified semester'}.
@@ -295,6 +347,7 @@ export function AdminBatchDetailPage() {
                 </p>
               ) : null}
             </Panel>
+          </div>
           ) : null}
           <OfferingEnrollmentRoster batchId={batch.id} years={years} semesters={semesters} />
         </>

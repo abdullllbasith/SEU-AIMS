@@ -23,6 +23,7 @@ export function createRouter() {
   router.post('/batches', admin, requireCsrf, controller.createBatch);
   router.get('/batches/:batchId', admin, controller.getBatch);
   router.post('/batches/:batchId/academic-context', admin, requireCsrf, controller.assignBatchAcademicContext);
+  router.patch('/batches/:batchId/academic-context', admin, requireCsrf, controller.reviseBatchAcademicContext);
   router.get('/batches/:batchId/offering-generation', admin, controller.previewBatchOfferings);
   router.post('/batches/:batchId/offering-generation', admin, requireCsrf, controller.generateBatchOfferings);
   router.get('/batches/:batchId/progression', admin, controller.previewBatchProgression);
@@ -50,6 +51,7 @@ export function createRouter() {
   router.patch('/subjects/:subjectId', admin, requireCsrf, controller.updateSubject);
 
   router.get('/subject-offerings', admin, controller.listOfferings);
+  router.post('/subject-offerings/from-curriculum', admin, requireCsrf, controller.assignPeriodOfferings);
   router.post('/subject-offerings', admin, requireCsrf, controller.createOffering);
   router.get('/subject-offerings/:offeringId/enrollments', admin, controller.listOfferingEnrollments);
   router.post(
