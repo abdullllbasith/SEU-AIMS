@@ -21,6 +21,7 @@ export const caApi = {
   pdfUrl: (id) => `/api/ca/applications/${id}/pdf`,
   adminWindows: () => apiRequest('/ca/admin/windows'),
   saveWindow: (body) => apiRequest('/ca/admin/windows', { method: 'POST', body: JSON.stringify(body) }),
+  deleteWindow: (id) => apiRequest(`/ca/admin/windows/${id}`, { method: 'DELETE' }),
   adminApplications: (params) => apiRequest(`/ca/admin/applications${qs(params)}`),
   verify: (id, body) =>
     apiRequest(`/ca/admin/applications/${id}/verify`, { method: 'POST', body: JSON.stringify(body) }),
@@ -30,6 +31,7 @@ export const caApi = {
   reopen: (id, body) =>
     apiRequest(`/ca/admin/applications/${id}/reopen`, { method: 'POST', body: JSON.stringify(body) }),
   reconciliation: () => apiRequest('/ca/admin/reconciliation'),
+  unresolvedConditions: () => apiRequest('/ca/admin/conditions'),
   backfill: () => apiRequest('/ca/admin/backfill', { method: 'POST', body: JSON.stringify({}) }),
   lecturerEligible: () => apiRequest('/ca/lecturer/eligible-students'),
   lecturerSchedules: () => apiRequest('/ca/lecturer/schedules'),

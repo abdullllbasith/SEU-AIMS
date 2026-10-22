@@ -134,7 +134,7 @@ function buildActionItems(cards, extras) {
       count: asNumber(cards.unresolvedEcaConditions),
       title: 'Unresolved E(CA) cases',
       meta: 'Open incomplete CA conditions needing recovery workflow',
-      to: '/admin/ca',
+      to: '/admin/ca#unresolved-eca',
       icon: 'eca',
       tone: 'alert',
     },
@@ -453,7 +453,7 @@ export function AdminDashboardPage() {
           value={cards.unresolvedEcaConditions ?? '—'}
           icon="eca"
           tone="alert"
-          to="/admin/ca"
+          to="/admin/ca#unresolved-eca"
         />
         <StatCard
           label="Pending CA applications"

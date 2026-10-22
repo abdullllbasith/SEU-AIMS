@@ -29,12 +29,14 @@ export function createRouter() {
 
   router.get('/admin/windows', requireDepartmentAdmin(), controller.adminWindows);
   router.post('/admin/windows', requireDepartmentAdmin(), requireCsrf, controller.saveWindow);
+  router.delete('/admin/windows/:windowId', requireDepartmentAdmin(), requireCsrf, controller.deleteWindow);
   router.get('/admin/applications', requireDepartmentAdmin(), controller.adminList);
   router.post('/admin/applications/:applicationId/verify', requireDepartmentAdmin(), requireCsrf, controller.verifyPhysical);
   router.post('/admin/applications/:applicationId/approve', requireDepartmentAdmin(), requireCsrf, controller.approve);
   router.post('/admin/applications/:applicationId/reject', requireDepartmentAdmin(), requireCsrf, controller.reject);
   router.post('/admin/applications/:applicationId/reopen', requireDepartmentAdmin(), requireCsrf, controller.reopen);
   router.get('/admin/reconciliation', requireDepartmentAdmin(), controller.reconciliation);
+  router.get('/admin/conditions', requireDepartmentAdmin(), controller.unresolvedConditions);
   router.post('/admin/backfill', requireDepartmentAdmin(), requireCsrf, controller.backfill);
 
   router.get('/lecturer/eligible-students', requireRole(ROLES.LECTURER), controller.lecturerEligible);
