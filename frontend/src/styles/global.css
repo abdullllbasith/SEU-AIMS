@@ -988,6 +988,7 @@ form {
   padding: 1.4rem 1.6rem;
 }
 
+.batch-page form,
 .auth-card form,
 .auth-card__form,
 .study-room form,
@@ -1788,6 +1789,58 @@ a.stat-card:hover {
   border-top: 1px solid var(--color-border-subtle);
 }
 
+.catalog-preview__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.catalog-preview__stats div {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--slate-50);
+}
+
+.catalog-preview__stats dt {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+.catalog-preview__stats dd {
+  margin: 0.2rem 0 0;
+  font-size: 1.35rem;
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--slate-900);
+}
+
+.catalog-preview__group {
+  margin-top: 1rem;
+}
+
+.catalog-preview__group h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.catalog-preview__group p {
+  margin: 0 0 0.65rem;
+  color: var(--slate-600);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.catalog-preview__count {
+  font-weight: var(--weight-strong);
+  color: var(--slate-800);
+}
+
 .figure-line {
   margin: 0 0 0.5rem;
   font-size: 1.5rem;
@@ -2281,6 +2334,7 @@ a.ops-metric:hover {
 .record-page {
   display: grid;
   gap: 0;
+  align-content: start;
 }
 
 .record-page > .panel,
@@ -2298,6 +2352,29 @@ a.ops-metric:hover {
   margin-bottom: 1.25rem;
 }
 
+.batch-facts {
+  margin-top: 1rem;
+}
+
+.batch-facts .stat-card__value {
+  font-size: 1.15rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.batch-detail__grid {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .batch-detail__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .filter-bar {
   display: grid;
   gap: 0.5rem;
@@ -2306,6 +2383,18 @@ a.ops-metric:hover {
 
 .filter-bar--search {
   max-width: 36rem;
+}
+
+.filter-bar--records {
+  max-width: none;
+  grid-template-columns: minmax(14rem, 1.6fr) repeat(3, minmax(9rem, 1fr));
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 900px) {
+  .filter-bar--records {
+    grid-template-columns: 1fr;
+  }
 }
 
 .filter-bar__hint {

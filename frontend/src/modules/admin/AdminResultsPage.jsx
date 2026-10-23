@@ -734,7 +734,7 @@ export function AdminResultsPage() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="e.g. SEU/IS/19/IS/001 or CSC1101"
+              placeholder="Type a registration number or subject code"
               autoComplete="off"
             />
           </label>

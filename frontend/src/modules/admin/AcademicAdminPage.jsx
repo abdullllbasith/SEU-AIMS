@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { academicApi } from './academic-api.js';
 import { CatalogImportPanel } from './CatalogImportPanel.jsx';
@@ -59,6 +59,7 @@ const COLUMN_LABELS = {
   subjectId: 'Subject',
   batchId: 'Batch',
   semesterId: 'Semester',
+  specialization: 'Specialization',
   email: 'Email',
   accountStatus: 'Account',
   lecturerStatus: 'Lecturer',
@@ -142,6 +143,9 @@ function cellValue(column, value, lookups = {}, row = null) {
   if (column === 'batchId') {
     const batch = lookups.batches?.get?.(String(value));
     return batch ? formatBatchLabel(batch) : String(value ?? '—');
+  }
+  if (column === 'specialization') {
+    return value ? String(value) : 'Common';
   }
   if (column === 'subjectId') {
     const label = formatLinkedSubjectLabel({ ...(row || {}), subjectId: value }, lookups);
@@ -250,6 +254,15 @@ export function AcademicAdminPage() {
   const [subjectCatalog, setSubjectCatalog] = useState([]);
   const [listFilters, setListFilters] = useState({ curriculum: {}, offerings: {} });
   const [search, setSearch] = useState('');
+  const [studentQuery, setStudentQuery] = useState('');
+  const [studentPage, setStudentPage] = useState(1);
+  const [studentFilters, setStudentFilters] = useState({
+    batchId: '',
+    currentAcademicYearId: '',
+    currentSemesterId: '',
+  });
+  const studentViewRef = useRef({ query: '', page: 1, filters: studentFilters });
+  studentViewRef.current = { query: studentQuery, page: studentPage, filters: studentFilters };
   const [checks, setChecks] = useState(null);
 
   const lookups = useMemo(
@@ -296,7 +309,13 @@ export function AcademicAdminPage() {
               academicApi.offerings({ status: 'ALL', pageSize: 50 }),
               academicApi.members({ role: 'LECTURER', pageSize: 50 }),
               academicApi.assignments({ active: 'true', pageSize: 50 }),
-              academicApi.students({ q: search, status: 'ALL', pageSize: 50 }),
+              academicApi.students({
+                q: studentViewRef.current.query,
+                status: 'ALL',
+                page: studentViewRef.current.page,
+                pageSize: 20,
+                ...cleanFilters(studentViewRef.current.filters),
+              }),
               academicApi.members({ role: 'STUDENT', pageSize: 50 }),
             ])
           : [];
@@ -376,7 +395,13 @@ export function AcademicAdminPage() {
           return academicApi.assignments({ active: 'true', page, pageSize });
         }
         if (kind === 'students') {
-          return academicApi.students({ q: search, status: 'ALL', page, pageSize });
+          return academicApi.students({
+            q: studentQuery,
+            status: 'ALL',
+            page,
+            pageSize: 20,
+            ...cleanFilters(studentFilters),
+          });
         }
         return null;
       });
@@ -393,8 +418,18 @@ export function AcademicAdminPage() {
       if (kind === 'assignments') setAssignments(result.data);
       if (kind === 'students') setStudents(result.data);
     },
-    [department, listFilters, run, search],
+    [department, listFilters, run, search, studentQuery, studentFilters],
   );
+
+  useEffect(() => {
+    if (!department || tab !== 'Students') {
+      return undefined;
+    }
+    const handle = setTimeout(() => {
+      loadPage('students', studentPage);
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [department, tab, studentQuery, studentFilters, studentPage, loadPage]);
 
   async function archive(label, fn) {
     if (!confirmArchive(label)) {
@@ -603,7 +638,7 @@ export function AcademicAdminPage() {
           rows={batches}
           lookups={lookups}
           onPage={(page) => loadPage('batches', page)}
-          columns={['code', 'name', 'currentAcademicYearId', 'currentSemesterId', 'status']}
+          columns={['code', 'name', 'status']}
           rowLink={(row) => `/admin/academic/batches/${row.id}`}
           onArchive={(row) => archive('batch', () => academicApi.updateBatch(row.id, { status: 'ARCHIVED' }))}
           onRestore={(row) => restore('batch', () => academicApi.updateBatch(row.id, { status: 'ACTIVE' }))}
@@ -625,7 +660,7 @@ export function AcademicAdminPage() {
                 await reload();
               }}
             >
-              <p className="panel-lead">A new batch starts at this department’s Year 1, Semester 1. Create those records first.</p>
+              <p className="panel-lead">A batch is a code and name. It does not belong to a year or semester.</p>
               <Field label="Code">
                 <input name="code" required />
               </Field>
@@ -872,68 +907,16 @@ export function AcademicAdminPage() {
             restore('subject offering', () => academicApi.updateOffering(row.id, { status: 'ACTIVE' }))
           }
           form={
-            <form
-              className="settings-form"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                const form = new FormData(event.target);
-                await run(() =>
-                  academicApi.createOffering({
-                    subjectId: form.get('subjectId'),
-                    batchId: form.get('batchId'),
-                    academicYearId: form.get('academicYearId'),
-                    semesterId: form.get('semesterId'),
-                  }),
-                );
-                event.target.reset();
-                await reload();
-              }}
-            >
-              <Field label="Subject">
-                <select name="subjectId" required defaultValue="">
-                  <option value="" disabled>
-                    Select subject
-                  </option>
-                  {subjectCatalog
-                    .filter((item) => item.status === 'ACTIVE')
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {formatSubjectLabel(item)}
-                      </option>
-                    ))}
-                </select>
-              </Field>
-              <Field label="Batch">
-                <select name="batchId" required>
-                  {batches.items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {formatBatchLabel(item)}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Academic year">
-                <select name="academicYearId" required>
-                  {years.items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {formatYearLabel(item)}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Semester">
-                <select name="semesterId" required>
-                  {semesters.items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {formatSemesterLabel(item, lookups.years.get(String(item.academicYearId)))}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <div className="panel-actions">
-                <button type="submit">Create offering</button>
-              </div>
-            </form>
+            <OfferingAssignForm
+              batches={batches.items}
+              years={years.items}
+              semesters={semesters.items}
+              subjects={subjectCatalog}
+              lookups={lookups}
+              onAssignPeriod={(body) => run(() => academicApi.assignPeriodOfferings(body))}
+              onCreateOne={(body) => run(() => academicApi.createOffering(body))}
+              onDone={reload}
+            />
           }
         />
       ) : null}
@@ -1258,14 +1241,30 @@ export function AcademicAdminPage() {
           </div>
 
           <Panel title="Student academic records" kicker={`${students.total} total`}>
+            <StudentRecordFilters
+              query={studentQuery}
+              filters={studentFilters}
+              batches={batches.items}
+              years={years.items}
+              semesters={semesters.items}
+              onQuery={(value) => {
+                setStudentQuery(value);
+                setStudentPage(1);
+              }}
+              onFilters={(next) => {
+                setStudentFilters(next);
+                setStudentPage(1);
+              }}
+            />
             {students.items.length === 0 ? (
-              <EmptyState>No student academic records yet.</EmptyState>
+              <EmptyState>No students match this search or filter.</EmptyState>
             ) : (
               <div className="table-scroll">
                 <table className="data-table">
                   <thead>
                     <tr>
                       <th>Registration number</th>
+                      <th>Student</th>
                       <th>Batch</th>
                       <th>Year</th>
                       <th>Semester</th>
@@ -1278,6 +1277,7 @@ export function AcademicAdminPage() {
                     {students.items.map((row) => (
                       <tr key={row.id}>
                         <td>{row.registrationNumber}</td>
+                        <td>{row.displayName || row.email || '—'}</td>
                         <td>{cellValue('batchId', row.batchId, lookups)}</td>
                         <td>{cellValue('currentAcademicYearId', row.currentAcademicYearId, lookups)}</td>
                         <td>{cellValue('currentSemesterId', row.currentSemesterId, lookups)}</td>
@@ -1344,15 +1344,84 @@ export function AcademicAdminPage() {
               </div>
             )}
             <Pager
-              page={students.page}
-              pageSize={students.pageSize}
+              page={students.page || studentPage}
+              pageSize={students.pageSize || 20}
               total={students.total}
-              onPage={(page) => loadPage('students', page)}
+              onPage={setStudentPage}
             />
           </Panel>
         </div>
       ) : null}
     </section>
+  );
+}
+
+function StudentRecordFilters({ query, filters, batches, years, semesters, onQuery, onFilters }) {
+  const semesterChoices = semesters.filter((item) =>
+    filters.currentAcademicYearId ? String(item.academicYearId) === filters.currentAcademicYearId : true,
+  );
+
+  function update(partial) {
+    onFilters({ ...filters, ...partial });
+  }
+
+  return (
+    <div className="filter-bar filter-bar--records">
+      <label>
+        Search
+        <input
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+          maxLength={64}
+          autoComplete="off"
+          placeholder="Name or registration number"
+        />
+      </label>
+      <label>
+        Batch
+        <select value={filters.batchId} onChange={(event) => update({ batchId: event.target.value })}>
+          <option value="">All batches</option>
+          {batches.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatBatchLabel(item) || item.code}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Year
+        <select
+          value={filters.currentAcademicYearId}
+          onChange={(event) =>
+            update({ currentAcademicYearId: event.target.value, currentSemesterId: '' })
+          }
+        >
+          <option value="">All years</option>
+          {years.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatYearLabel(item) || item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Semester
+        <select
+          value={filters.currentSemesterId}
+          onChange={(event) => update({ currentSemesterId: event.target.value })}
+        >
+          <option value="">All semesters</option>
+          {semesterChoices.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatSemesterLabel(
+                item,
+                years.find((year) => year.id === item.academicYearId),
+              ) || item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }
 
@@ -1405,11 +1474,155 @@ function PeriodFilters({ years, value = {}, onChange }) {
   );
 }
 
+function assignPeriodMessage(data) {
+  const skipped = data.skippedSubjects || [];
+  const specializationSkips = skipped.filter((item) => item.reason === 'NO_STUDENT_WITH_SPECIALIZATION').length;
+  const otherSkips = skipped.length - specializationSkips;
+  if (!data.created && !data.alreadyExisted && skipped.length === 0) {
+    return 'No curriculum subjects are mapped to this year and semester. Nothing was added.';
+  }
+  const parts = [
+    data.created
+      ? `Added ${data.created} subject${data.created === 1 ? '' : 's'}.`
+      : 'No new subjects were added.',
+  ];
+  if (data.alreadyExisted) {
+    parts.push(`${data.alreadyExisted} already offered for this batch.`);
+  }
+  if (specializationSkips) {
+    parts.push(
+      `${specializationSkips} left out because no student in this batch and period has that specialization.`,
+    );
+  }
+  if (otherSkips) {
+    parts.push(`${otherSkips} left out because the subject is not active.`);
+  }
+  return parts.join(' ');
+}
+
+function OfferingAssignForm({ batches, years, semesters, subjects, lookups, onAssignPeriod, onCreateOne, onDone }) {
+  const [yearId, setYearId] = useState('');
+  const [semesterId, setSemesterId] = useState('');
+  const [notice, setNotice] = useState('');
+  const activeBatches = batches.filter((item) => item.status === 'ACTIVE');
+  const activeYears = years.filter((item) => item.status === 'ACTIVE');
+  const activeSubjects = subjects.filter((item) => item.status === 'ACTIVE');
+  const semesterOptions = semesters.filter(
+    (item) => item.status === 'ACTIVE' && yearId && item.academicYearId === yearId,
+  );
+
+  return (
+    <form
+      className="settings-form"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.target);
+        const body = {
+          batchId: form.get('batchId'),
+          academicYearId: form.get('academicYearId'),
+          semesterId: form.get('semesterId'),
+        };
+        const subjectId = String(form.get('subjectId') || '');
+        setNotice('');
+        if (subjectId) {
+          const created = await onCreateOne({ ...body, subjectId });
+          if (!created) {
+            return;
+          }
+          setNotice('Added this subject for the batch.');
+        } else {
+          const assigned = await onAssignPeriod(body);
+          if (!assigned?.data) {
+            return;
+          }
+          setNotice(assignPeriodMessage(assigned.data));
+        }
+        event.target.reset();
+        setYearId('');
+        setSemesterId('');
+        await onDone();
+      }}
+    >
+      <p className="panel-lead">
+        Choose a batch, year, and semester. Every curriculum subject for that period is offered to the batch. Choose a
+        subject only when this batch needs one extra subject.
+      </p>
+      {notice ? (
+        <p className="panel-lead" role="status">
+          {notice}
+        </p>
+      ) : null}
+      <Field label="Batch">
+        <select name="batchId" required defaultValue={activeBatches[0]?.id || ''}>
+          {activeBatches.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatBatchLabel(item)}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Academic year">
+        <select
+          name="academicYearId"
+          required
+          value={yearId}
+          onChange={(event) => {
+            setYearId(event.target.value);
+            setSemesterId('');
+          }}
+        >
+          <option value="" disabled>
+            Select year
+          </option>
+          {activeYears.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatYearLabel(item)}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Semester">
+        <select
+          name="semesterId"
+          required
+          value={semesterId}
+          onChange={(event) => setSemesterId(event.target.value)}
+        >
+          <option value="" disabled>
+            Select semester
+          </option>
+          {semesterOptions.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatSemesterLabel(item, lookups.years.get(String(item.academicYearId)))}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Subject, optional">
+        <select name="subjectId" defaultValue="">
+          <option value="">Semester subjects only</option>
+          {activeSubjects.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatSubjectLabel(item)}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <div className="panel-actions">
+        <button type="submit">Assign subjects</button>
+      </div>
+    </form>
+  );
+}
+
 function CurriculumPanel({ rows, subjects, years, semesters, lookups, filters, onFilter, onPage, onCreate, onArchive, onCreated }) {
   const [yearId, setYearId] = useState('');
   const [semesterId, setSemesterId] = useState('');
+  const [specialization, setSpecialization] = useState('');
   const activeYears = years.filter((year) => year.status === 'ACTIVE');
   const activeSubjects = subjects.filter((subject) => subject.status === 'ACTIVE');
+  const selectedYear = activeYears.find((year) => year.id === yearId);
+  const needsSpecialization = Number(selectedYear?.sequence) >= 3;
   const semesterOptions = semesters.filter(
     (semester) => semester.status === 'ACTIVE' && (!yearId || semester.academicYearId === yearId),
   );
@@ -1423,7 +1636,7 @@ function CurriculumPanel({ rows, subjects, years, semesters, lookups, filters, o
       lookups={lookups}
       filters={<PeriodFilters years={years} value={filters} onChange={onFilter} />}
       onPage={onPage}
-      columns={['subjectId', 'academicYearId', 'semesterId', 'status']}
+      columns={['subjectId', 'academicYearId', 'semesterId', 'specialization', 'status']}
       onArchive={onArchive}
       form={
         <form
@@ -1435,6 +1648,7 @@ function CurriculumPanel({ rows, subjects, years, semesters, lookups, filters, o
               subjectId: form.get('subjectId'),
               academicYearId: form.get('academicYearId'),
               semesterId: form.get('semesterId'),
+              specialization: needsSpecialization ? form.get('specialization') : null,
             });
             if (!created) {
               return;
@@ -1442,12 +1656,13 @@ function CurriculumPanel({ rows, subjects, years, semesters, lookups, filters, o
             event.target.reset();
             setYearId('');
             setSemesterId('');
+            setSpecialization('');
             await onCreated();
           }}
         >
           <p className="panel-lead">
-            Map an existing subject to a shared academic year and semester. Batches reuse this curriculum. It does not
-            create a new subject.
+            Choose a subject that already exists, then the year and semester it belongs to. Years 1 and 2 stay common.
+            Years 3 and 4 need SWT or NST. This does not create a new subject, and it does not create a batch offering.
           </p>
           <Field label="Subject">
             <select name="subjectId" required defaultValue="">
@@ -1469,6 +1684,7 @@ function CurriculumPanel({ rows, subjects, years, semesters, lookups, filters, o
               onChange={(event) => {
                 setYearId(event.target.value);
                 setSemesterId('');
+                setSpecialization('');
               }}
             >
               <option value="" disabled>
@@ -1498,6 +1714,22 @@ function CurriculumPanel({ rows, subjects, years, semesters, lookups, filters, o
               ))}
             </select>
           </Field>
+          {needsSpecialization ? (
+            <Field label="Specialization">
+              <select
+                name="specialization"
+                required
+                value={specialization}
+                onChange={(event) => setSpecialization(event.target.value)}
+              >
+                <option value="" disabled>
+                  Select SWT or NST
+                </option>
+                <option value="SWT">SWT</option>
+                <option value="NST">NST</option>
+              </select>
+            </Field>
+          ) : null}
           <div className="panel-actions">
             <button type="submit">Save mapping</button>
           </div>
