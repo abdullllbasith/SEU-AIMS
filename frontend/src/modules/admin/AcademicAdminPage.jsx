@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { academicApi } from './academic-api.js';
 import { CatalogImportPanel } from './CatalogImportPanel.jsx';
@@ -254,6 +254,15 @@ export function AcademicAdminPage() {
   const [subjectCatalog, setSubjectCatalog] = useState([]);
   const [listFilters, setListFilters] = useState({ curriculum: {}, offerings: {} });
   const [search, setSearch] = useState('');
+  const [studentQuery, setStudentQuery] = useState('');
+  const [studentPage, setStudentPage] = useState(1);
+  const [studentFilters, setStudentFilters] = useState({
+    batchId: '',
+    currentAcademicYearId: '',
+    currentSemesterId: '',
+  });
+  const studentViewRef = useRef({ query: '', page: 1, filters: studentFilters });
+  studentViewRef.current = { query: studentQuery, page: studentPage, filters: studentFilters };
   const [checks, setChecks] = useState(null);
 
   const lookups = useMemo(
@@ -300,7 +309,13 @@ export function AcademicAdminPage() {
               academicApi.offerings({ status: 'ALL', pageSize: 50 }),
               academicApi.members({ role: 'LECTURER', pageSize: 50 }),
               academicApi.assignments({ active: 'true', pageSize: 50 }),
-              academicApi.students({ q: search, status: 'ALL', pageSize: 50 }),
+              academicApi.students({
+                q: studentViewRef.current.query,
+                status: 'ALL',
+                page: studentViewRef.current.page,
+                pageSize: 20,
+                ...cleanFilters(studentViewRef.current.filters),
+              }),
               academicApi.members({ role: 'STUDENT', pageSize: 50 }),
             ])
           : [];
@@ -380,7 +395,13 @@ export function AcademicAdminPage() {
           return academicApi.assignments({ active: 'true', page, pageSize });
         }
         if (kind === 'students') {
-          return academicApi.students({ q: search, status: 'ALL', page, pageSize });
+          return academicApi.students({
+            q: studentQuery,
+            status: 'ALL',
+            page,
+            pageSize: 20,
+            ...cleanFilters(studentFilters),
+          });
         }
         return null;
       });
@@ -397,8 +418,18 @@ export function AcademicAdminPage() {
       if (kind === 'assignments') setAssignments(result.data);
       if (kind === 'students') setStudents(result.data);
     },
-    [department, listFilters, run, search],
+    [department, listFilters, run, search, studentQuery, studentFilters],
   );
+
+  useEffect(() => {
+    if (!department || tab !== 'Students') {
+      return undefined;
+    }
+    const handle = setTimeout(() => {
+      loadPage('students', studentPage);
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [department, tab, studentQuery, studentFilters, studentPage, loadPage]);
 
   async function archive(label, fn) {
     if (!confirmArchive(label)) {
@@ -1210,14 +1241,30 @@ export function AcademicAdminPage() {
           </div>
 
           <Panel title="Student academic records" kicker={`${students.total} total`}>
+            <StudentRecordFilters
+              query={studentQuery}
+              filters={studentFilters}
+              batches={batches.items}
+              years={years.items}
+              semesters={semesters.items}
+              onQuery={(value) => {
+                setStudentQuery(value);
+                setStudentPage(1);
+              }}
+              onFilters={(next) => {
+                setStudentFilters(next);
+                setStudentPage(1);
+              }}
+            />
             {students.items.length === 0 ? (
-              <EmptyState>No student academic records yet.</EmptyState>
+              <EmptyState>No students match this search or filter.</EmptyState>
             ) : (
               <div className="table-scroll">
                 <table className="data-table">
                   <thead>
                     <tr>
                       <th>Registration number</th>
+                      <th>Student</th>
                       <th>Batch</th>
                       <th>Year</th>
                       <th>Semester</th>
@@ -1230,6 +1277,7 @@ export function AcademicAdminPage() {
                     {students.items.map((row) => (
                       <tr key={row.id}>
                         <td>{row.registrationNumber}</td>
+                        <td>{row.displayName || row.email || '—'}</td>
                         <td>{cellValue('batchId', row.batchId, lookups)}</td>
                         <td>{cellValue('currentAcademicYearId', row.currentAcademicYearId, lookups)}</td>
                         <td>{cellValue('currentSemesterId', row.currentSemesterId, lookups)}</td>
@@ -1296,15 +1344,84 @@ export function AcademicAdminPage() {
               </div>
             )}
             <Pager
-              page={students.page}
-              pageSize={students.pageSize}
+              page={students.page || studentPage}
+              pageSize={students.pageSize || 20}
               total={students.total}
-              onPage={(page) => loadPage('students', page)}
+              onPage={setStudentPage}
             />
           </Panel>
         </div>
       ) : null}
     </section>
+  );
+}
+
+function StudentRecordFilters({ query, filters, batches, years, semesters, onQuery, onFilters }) {
+  const semesterChoices = semesters.filter((item) =>
+    filters.currentAcademicYearId ? String(item.academicYearId) === filters.currentAcademicYearId : true,
+  );
+
+  function update(partial) {
+    onFilters({ ...filters, ...partial });
+  }
+
+  return (
+    <div className="filter-bar filter-bar--records">
+      <label>
+        Search
+        <input
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+          maxLength={64}
+          autoComplete="off"
+          placeholder="Name or registration number"
+        />
+      </label>
+      <label>
+        Batch
+        <select value={filters.batchId} onChange={(event) => update({ batchId: event.target.value })}>
+          <option value="">All batches</option>
+          {batches.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatBatchLabel(item) || item.code}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Year
+        <select
+          value={filters.currentAcademicYearId}
+          onChange={(event) =>
+            update({ currentAcademicYearId: event.target.value, currentSemesterId: '' })
+          }
+        >
+          <option value="">All years</option>
+          {years.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatYearLabel(item) || item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Semester
+        <select
+          value={filters.currentSemesterId}
+          onChange={(event) => update({ currentSemesterId: event.target.value })}
+        >
+          <option value="">All semesters</option>
+          {semesterChoices.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatSemesterLabel(
+                item,
+                years.find((year) => year.id === item.academicYearId),
+              ) || item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }
 

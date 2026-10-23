@@ -275,6 +275,46 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
     };
   }, [batchId]);
 
+  useEffect(() => {
+    const value = registrationNumber.trim();
+    if (!selectedOffering || value.length < 2) {
+      setMatches([]);
+      setSearched(false);
+      setStudentContextId('');
+      return undefined;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      setPending('search');
+      setFormError('');
+      academicApi
+        .students({ q: value, batchId, status: 'ALL', pageSize: 20 })
+        .then((response) => {
+          if (cancelled) {
+            return;
+          }
+          const items = response.data.items || [];
+          setMatches(items);
+          setSearched(true);
+          setStudentContextId(items.length === 1 ? items[0].id : '');
+        })
+        .catch((caught) => {
+          if (!cancelled) {
+            setFormError(caught.message || 'Unable to search students');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setPending('');
+          }
+        });
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [registrationNumber, batchId, selectedOffering]);
+
   function offeringOptionLabel(offering) {
     const code = offering.subjectCode || subjectsById.get(String(offering.subjectId))?.code || 'Subject';
     const name = offering.subjectName || subjectsById.get(String(offering.subjectId))?.name || '';
@@ -298,31 +338,7 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
         <EmptyState>No offerings exist for this batch yet. Create or generate an offering before enrolling a student.</EmptyState>
       ) : null}
       {offerings.length ? (
-        <form
-          className="settings-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const query = registrationNumber.trim();
-            if (!selectedOffering || !query) {
-              return;
-            }
-            setPending('search');
-            setFormError('');
-            setSearched(false);
-            academicApi
-              .students({ q: query, batchId, status: 'ALL', pageSize: 20 })
-              .then((response) => {
-                const items = (response.data.items || []).filter((item) =>
-                  String(item.registrationNumber).toUpperCase().startsWith(query.toUpperCase()),
-                );
-                setMatches(items);
-                setSearched(true);
-                setStudentContextId(items.length === 1 ? items[0].id : '');
-              })
-              .catch((caught) => setFormError(caught.message || 'Unable to search students'))
-              .finally(() => setPending(''));
-          }}
-        >
+        <form className="settings-form" onSubmit={(event) => event.preventDefault()}>
           <label>
             Offering
             <select
@@ -345,28 +361,20 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
             </select>
           </label>
           <label>
-            Registration number
+            Student name or registration number
             <input
               name="registrationNumber"
               value={registrationNumber}
               onChange={(event) => setRegistrationNumber(event.target.value)}
               autoComplete="off"
+              placeholder="Type to search this batch"
             />
           </label>
-          <div className="panel-actions">
-            <ActionButton
-              type="submit"
-              busy={pending === 'search'}
-              busyLabel="Searching…"
-              disabled={busy || !offeringId || !registrationNumber.trim()}
-            >
-              Find student
-            </ActionButton>
-          </div>
+          {pending === 'search' ? <p className="filter-bar__hint">Searching…</p> : null}
         </form>
       ) : null}
       {searched && matches.length === 0 ? (
-        <EmptyState>No student in this batch matches that registration number.</EmptyState>
+        <EmptyState>No student in this batch matches that name or registration number.</EmptyState>
       ) : null}
       {matches.length ? (
         <form
@@ -404,6 +412,7 @@ export function OfferingEnrollmentRoster({ batchId, years, semesters }) {
               <option value="">Select student</option>
               {matches.map((item) => (
                 <option key={item.id} value={item.id}>
+                  {item.displayName ? `${item.displayName} · ` : ''}
                   {item.registrationNumber}
                 </option>
               ))}
