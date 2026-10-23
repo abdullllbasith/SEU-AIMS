@@ -92,6 +92,27 @@ export async function reconcileCaConditions(principal) {
   return { issues, issueCount: issues.length };
 }
 
+export async function listUnresolvedEcaConditions(principal) {
+  assertAdmin(principal);
+  const filter = { departmentId: principal.departmentId, status: 'OPEN' };
+  const [rows, total] = await Promise.all([
+    IncompleteCa.find(filter).sort({ detectedAt: -1, createdAt: -1 }).limit(100).lean(),
+    IncompleteCa.countDocuments(filter),
+  ]);
+  return {
+    total,
+    items: rows.map((row) => ({
+      id: String(row._id),
+      registrationNumber: row.registrationNumber,
+      subjectCode: row.subjectCode,
+      academicYearId: row.academicYearId ? String(row.academicYearId) : '',
+      semesterId: row.semesterId ? String(row.semesterId) : '',
+      status: row.status,
+      detectedAt: row.detectedAt || null,
+    })),
+  };
+}
+
 export async function backfillMissingCaConditions(principal) {
   assertAdmin(principal);
   const results = await AcademicResult.find({ departmentId: principal.departmentId, isEca: true });

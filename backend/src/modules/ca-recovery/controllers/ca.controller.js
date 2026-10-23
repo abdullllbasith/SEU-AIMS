@@ -51,6 +51,9 @@ export function createCaController() {
     saveWindow: asyncHandler(async (req, res) => {
       sendSuccess(res, await windowService.createOrUpdateWindow(req.principal, req.body || {}, deps(req)), { statusCode: 201 });
     }),
+    deleteWindow: asyncHandler(async (req, res) => {
+      sendSuccess(res, await windowService.deleteWindow(req.principal, req.params.windowId));
+    }),
     adminList: asyncHandler(async (req, res) => {
       sendSuccess(res, await applicationService.adminListApplications(req.principal, req.query));
     }),
@@ -68,6 +71,9 @@ export function createCaController() {
     }),
     reconciliation: asyncHandler(async (req, res) => {
       sendSuccess(res, await reconciliationService.reconcileCaConditions(req.principal));
+    }),
+    unresolvedConditions: asyncHandler(async (req, res) => {
+      sendSuccess(res, await reconciliationService.listUnresolvedEcaConditions(req.principal));
     }),
     backfill: asyncHandler(async (req, res) => {
       sendSuccess(res, await reconciliationService.backfillMissingCaConditions(req.principal));

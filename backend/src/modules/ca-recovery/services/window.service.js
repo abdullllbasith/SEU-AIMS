@@ -1,4 +1,5 @@
 import { CaApplicationWindow } from '../models/ca-application-window.model.js';
+import { CaApplication } from '../models/ca-application.model.js';
 import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { findStudentContextByUserId, Semester } from '../../academic-foundation/index.js';
 import { ROLES } from '../../../shared/constants/roles.js';
@@ -91,6 +92,37 @@ export async function createOrUpdateWindow(principal, body, { infrastructure } =
     }
     throw error;
   }
+}
+
+export async function deleteWindow(principal, windowId) {
+  assertAdmin(principal);
+  requireObjectId(windowId, 'application window');
+  const doc = await CaApplicationWindow.findOne({
+    _id: windowId,
+    departmentId: principal.departmentId,
+  });
+  if (!doc) {
+    throw new NotFoundError('Application window not found');
+  }
+  const applicationCount = await CaApplication.countDocuments({
+    departmentId: doc.departmentId,
+    academicYearId: doc.academicYearId,
+    semesterId: doc.semesterId,
+  });
+  if (applicationCount > 0) {
+    throw new ConflictError(
+      'This window already has applications. Change the opening or closing time instead of deleting it.',
+    );
+  }
+  await doc.deleteOne();
+  await recordCaAudit({
+    actorUserId: principal.userId,
+    action: 'ca.window.delete',
+    entityType: 'CaApplicationWindow',
+    entityId: doc._id,
+    metadata: { academicYearId: String(doc.academicYearId), semesterId: String(doc.semesterId) },
+  });
+  return { id: String(doc._id), deleted: true };
 }
 
 export async function listWindows(principal, query = {}) {

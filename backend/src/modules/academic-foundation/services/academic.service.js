@@ -2164,7 +2164,6 @@ export async function reconcileAcademicFoundation(principal) {
   const issues = [];
   const contexts = await StudentAcademicContext.find({ departmentId })
     .select('userId currentAcademicYearId currentSemesterId')
-    .limit(200)
     .lean();
   const contextUserIds = contexts.map((row) => row.userId);
   const studentsWithoutContext = await User.find({
@@ -2173,7 +2172,6 @@ export async function reconcileAcademicFoundation(principal) {
     _id: { $nin: contextUserIds },
   })
     .select('_id')
-    .limit(200)
     .lean();
   for (const student of studentsWithoutContext) {
     issues.push({
@@ -2201,7 +2199,6 @@ export async function reconcileAcademicFoundation(principal) {
   }
   const assignments = await LecturerAssignment.find({ departmentId, isActive: true })
     .select('lecturerUserId')
-    .limit(200)
     .lean();
   const lecturers = await User.find({ _id: { $in: assignments.map((row) => row.lecturerUserId) } })
     .select('accountStatus lecturerStatus')
@@ -2220,7 +2217,6 @@ export async function reconcileAcademicFoundation(principal) {
   }
   const offerings = await SubjectOffering.find({ departmentId })
     .select('academicYearId semesterId')
-    .limit(200)
     .lean();
   const semesterIds = [
     ...contexts.map((row) => row.currentSemesterId),
