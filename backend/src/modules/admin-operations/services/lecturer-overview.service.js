@@ -2,7 +2,7 @@ import { User } from '../../authentication/index.js';
 import { LecturerAssignment, SubjectOffering, Subject } from '../../academic-foundation/index.js';
 import { ROLES } from '../../../shared/constants/roles.js';
 import { NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
-import { departmentObjectId, parseObjectId, parsePage, prefixRegex, sanitizeSearch } from './scope.js';
+import { containsRegex, departmentObjectId, parseObjectId, parsePage, sanitizeSearch } from './scope.js';
 
 export async function listLecturers(principal, query = {}) {
   const departmentId = departmentObjectId(principal);
@@ -10,7 +10,7 @@ export async function listLecturers(principal, query = {}) {
   const q = sanitizeSearch(query.q);
   const filter = { departmentId, role: ROLES.LECTURER };
   if (q) {
-    filter.displayName = prefixRegex(q);
+    filter.displayName = containsRegex(q);
   }
   if (query.accountStatus) {
     const allowed = ['PENDING', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED'];

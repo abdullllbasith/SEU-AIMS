@@ -41,33 +41,36 @@ export function AdminPeoplePage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError('');
-    const params = { q: query, page, pageSize: 20 };
-    const load = tab === 'students' ? adminApi.students(params) : adminApi.lecturers(params);
-    load
-      .then((response) => {
-        if (cancelled) {
-          return;
-        }
-        if (tab === 'students') {
-          setStudents(response.data);
-        } else {
-          setLecturers(response.data);
-        }
-      })
-      .catch((caught) => {
-        if (!cancelled) {
-          setError(caught.message || 'Unable to load directory');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
+    const handle = setTimeout(() => {
+      setLoading(true);
+      setError('');
+      const params = { q: query, page, pageSize: 20 };
+      const load = tab === 'students' ? adminApi.students(params) : adminApi.lecturers(params);
+      load
+        .then((response) => {
+          if (cancelled) {
+            return;
+          }
+          if (tab === 'students') {
+            setStudents(response.data);
+          } else {
+            setLecturers(response.data);
+          }
+        })
+        .catch((caught) => {
+          if (!cancelled) {
+            setError(caught.message || 'Unable to load directory');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        });
+    }, 200);
     return () => {
       cancelled = true;
+      clearTimeout(handle);
     };
   }, [tab, query, page]);
 
@@ -79,7 +82,7 @@ export function AdminPeoplePage() {
     <section className="record-page">
       <PageHeader
         title="People"
-        purpose="Prefix search only. Pattern characters are rejected. Phone numbers are omitted from this directory."
+        purpose="Results update as you type a name or registration number. Pattern characters are rejected. Phone numbers are omitted from this directory."
       />
 
       <nav className="tab-nav" aria-label="People directory">
@@ -106,7 +109,7 @@ export function AdminPeoplePage() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             maxLength={64}
-            placeholder={tab === 'students' ? 'Registration or display name' : 'Display name'}
+            placeholder={tab === 'students' ? 'Name or registration number' : 'Display name'}
             autoComplete="off"
           />
         </label>

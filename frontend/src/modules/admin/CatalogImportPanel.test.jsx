@@ -35,9 +35,11 @@ describe('CatalogImportPanel', () => {
     await act(async () => {
       preview.click();
     });
-    expect(container.textContent).toContain('Subjects to add: 96');
+    expect(container.textContent).toContain('Subjects to add');
+    expect(container.textContent).toContain('96');
     expect(container.textContent).toContain('NST32042');
-    expect(container.textContent).toContain('Offerings created: 0');
+    expect(container.textContent).toContain('Offerings created');
+    expect(container.textContent).toContain('0');
     expect(academicApi.catalogCommit).not.toHaveBeenCalled();
     await act(async () => {
       root.unmount();

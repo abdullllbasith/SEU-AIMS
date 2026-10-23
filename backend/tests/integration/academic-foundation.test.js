@@ -121,6 +121,15 @@ async function createPeriod(session, yearSequence, yearName, semesterSequence, s
   return { year: year.body.data, semester: semester.body.data };
 }
 
+async function verifyBatchAt(session, batchId, yearId, semesterId) {
+  const response = await session.agent
+    .post(`/api/academic/batches/${batchId}/academic-context`)
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ currentAcademicYearId: yearId, currentSemesterId: semesterId });
+  assert.equal(response.status, 200, JSON.stringify(response.body));
+  return response.body.data;
+}
+
 dbTest('students and lecturers cannot use academic admin endpoints', async () => {
   const { department } = await bootstrapDepartment();
   await createUser({
@@ -157,8 +166,9 @@ dbTest('admin can create structure, offerings reject duplicates, and subject cod
     .post('/api/academic/batches')
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22', name: '22 batch' });
-  assert.equal(batch.body.data.currentAcademicYearId, period.year.id);
-  assert.equal(batch.body.data.currentSemesterId, period.semester.id);
+  assert.equal(batch.body.data.currentAcademicYearId, null);
+  assert.equal(batch.body.data.currentSemesterId, null);
+  assert.equal(batch.body.data.academicContextVerifiedAt, null);
   const subject = await session.agent
     .post('/api/academic/subjects')
     .set('X-CSRF-Token', session.csrfToken)
@@ -421,13 +431,16 @@ dbTest('academic reconciliation reports missing membership and stale assignment 
   assert.equal(stillAssigned.isActive, true);
 });
 
-dbTest('batch context starts at year 1 semester 1 and existing batches are assigned explicitly', async () => {
+dbTest('a new batch has no academic period until one is assigned explicitly', async () => {
   const session = await bootstrapDepartment();
   const missing = await session.agent
     .post('/api/academic/batches')
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22', name: '22 batch' });
-  assert.equal(missing.status, 400);
+  assert.equal(missing.status, 201);
+  assert.equal(missing.body.data.currentAcademicYearId, null);
+  assert.equal(missing.body.data.currentSemesterId, null);
+  assert.equal(missing.body.data.academicContextVerifiedAt, null);
 
   const year2 = await createPeriod(session, 2, 'Year 2', 1, 'Year 2 Semester 1');
   const year1 = await createPeriod(session, 1, 'Year 1', 1, 'Year 1 Semester 1');
@@ -436,8 +449,8 @@ dbTest('batch context starts at year 1 semester 1 and existing batches are assig
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
   assert.equal(created.status, 201);
-  assert.equal(created.body.data.currentAcademicYearId, year1.year.id);
-  assert.equal(created.body.data.currentSemesterId, year1.semester.id);
+  assert.equal(created.body.data.currentAcademicYearId, null);
+  assert.equal(created.body.data.currentSemesterId, null);
 
   const forced = await session.agent
     .post('/api/academic/batches')
@@ -555,6 +568,61 @@ dbTest('concurrent batch context assignment keeps a single winner', async () => 
   const audits = await AuditEvent.countDocuments({
     action: 'academic.batch.assign-context',
     entityId: String(legacy._id),
+  });
+  assert.equal(audits, 1);
+});
+
+dbTest('editing a batch period changes only the batch', async () => {
+  const session = await bootstrapDepartment('period-edit@example.test');
+  const year1 = await createPeriod(session, 1, 'Year 1', 1, 'Semester 1');
+  const year2 = await createPeriod(session, 2, 'Year 2', 1, 'Semester 1');
+  const created = await session.agent
+    .post('/api/academic/batches')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ code: '24ICT', name: '24 ICT' });
+  assert.equal(created.status, 201);
+  const batchId = created.body.data.id;
+  const student = await createUser({
+    role: ROLES.STUDENT,
+    email: 'period-student@example.test',
+    departmentId: session.department.id,
+  });
+  const context = await session.agent
+    .post('/api/academic/students')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({
+      userId: String(student._id),
+      registrationNumber: 'SEU/IS/24/ICT/001',
+      batchId,
+      currentAcademicYearId: year1.year.id,
+      currentSemesterId: year1.semester.id,
+    });
+  assert.equal(context.status, 201);
+  const historyBefore = await StudentAcademicHistory.countDocuments({ userId: student._id });
+
+  const tooSoon = await session.agent
+    .patch(`/api/academic/batches/${batchId}/academic-context`)
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ currentAcademicYearId: year2.year.id, currentSemesterId: year2.semester.id });
+  assert.equal(tooSoon.status, 409);
+
+  await verifyBatchAt(session, batchId, year1.year.id, year1.semester.id);
+  const revised = await session.agent
+    .patch(`/api/academic/batches/${batchId}/academic-context`)
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ currentAcademicYearId: year2.year.id, currentSemesterId: year2.semester.id });
+  assert.equal(revised.status, 200);
+  assert.equal(revised.body.data.currentAcademicYearId, year2.year.id);
+  assert.equal(revised.body.data.currentSemesterId, year2.semester.id);
+  assert.ok(revised.body.data.academicContextVerifiedAt);
+
+  const storedStudent = await StudentAcademicContext.findById(context.body.data.id);
+  assert.equal(String(storedStudent.currentAcademicYearId), year1.year.id);
+  assert.equal(String(storedStudent.currentSemesterId), year1.semester.id);
+  assert.equal(await StudentAcademicHistory.countDocuments({ userId: student._id }), historyBefore);
+  const audits = await AuditEvent.countDocuments({
+    action: 'academic.batch.revise-context',
+    entityId: String(batchId),
   });
   assert.equal(audits, 1);
 });
@@ -774,6 +842,7 @@ dbTest('offering generation uses the verified current period and does not rewrit
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
   assert.equal(batch.status, 201);
+  await verifyBatchAt(session, batch.body.data.id, year1.year.id, year1.semester.id);
 
   const archivedBatch = await session.agent
     .post('/api/academic/batches')
@@ -911,6 +980,115 @@ dbTest('offering generation uses the verified current period and does not rewrit
   );
 });
 
+dbTest('period assign offers the selected curriculum and leaves an extra subject alone', async () => {
+  const session = await bootstrapDepartment('offerings-admin@example.test');
+  const year1 = await createPeriod(session, 1, 'Year 1', 1, 'Semester 1');
+  const year2 = await createPeriod(session, 2, 'Year 2', 1, 'Semester 1');
+  const year3 = await createPeriod(session, 3, 'Year 3', 1, 'Semester 1');
+  const first = await createSubject(session, 'CIS11012', 'Essentials');
+  const second = await createSubject(session, 'CIS11022', 'Database');
+  const later = await createSubject(session, 'CIS21012', 'Later');
+  const extra = await createSubject(session, 'CIS11099', 'Extra');
+  const software = await createSubject(session, 'SWT31012', 'Software');
+  const network = await createSubject(session, 'NST31011', 'Network');
+  const batch = await session.agent
+    .post('/api/academic/batches')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ code: '23ICT', name: '23 ICT' });
+  assert.equal(batch.status, 201);
+
+  async function map(subjectId, period, specialization) {
+    const response = await session.agent
+      .post('/api/academic/curriculum-mappings')
+      .set('X-CSRF-Token', session.csrfToken)
+      .send({
+        subjectId,
+        academicYearId: period.year.id,
+        semesterId: period.semester.id,
+        ...(specialization ? { specialization } : {}),
+      });
+    assert.equal(response.status, 201, JSON.stringify(response.body));
+  }
+  await map(first.id, year1);
+  await map(second.id, year1);
+  await map(later.id, year2);
+  await map(software.id, year3, 'SWT');
+  await map(network.id, year3, 'NST');
+
+  const assign = (period) =>
+    session.agent
+      .post('/api/academic/subject-offerings/from-curriculum')
+      .set('X-CSRF-Token', session.csrfToken)
+      .send({
+        batchId: batch.body.data.id,
+        academicYearId: period.year.id,
+        semesterId: period.semester.id,
+      });
+
+  const firstAssign = await assign(year1);
+  assert.equal(firstAssign.status, 200, JSON.stringify(firstAssign.body));
+  assert.equal(firstAssign.body.data.created, 2);
+  assert.equal(firstAssign.body.data.alreadyExisted, 0);
+  assert.deepEqual(
+    firstAssign.body.data.createdSubjects.map((item) => item.subjectCode).sort(),
+    ['CIS11012', 'CIS11022'],
+  );
+  assert.equal(await CurriculumMapping.countDocuments({ subjectId: extra.id }), 0);
+
+  const again = await assign(year1);
+  assert.equal(again.body.data.created, 0);
+  assert.equal(again.body.data.alreadyExisted, 2);
+  assert.equal(await SubjectOffering.countDocuments({ batchId: batch.body.data.id }), 2);
+
+  const archived = await SubjectOffering.findOne({ subjectId: first.id, batchId: batch.body.data.id });
+  await session.agent
+    .patch(`/api/academic/subject-offerings/${archived._id}`)
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ status: 'ARCHIVED' });
+  const afterArchive = await assign(year1);
+  assert.equal(afterArchive.body.data.created, 0);
+  assert.equal(afterArchive.body.data.alreadyExisted, 2);
+  assert.equal((await SubjectOffering.findById(archived._id)).status, 'ARCHIVED');
+
+  const one = await session.agent
+    .post('/api/academic/subject-offerings')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({
+      subjectId: extra.id,
+      batchId: batch.body.data.id,
+      academicYearId: year1.year.id,
+      semesterId: year1.semester.id,
+    });
+  assert.equal(one.status, 201);
+  assert.equal(await CurriculumMapping.countDocuments({ subjectId: extra.id }), 0);
+  assert.equal(await SubjectOffering.countDocuments({ batchId: batch.body.data.id, subjectId: extra.id }), 1);
+
+  const specialized = await assign(year3);
+  assert.equal(specialized.body.data.created, 0);
+  assert.equal(specialized.body.data.skipped, 2);
+  const student = await createUser({
+    role: ROLES.STUDENT,
+    email: 'swt-student@example.test',
+    departmentId: session.department.id,
+  });
+  const context = await session.agent
+    .post('/api/academic/students')
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({
+      userId: String(student._id),
+      registrationNumber: 'SEU/IS/23/ICT/001',
+      batchId: batch.body.data.id,
+      currentAcademicYearId: year3.year.id,
+      currentSemesterId: year3.semester.id,
+      specialization: 'SWT',
+    });
+  assert.equal(context.status, 201, JSON.stringify(context.body));
+  const withStudent = await assign(year3);
+  assert.equal(withStudent.body.data.created, 1);
+  assert.equal(withStudent.body.data.createdSubjects[0].subjectCode, 'SWT31012');
+  assert.equal(withStudent.body.data.skipped, 1);
+});
+
 async function createSemesterForYear(session, yearId, sequence, name) {
   const semester = await session.agent
     .post('/api/academic/semesters')
@@ -949,6 +1127,7 @@ dbTest('batch progression follows the eight-semester sequence and keeps unrelate
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
   assert.equal(batch.status, 201);
+  await verifyBatchAt(session, batch.body.data.id, years[0].year.id, years[0].semesters[0].id);
   const subject = await createSubject(session, 'ICT1101', 'Programming');
   const mapping = await session.agent
     .post('/api/academic/curriculum-mappings')
@@ -1152,6 +1331,7 @@ dbTest('batch progression rejects unverified, archived, and incomplete periods',
     .post('/api/academic/batches')
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
+  await verifyBatchAt(session, batch.body.data.id, year.body.data.id, semester.id);
   const missingNext = await session.agent
     .post(`/api/academic/batches/${batch.body.data.id}/progression`)
     .set('X-CSRF-Token', session.csrfToken)
@@ -1203,6 +1383,8 @@ dbTest('batch progression rejects unverified, archived, and incomplete periods',
     .set('X-CSRF-Token', sessionInactive.csrfToken)
     .send({ code: '23ICT', name: '23 ICT' });
   assert.equal(batchInactive.status, 201);
+  const firstInactive = await Semester.findOne({ academicYearId: yearInactive.body.data.id, sequence: 1 });
+  await verifyBatchAt(sessionInactive, batchInactive.body.data.id, yearInactive.body.data.id, firstInactive._id);
   const inactiveNext = await sessionInactive.agent
     .post(`/api/academic/batches/${batchInactive.body.data.id}/progression`)
     .set('X-CSRF-Token', sessionInactive.csrfToken)
@@ -1253,6 +1435,8 @@ dbTest('concurrent batch progression advances the batch only once', async () => 
     .post('/api/academic/batches')
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
+  const firstSemester = await Semester.findOne({ academicYearId: year.body.data.id, sequence: 1 });
+  await verifyBatchAt(session, batch.body.data.id, year.body.data.id, firstSemester._id);
   const progress = () =>
     session.agent
       .post(`/api/academic/batches/${batch.body.data.id}/progression`)
@@ -1281,6 +1465,7 @@ dbTest('a failed batch progression rolls back the batch and student context', as
     .post('/api/academic/batches')
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
+  await verifyBatchAt(session, batch.body.data.id, year.body.data.id, first.id);
   const student = await createUser({
     role: ROLES.STUDENT,
     email: 'student@example.test',
@@ -1335,6 +1520,7 @@ dbTest('archiving the current period of an active batch is refused', async () =>
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
   assert.equal(batch.status, 201);
+  await verifyBatchAt(session, batch.body.data.id, year.body.data.id, first.id);
 
   // Supported admin archive cannot place an active batch on an inactive current period.
   // Progression still validates assertActive on the current pair; that state is guarded at archive time.
@@ -1369,6 +1555,7 @@ dbTest('batch progression does not advance active students behind the batch peri
     .post('/api/academic/batches')
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
+  await verifyBatchAt(session, batch.body.data.id, year.body.data.id, first.id);
   const student = await createUser({
     role: ROLES.STUDENT,
     email: 'lagging@example.test',
@@ -1446,6 +1633,8 @@ dbTest('a repeated batch progression request cannot apply the same transition tw
     .post('/api/academic/batches')
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
+  const opening = await Semester.findOne({ academicYearId: year.body.data.id, sequence: 1 });
+  await verifyBatchAt(session, batch.body.data.id, year.body.data.id, opening._id);
 
   const first = await session.agent
     .post(`/api/academic/batches/${batch.body.data.id}/progression`)
@@ -1479,6 +1668,7 @@ dbTest('batch progression commits when the post-commit audit write fails', async
     .post('/api/academic/batches')
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
+  await verifyBatchAt(session, batch.body.data.id, year.body.data.id, first.id);
 
   const originalCreate = AuditEvent.create;
   AuditEvent.create = async () => {
@@ -1529,10 +1719,11 @@ dbTest('archiving a period required by an active batch is refused', async () => 
     .set('X-CSRF-Token', session.csrfToken)
     .send({ sequence: 2, name: 'Year 2' });
   const later = await createSemesterForYear(session, year2.body.data.id, 1, 'Year 2 Semester 1');
-  await session.agent
+  const batch = await session.agent
     .post('/api/academic/batches')
     .set('X-CSRF-Token', session.csrfToken)
     .send({ code: '22ICT', name: '22 ICT' });
+  await verifyBatchAt(session, batch.body.data.id, year.body.data.id, first.id);
 
   const currentYear = await session.agent
     .patch(`/api/academic/academic-years/${year.body.data.id}`)
