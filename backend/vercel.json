@@ -1,6 +1,9 @@
 {
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/gateway?__path=/$1" }
+  ],
   "functions": {
-    "api/[...path].js": {
+    "api/gateway.js": {
       "maxDuration": 60
     }
   }

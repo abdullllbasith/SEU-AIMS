@@ -27,7 +27,20 @@ function getApp() {
   return appPromise;
 }
 
+function restoreRequestUrl(req) {
+  const current = new URL(req.url || '/', 'http://internal.local');
+  const original = current.searchParams.get('__path');
+  if (!original) {
+    return;
+  }
+  current.searchParams.delete('__path');
+  const query = current.searchParams.toString();
+  const path = original.startsWith('/') ? original : `/${original}`;
+  req.url = query ? `${path}?${query}` : path;
+}
+
 export default async function handler(req, res) {
+  restoreRequestUrl(req);
   const url = req.url || '/';
   if (!url.startsWith('/api')) {
     const queryIndex = url.indexOf('?');
