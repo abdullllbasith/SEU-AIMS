@@ -9,6 +9,16 @@ const conversationKeyEnvelopeSchema = new mongoose.Schema(
     keyVersion: { type: String, required: true, trim: true },
     wrappedKey: { type: String, required: true },
     nonce: { type: String, required: true },
+    previousWraps: {
+      type: [
+        {
+          wrappedKey: { type: String, required: true },
+          nonce: { type: String, required: true },
+          wrappedByUserId: { type: objectId, ref: 'User', required: true },
+        },
+      ],
+      default: [],
+    },
   },
   persistenceOptions,
 );

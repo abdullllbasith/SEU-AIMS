@@ -58,7 +58,7 @@ export function NoticesPage() {
     <section className="record-page">
       <PageHeader
         title="Notices"
-        purpose="Department announcements in your scope. High-priority items are marked clearly."
+        purpose="Department announcements."
       />
 
       {error ? (

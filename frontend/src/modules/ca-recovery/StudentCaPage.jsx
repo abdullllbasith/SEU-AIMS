@@ -59,7 +59,7 @@ export function StudentCaPage() {
     <section className="record-page">
       <PageHeader
         title="CA recovery"
-        purpose="Apply for incomplete CA recovery when a window is open. Print the PDF, obtain the physical HOD signature, and submit the paper copy — the system does not replace that step."
+        purpose="Apply when a CA recovery window is open."
       />
 
       {error ? (

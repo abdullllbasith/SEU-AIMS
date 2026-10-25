@@ -121,7 +121,7 @@ export function OfferingLearningPage() {
     <section className="record-page learning-offering-page">
       <PageHeader
         title={`${offering.subjectCode} — ${offering.subjectName}`}
-        purpose="Official resources for this subject offering only. This is not the Student Study Room."
+        purpose="Official resources for this offering."
         meta={lecturerNames.length ? `Lecturers: ${lecturerNames.join(', ')}` : null}
         actions={
           <Link className="text-action" to={backTo}>

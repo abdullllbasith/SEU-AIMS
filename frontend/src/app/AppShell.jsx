@@ -146,14 +146,6 @@ export function AppShell({ children }) {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      {menuOpen ? (
-        <button
-          type="button"
-          className="nav-backdrop"
-          aria-label="Close menu"
-          onClick={() => setMenuOpen(false)}
-        />
-      ) : null}
       <aside className="app-rail" id="app-rail">
         <div className="app-rail__brand">
           <BrandMark size="rail" />
@@ -163,7 +155,13 @@ export function AppShell({ children }) {
             aria-pressed={railCollapsed}
             aria-label={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            onClick={() => setRailCollapsed((value) => !value)}
+            onClick={() => {
+              if (window.matchMedia('(max-width: 900px)').matches) {
+                setMenuOpen(false);
+                return;
+              }
+              setRailCollapsed((value) => !value);
+            }}
           >
             <StatIcon name="panel" className="rail-collapse__icon" />
           </button>

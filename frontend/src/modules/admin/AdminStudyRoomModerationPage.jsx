@@ -76,7 +76,7 @@ export function AdminStudyRoomModerationPage() {
     <section className="record-page">
       <PageHeader
         title="Study Room moderation"
-        purpose="Administrative review of student-shared files only. This page does not provide access to encrypted chat."
+        purpose="Review of student-shared files."
       />
 
       {error ? (

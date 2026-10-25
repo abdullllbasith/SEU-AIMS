@@ -63,7 +63,7 @@ export function LecturerCaPage() {
     <section className="record-page">
       <PageHeader
         title="CA scheduling"
-        purpose="Schedule approved CA applications for your offerings, and review imported CA recovery grades before they replace E(CA)."
+        purpose="Schedule and review CA recovery for your offerings."
       />
 
       {error ? (

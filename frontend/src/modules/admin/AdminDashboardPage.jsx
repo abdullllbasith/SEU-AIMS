@@ -407,7 +407,7 @@ export function AdminDashboardPage() {
     <section className="home-dashboard admin-home">
       <PageHeader
         title="Department operations"
-        purpose="Academic status, work that needs attention, and quick access to department workflows."
+        purpose="Department status and open work."
         meta={computedLabel}
         actions={
           <button type="button" onClick={load} disabled={state.loading}>

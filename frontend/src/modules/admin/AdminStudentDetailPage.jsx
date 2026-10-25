@@ -47,7 +47,7 @@ export function AdminStudentDetailPage() {
     <section className="record-page">
       <PageHeader
         title="Student overview"
-        purpose="Open a student to suspend the login or set a new password. Official result edits stay on result import."
+        purpose="Student account and academic record."
         actions={
           <Link className="text-action" to="/admin/people">
             Back to people

@@ -61,7 +61,7 @@ export function StudentResultsPage() {
     <section className="record-page results-page">
       <PageHeader
         title="My results"
-        purpose="Official marks by registration number and subject code. GPA is calculated on the server. E(CA) is excluded from the average."
+        purpose="Official marks for your registration."
       />
 
       {gpaReady ? (

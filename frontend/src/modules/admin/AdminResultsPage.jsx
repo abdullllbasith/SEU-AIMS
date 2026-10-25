@@ -381,7 +381,7 @@ export function AdminResultsPage() {
     <section className="admin-page record-page results-imports">
       <PageHeader
         title="Official result imports"
-        purpose="Upload a file, review matches, then commit only new or updated official rows."
+        purpose="Import and commit official result rows."
       />
       {error ? (
         <p className="form-error" role="alert">

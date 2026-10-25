@@ -79,7 +79,7 @@ export function CalendarPage() {
     <section className="record-page">
       <PageHeader
         title="Academic calendar"
-        purpose="Agenda list of dated events for your role. There is no external calendar sync."
+        purpose="Dated events for your role."
       />
 
       {error ? (

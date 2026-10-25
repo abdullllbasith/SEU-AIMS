@@ -82,7 +82,7 @@ export function StudentAcademicPage() {
     <section className="record-page">
       <PageHeader
         title="My academic context"
-        purpose="Registration number and current progression from the academic foundation. This is identity data, not a login credential."
+        purpose="Registration number and current progression."
       />
 
       <Panel title="Membership record" kicker={context?.registrationNumber || 'Academic identity'}>

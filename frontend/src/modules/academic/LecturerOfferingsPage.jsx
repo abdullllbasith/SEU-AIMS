@@ -99,7 +99,7 @@ export function LecturerOfferingsPage() {
     <section className="record-page">
       <PageHeader
         title="Assigned offerings"
-        purpose="Names come from Academic Foundation. Inactive assignments are listed as read-only and do not grant management."
+        purpose="Subject offerings assigned to you."
       />
 
       <nav className="tab-nav" aria-label="Assignment filter">

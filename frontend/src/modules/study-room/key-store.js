@@ -12,6 +12,60 @@ function openDb() {
   });
 }
 
+function idbGet(db, key) {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function idbPut(db, key, value) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function rawSignature(bytes) {
+  return Array.from(bytes).join(',');
+}
+
+export async function loadRoomKeyMaterial(conversationId) {
+  try {
+    const db = await openDb();
+    const stored = await idbGet(db, `room:${conversationId}`);
+    return Array.isArray(stored?.rawKeys) ? stored.rawKeys.map((item) => new Uint8Array(item)) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function rememberRoomKeyMaterial(conversationId, rawKeys) {
+  const unique = [];
+  const seen = new Set();
+  for (const raw of rawKeys) {
+    const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+    const signature = rawSignature(bytes);
+    if (seen.has(signature)) {
+      continue;
+    }
+    seen.add(signature);
+    unique.push(bytes);
+  }
+  if (!unique.length) {
+    return;
+  }
+  try {
+    const db = await openDb();
+    await idbPut(db, `room:${conversationId}`, { rawKeys: unique });
+  } catch {
+    // The chat still works for this visit if local key storage is unavailable.
+  }
+}
+
 export async function loadOrCreateIdentity(generateIdentityKeyPair, exportPrivateJwk, importPrivateJwk, exportPublicJwk) {
   try {
     const db = await openDb();

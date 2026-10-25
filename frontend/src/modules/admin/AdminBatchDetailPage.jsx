@@ -81,7 +81,7 @@ export function AdminBatchDetailPage() {
     <section className="admin-page record-page batch-page">
       <PageHeader
         title={batch ? `${batch.code} — ${batch.name}` : 'Batch'}
-        purpose="A batch is a student group. It has no year until you choose one for progression."
+        purpose="Student group and progression year."
         actions={<Link to="/admin/academic">Back to academic admin</Link>}
       />
       {error ? (

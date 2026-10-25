@@ -8,24 +8,13 @@ import { AttentionList } from '../../ui/AttentionList.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { DeadlineList } from '../../ui/DeadlineList.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import { NotificationStackList } from '../communication/NotificationStackList.jsx';
 
 function SectionError({ message }) {
   if (!message) {
     return null;
   }
   return <p className="section-error">{message}</p>;
-}
-
-function formatNotificationTitle(rawTitle) {
-  const text = String(rawTitle || '').trim();
-  if (!text) {
-    return 'Notification';
-  }
-  if (/^[A-Z0-9_]+$/.test(text)) {
-    const cleaned = text.toLowerCase().replaceAll('_', ' ');
-    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-  }
-  return text;
 }
 
 export function LecturerDashboardPage() {
@@ -80,7 +69,7 @@ export function LecturerDashboardPage() {
     <section className="home-dashboard">
       <PageHeader
         title="Teaching workspace"
-        purpose="Scoped to your lecturer assignments — not the whole department. Study Room is student-only. Official results are not edited here."
+        purpose="Your assigned offerings and teaching tasks."
         meta={data.generatedAt ? `Updated ${new Date(data.generatedAt).toLocaleString()}` : null}
         actions={
           <button type="button" onClick={() => load(true)} disabled={state.loading}>
@@ -297,37 +286,17 @@ export function LecturerDashboardPage() {
           <SectionError
             message={!sections.notifications?.ok ? sections.notifications?.error : ''}
           />
-          <div className="student-insight">
-            <div className="student-insight__hero student-insight__hero--notify">
-              <div>
-                <p className="student-insight__label">Unread messages</p>
-                <p className="student-insight__value">{data.notifications?.unreadCount ?? '—'}</p>
-                <p className="student-insight__meta">Teaching and department activity</p>
-              </div>
-              <span className="status-pill status-pill--info">Inbox</span>
-            </div>
-          </div>
+          <p className="panel-lead">
+            {(data.notifications?.unreadCount ?? 0) > 0 ? (
+              <>
+                <strong>{data.notifications.unreadCount}</strong> unread
+                <span className="panel-footnote__sep"> · </span>
+              </>
+            ) : null}
+            Teaching and department activity in your inbox
+          </p>
           {(data.notifications?.recent || []).length ? (
-            <ul className="stack-list">
-              {(data.notifications?.recent || []).slice(0, 5).map((item) => {
-                const label = formatNotificationTitle(item.title);
-                return (
-                  <li key={item.id}>
-                    {item.actionPath ? (
-                      <Link to={item.actionPath}>
-                        <span className="stack-item__title">{label}</span>
-                        <span className="attention-item__go">Open →</span>
-                      </Link>
-                    ) : (
-                      <div className="stack-item">
-                        <span className="stack-item__title">{label}</span>
-                        <span className="status-pill status-pill--muted">Alert</span>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            <NotificationStackList items={(data.notifications.recent || []).slice(0, 5)} />
           ) : (
             <p className="deadline-empty">No recent notifications.</p>
           )}

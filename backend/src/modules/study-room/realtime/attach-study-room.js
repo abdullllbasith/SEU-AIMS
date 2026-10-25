@@ -3,8 +3,10 @@ import { registerStudyRoomSocket } from './socket-registry.js';
 import { requireStudentScope } from '../services/access.service.js';
 import {
   loadAuthorizedConversation,
+  publishChatMessage,
   sendMessage,
   socketRoomName,
+  userRoomName,
 } from '../services/chat.service.js';
 import { canAccessStudyRoom } from '../policies/study-room.policies.js';
 import { assertRateLimit } from '../services/rate-limit.service.js';
@@ -47,6 +49,7 @@ export function attachStudyRoomRealtime(io, { config, logger }) {
 
   io.on('connection', (socket) => {
     registerStudyRoomSocket(socket);
+    socket.join(userRoomName(socket.principal.userId));
 
     socket.on('study-room:join', async (payload, ack) => {
       if (!(await requireLiveSocket(socket, ack))) {
@@ -85,7 +88,7 @@ export function attachStudyRoomRealtime(io, { config, logger }) {
       }
       try {
         const result = await sendMessage(socket.principal, payload?.conversationId, payload || {}, { config });
-        io.to(socketRoomName(payload.conversationId)).emit('study-room:message:new', result.message);
+        publishChatMessage(io, result);
         if (typeof ack === 'function') {
           ack({ ok: true, ...result });
         }

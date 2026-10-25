@@ -15,6 +15,11 @@ export const studyRoomApi = {
     apiRequest(`/study-room/conversations/${id}/messages${before ? `?before=${before}` : ''}`),
   sendMessage: (id, body) =>
     apiRequest(`/study-room/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify(body) }),
+  editMessage: (id, messageId, body) =>
+    apiRequest(`/study-room/conversations/${id}/messages/${messageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   markRead: (id, lastReadMessageId) =>
     apiRequest(`/study-room/conversations/${id}/read`, { method: 'PATCH', body: JSON.stringify({ lastReadMessageId }) }),
   folders: () => apiRequest('/study-room/folders'),

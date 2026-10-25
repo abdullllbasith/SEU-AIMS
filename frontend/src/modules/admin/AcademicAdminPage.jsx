@@ -496,7 +496,7 @@ export function AcademicAdminPage() {
     <section className="admin-page record-page">
       <PageHeader
         title="Academic administration"
-        purpose="Manage department structure, the shared curriculum, offerings, lecturers, and student academic membership. Archive keeps history; records are not deleted."
+        purpose="Department structure, curriculum, and membership."
         actions={
           <button type="button" onClick={() => reload()} disabled={loading}>
             {loading ? 'Refreshing…' : 'Refresh'}

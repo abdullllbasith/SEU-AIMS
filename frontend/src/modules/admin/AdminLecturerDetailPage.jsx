@@ -49,7 +49,7 @@ export function AdminLecturerDetailPage() {
     <section className="record-page">
       <PageHeader
         title="Lecturer overview"
-        purpose="Open a lecturer to suspend the login or set a new password. Assignment counts do not apply a workload policy."
+        purpose="Lecturer account and assignments."
         actions={
           <Link className="text-action" to="/admin/people">
             Back to people

@@ -37,7 +37,7 @@ export function StudentSearchPage() {
     <section className="record-page">
       <PageHeader
         title="Search official learning content"
-        purpose="Searches your authorized subject offerings and published official resources only. Study Room files are excluded."
+        purpose="Search your subjects and official resources."
       />
 
       <div className="filter-bar filter-bar--search">

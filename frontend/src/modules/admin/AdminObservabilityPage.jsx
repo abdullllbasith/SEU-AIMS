@@ -72,7 +72,7 @@ export function AdminObservabilityPage() {
     <section className="record-page">
       <PageHeader
         title="Operational summary"
-        purpose="Counts only. This view does not show student names, results, or chat content. Queue failed-job counts may be platform-wide."
+        purpose="Operational counts only."
         actions={
           <Link className="text-action" to="/admin">
             Department dashboard

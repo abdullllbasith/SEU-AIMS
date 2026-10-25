@@ -7,6 +7,7 @@ import { createMalwareScanner } from './providers/malware-scanner.js';
 import { connectMongo } from './database/mongo.js';
 import { registerModels } from './database/register-models.js';
 import { ensureCurriculumMappingIndex } from '../modules/academic-foundation/models/ensure-curriculum-index.js';
+import { ensureConversationIndexes } from '../modules/study-room/models/ensure-conversation-index.js';
 
 export async function createInfrastructure({ config, logger, backendRoot, connect = true }) {
   let redis = createRedisClient({ url: config.redis.url, logger });
@@ -24,6 +25,7 @@ export async function createInfrastructure({ config, logger, backendRoot, connec
     });
     registerModels();
     await ensureCurriculumMappingIndex({ logger });
+    await ensureConversationIndexes({ logger });
     try {
       await connectRedis(redis, { logger });
     } catch (error) {

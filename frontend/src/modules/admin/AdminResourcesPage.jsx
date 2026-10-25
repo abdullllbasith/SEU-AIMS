@@ -44,7 +44,7 @@ export function AdminResourcesPage() {
     <section className="admin-page record-page">
       <PageHeader
         title="Official resource oversight"
-        purpose="Department-wide view of official course files. Unpublish removes student visibility without deleting history."
+        purpose="Official course files across the department."
         actions={
           <Link className="text-action" to="/admin/academic">
             Academic structure

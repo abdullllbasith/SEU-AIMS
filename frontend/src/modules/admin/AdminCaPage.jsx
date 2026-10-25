@@ -193,7 +193,7 @@ export function AdminCaPage() {
     <section className="admin-page record-page">
       <PageHeader
         title="CA recovery administration"
-        purpose="Publish application windows, verify physical copies, and approve or reject applications. A separate review records an imported CA recovery grade."
+        purpose="CA windows, verification, and approvals."
       />
 
       {error ? (

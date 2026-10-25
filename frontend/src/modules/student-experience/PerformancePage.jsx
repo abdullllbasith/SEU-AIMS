@@ -59,7 +59,7 @@ export function PerformancePage() {
     <section className="record-page">
       <PageHeader
         title="My performance"
-        purpose={data.explanation || 'Server-calculated GPA from official results. E(CA) is excluded.'}
+        purpose="GPA from official results."
       />
 
       <div className="stat-row">

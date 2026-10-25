@@ -106,7 +106,7 @@ export function ProfilePage() {
     <section className="record-page">
       <PageHeader
         title="My profile"
-        purpose="Contact details you can edit. Registration number and role are academic identity and cannot be changed here."
+        purpose="Contact details you can edit."
       />
 
       {state.error ? (

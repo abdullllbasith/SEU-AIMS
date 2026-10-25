@@ -37,12 +37,24 @@ export function createStudyRoomController() {
       sendSuccess(res, await chatService.listMessages(req.principal, req.params.conversationId, req.query, deps(req)));
     }),
     sendMessage: asyncHandler(async (req, res) => {
-      sendSuccess(res, await chatService.sendMessage(req.principal, req.params.conversationId, req.body || {}, deps(req)), {
-        statusCode: 201,
-      });
+      const result = await chatService.sendMessage(
+        req.principal,
+        req.params.conversationId,
+        req.body || {},
+        deps(req),
+      );
+      chatService.publishChatMessage(req.app.get('io'), result);
+      sendSuccess(res, result, { statusCode: 201 });
     }),
     markRead: asyncHandler(async (req, res) => {
-      sendSuccess(res, await chatService.markRead(req.principal, req.params.conversationId, req.body || {}));
+      const receipt = await chatService.markRead(req.principal, req.params.conversationId, req.body || {});
+      chatService.publishChatRead(
+        req.app.get('io'),
+        req.params.conversationId,
+        req.principal.userId,
+        receipt,
+      );
+      sendSuccess(res, receipt);
     }),
     deleteMessage: asyncHandler(async (req, res) => {
       sendSuccess(
@@ -51,16 +63,18 @@ export function createStudyRoomController() {
       );
     }),
     editMessage: asyncHandler(async (req, res) => {
-      sendSuccess(
-        res,
-        await chatService.editMessage(
-          req.principal,
-          req.params.conversationId,
-          req.params.messageId,
-          req.body || {},
-          deps(req),
-        ),
+      const message = await chatService.editMessage(
+        req.principal,
+        req.params.conversationId,
+        req.params.messageId,
+        req.body || {},
+        deps(req),
       );
+      const io = req.app.get('io');
+      if (io && message) {
+        io.to(chatService.socketRoomName(req.params.conversationId)).emit('study-room:message:new', message);
+      }
+      sendSuccess(res, message);
     }),
     upsertKey: asyncHandler(async (req, res) => {
       sendSuccess(res, await directoryService.upsertPublicKey(req.principal, req.body || {}, deps(req)));

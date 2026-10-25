@@ -18,7 +18,14 @@ const conversationSchema = new mongoose.Schema(
   persistenceOptions,
 );
 
-conversationSchema.index({ type: 1, batchId: 1 }, { unique: true, sparse: true });
+conversationSchema.index(
+  { type: 1, batchId: 1 },
+  {
+    unique: true,
+    name: 'batch_conversation_unique',
+    partialFilterExpression: { type: 'BATCH' },
+  },
+);
 conversationSchema.index({ participantKey: 1 }, { unique: true, sparse: true });
 conversationSchema.index({ departmentId: 1, type: 1 });
 
