@@ -29,7 +29,7 @@ export async function createInfrastructure({ config, logger, backendRoot, connec
     try {
       await connectRedis(redis, { logger });
     } catch (error) {
-      if (config.isProduction) {
+      if (config.isProduction && process.env.VERCEL !== '1') {
         throw error;
       }
       logger.warn('Redis is not reachable; API will run without the shared queue and socket adapter', {

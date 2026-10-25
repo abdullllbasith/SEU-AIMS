@@ -19,10 +19,11 @@ export function validateProductionConfig(config) {
   if (!config.mongo?.uri) {
     problems.push('MONGODB_URI is required in production');
   }
-  if (!config.redis?.url) {
+  const onVercel = process.env.VERCEL === '1';
+  if (!config.redis?.url && !onVercel) {
     problems.push('REDIS_URL is required in production so rate limits and the job queue can be shared');
   }
-  if (config.storage?.driver === 'local_dev') {
+  if (config.storage?.driver === 'local_dev' && !onVercel) {
     problems.push('FILE_STORAGE_DRIVER=local_dev is not acceptable for production object storage');
   }
   const publicUrl = String(config.api?.publicUrl || '');
