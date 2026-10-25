@@ -2491,6 +2491,29 @@ a.ops-metric:hover {
   }
 }
 
+.batch-facts {
+  margin-top: 1rem;
+}
+
+.batch-facts .stat-card__value {
+  font-size: 1.15rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.batch-detail__grid {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .batch-detail__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .filter-bar {
   display: grid;
   gap: 0.5rem;

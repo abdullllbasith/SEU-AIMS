@@ -82,7 +82,7 @@ export function AdminPeoplePage() {
     <section className="record-page">
       <PageHeader
         title="People"
-        purpose="Open a student or lecturer to suspend the account or set a new password. Phone numbers are omitted from this directory."
+        purpose="Open a student or lecturer to suspend the account or set a new password. Results update as you type. Phone numbers are omitted from this directory."
       />
 
       <nav className="tab-nav" aria-label="People directory">
