@@ -5,6 +5,7 @@ import { ActionButton } from '../../ui/ActionButton.jsx';
 import { OperationNotice } from '../../ui/OperationNotice.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
+import { StatCard } from '../../ui/StatCard.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { PageSkeleton, SkeletonLine } from '../../ui/Skeleton.jsx';
 import { StatIcon } from '../../ui/stat-icons.jsx';
@@ -368,6 +369,13 @@ export function AdminResultsPage() {
   const canCommit = status && !['COMMITTED', 'COMMITTING', 'CANCELLED', 'REJECTED_FILE', 'UPLOADED', 'PROCESSING'].includes(status);
   const canReject = status && !['COMMITTED', 'COMMITTING', 'CANCELLED'].includes(status);
   const canReprocess = status && !['COMMITTED', 'COMMITTING'].includes(status);
+  const committedCount = items.filter((item) => item.processingStatus === 'COMMITTED').length;
+  const totalParsedRows = items.reduce((sum, item) => sum + (item.summary?.totalRows || 0), 0);
+  const totalUnmatchedRows = items.reduce((sum, item) => sum + (item.summary?.unmatchedRows || 0), 0);
+  const totalFlaggedEca = items.reduce((sum, item) => sum + (item.summary?.ecaRows || 0), 0);
+  const matchedRate = totalParsedRows > 0
+    ? Math.max(0, Math.min(100, Math.round(((totalParsedRows - totalUnmatchedRows) / totalParsedRows) * 100)))
+    : 100;
 
   return (
     <section className="admin-page record-page results-imports">
@@ -381,36 +389,52 @@ export function AdminResultsPage() {
         </p>
       ) : null}
 
-      <div className="results-imports__top">
-        <Panel title="Upload file" kicker="PDF or XLSX">
-          <form
-            className="import-upload"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const file = chosenFile || event.target.file.files[0];
-              if (!file) {
-                report('upload', 'failure', 'Choose a PDF or XLSX file before uploading.');
-                return;
-              }
-              const formData = new FormData();
-              formData.append('file', file);
-              setPending('upload');
-              resultsApi
-                .createImport(formData)
-                .then((response) => {
-                  setChosenFile(null);
-                  event.target.reset();
-                  const nextStatus = response.data.processingStatus || 'processed';
-                  report('upload', 'success', `Result file uploaded. Status is ${nextStatus}.`);
-                  return reload().then(() => openPreview(response.data.id));
-                })
-                .catch((caught) => report('upload', 'failure', caught.message || 'Result file could not be uploaded.'))
-                .finally(() => setPending(''));
-            }}
-          >
-            <p className="panel-lead">
+      <div className="stat-row">
+        <StatCard label="Import files" value={items.length} icon="imports" />
+        <StatCard label="Committed sheets" value={committedCount} icon="academic" />
+        <StatCard label="Rows parsed" value={totalParsedRows} icon="subjects" />
+        <StatCard label="E(CA) rows in files" value={totalFlaggedEca} icon="eca" tone="watch" />
+      </div>
+
+      <Panel title="Upload file" kicker="PDF or XLSX">
+        <form
+          className="import-upload import-upload--wide"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const file = chosenFile || event.target.file.files[0];
+            if (!file) {
+              report('upload', 'failure', 'Choose a PDF or XLSX file before uploading.');
+              return;
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+            setPending('upload');
+            resultsApi
+              .createImport(formData)
+              .then((response) => {
+                setChosenFile(null);
+                event.target.reset();
+                const nextStatus = response.data.processingStatus || 'processed';
+                report('upload', 'success', `Result file uploaded. Status is ${nextStatus}.`);
+                return reload().then(() => openPreview(response.data.id));
+              })
+              .catch((caught) => report('upload', 'failure', caught.message || 'Result file could not be uploaded.'))
+              .finally(() => setPending(''));
+          }}
+        >
+          <div className="import-upload__info">
+            <p className="panel-lead panel-lead--tight">
               Download the template, fill the Results and Repeaters sheets, then upload the file.
             </p>
+            <div className="import-pipeline-meter">
+              <div className="import-pipeline-meter__head">
+                <span>Matched student rows across imports</span>
+                <strong>{matchedRate}% matched</strong>
+              </div>
+              <div className="import-pipeline-meter__track" aria-hidden="true">
+                <span className="import-pipeline-meter__fill" style={{ width: `${matchedRate}%` }} />
+              </div>
+            </div>
             <div className="import-upload__actions">
               <ActionButton
                 busy={pending === 'template'}
@@ -429,28 +453,6 @@ export function AdminResultsPage() {
               >
                 Download XLSX template
               </ActionButton>
-            </div>
-            <label className="import-upload__drop">
-              <StatIcon name="imports" className="import-upload__icon" />
-              <span className="import-upload__copy">
-                <span className="import-upload__title">
-                  {chosenFile ? chosenFile.name : 'Choose PDF or XLSX'}
-                </span>
-                <span className="import-upload__meta">
-                  {chosenFile
-                    ? `${Math.max(1, Math.round(chosenFile.size / 1024))} KB selected`
-                    : 'Browse from your computer'}
-                </span>
-              </span>
-              <input
-                className="import-upload__input"
-                type="file"
-                name="file"
-                accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                onChange={(event) => setChosenFile(event.target.files?.[0] || null)}
-              />
-            </label>
-            <div className="import-upload__actions">
               <ActionButton
                 type="submit"
                 className={pending === 'upload' || queueBusy ? 'is-busy' : undefined}
@@ -472,62 +474,104 @@ export function AdminResultsPage() {
               ) : null}
             </div>
             <OperationNotice notice={notices.upload} />
-          </form>
-        </Panel>
+          </div>
+          <label className="import-upload__drop">
+            <StatIcon name="imports" className="import-upload__icon" />
+            <span className="import-upload__copy">
+              <span className="import-upload__title">
+                {chosenFile ? chosenFile.name : 'Choose PDF or XLSX'}
+              </span>
+              <span className="import-upload__meta">
+                {chosenFile
+                  ? `${Math.max(1, Math.round(chosenFile.size / 1024))} KB selected`
+                  : 'Browse or drop file from your computer'}
+              </span>
+            </span>
+            <input
+              className="import-upload__input"
+              type="file"
+              name="file"
+              accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(event) => setChosenFile(event.target.files?.[0] || null)}
+            />
+          </label>
+        </form>
+      </Panel>
 
-        <Panel title="Import history" kicker={`${items.length} file${items.length === 1 ? '' : 's'}`}>
-          {items.length === 0 ? (
-            <EmptyState>No imports yet. Upload a result file to start the review pipeline.</EmptyState>
-          ) : (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Status</th>
-                    <th>Batch and semester</th>
-                    <th>Type</th>
-                    <th>Rows</th>
-                    <th>Unmatched</th>
-                    <th>E(CA)</th>
-                    <th></th>
+      <Panel title="Import history" kicker={`${items.length} file${items.length === 1 ? '' : 's'}`}>
+        {items.length === 0 ? (
+          <EmptyState>No imports yet. Upload a result file to start the review pipeline.</EmptyState>
+        ) : (
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Batch and semester</th>
+                  <th>Type</th>
+                  <th>Rows</th>
+                  <th>Unmatched</th>
+                  <th>E(CA)</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} className={selectedId === item.id ? 'is-selected' : undefined}>
+                    <td className="keep">
+                      <span className={importStatusClass(item.processingStatus)}>{formatImportStatus(item.processingStatus)}</span>
+                    </td>
+                    <td>
+                      {(() => {
+                        const text = formatResultPeriods(item.resultPeriods);
+                        if (text === '—') {
+                          return <span className="review-sheet__quiet">—</span>;
+                        }
+                        const parts = text.split('; ').filter(Boolean);
+                        const first = parts[0];
+                        const extra = parts.length - 1;
+                        return (
+                          <div className="period-chip-list" title={text}>
+                            <span className="period-chip">{first}</span>
+                            {extra > 0 ? (
+                              <span className="period-chip period-chip--more">
+                                +{extra} more
+                              </span>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="keep">
+                      <span className="status-pill status-pill--muted">{item.sourceType}</span>
+                    </td>
+                    <td className="keep">{item.summary?.totalRows ?? 0}</td>
+                    <td className="keep">{item.summary?.unmatchedRows ?? 0}</td>
+                    <td className="keep">{item.summary?.ecaRows ?? 0}</td>
+                    <td className="keep">
+                      <ActionButton
+                        busy={pending === `review:${item.id}`}
+                        busyLabel="Opening…"
+                        disabled={busy && pending !== `review:${item.id}`}
+                        onClick={() => {
+                          setPending(`review:${item.id}`);
+                          openPreview(item.id)
+                            .catch((caught) =>
+                              report('review', 'failure', caught.message || 'This import could not be opened for review.'),
+                            )
+                            .finally(() => setPending(''));
+                        }}
+                      >
+                        Review
+                      </ActionButton>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item.id} className={selectedId === item.id ? 'is-selected' : undefined}>
-                      <td>
-                        <span className={importStatusClass(item.processingStatus)}>{formatImportStatus(item.processingStatus)}</span>
-                      </td>
-                      <td>{formatResultPeriods(item.resultPeriods)}</td>
-                      <td>{item.sourceType}</td>
-                      <td>{item.summary?.totalRows ?? 0}</td>
-                      <td>{item.summary?.unmatchedRows ?? 0}</td>
-                      <td>{item.summary?.ecaRows ?? 0}</td>
-                      <td>
-                        <ActionButton
-                          busy={pending === `review:${item.id}`}
-                          busyLabel="Opening…"
-                          disabled={busy && pending !== `review:${item.id}`}
-                          onClick={() => {
-                            setPending(`review:${item.id}`);
-                            openPreview(item.id)
-                              .catch((caught) =>
-                                report('review', 'failure', caught.message || 'This import could not be opened for review.'),
-                              )
-                              .finally(() => setPending(''));
-                          }}
-                        >
-                          Review
-                        </ActionButton>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Panel>
-      </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
       {reviewOpening ? (
         <Panel title="Review" kicker="Opening sheet">
           <LoadingPanel label="Opening this result sheet…" />
@@ -745,47 +789,49 @@ export function AdminResultsPage() {
         <OperationNotice notice={notices.search} />
         {pending === 'search' ? <LoadingPanel label="Looking up official records…" /> : null}
         {records ? (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Registration</th>
-                <th>Subject</th>
-                <th>Result</th>
-                <th>Version</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.items.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.registrationNumber}</td>
-                  <td>{row.subjectCode}</td>
-                  <td>{row.resultCode}</td>
-                  <td>{row.version}</td>
-                  <td>
-                    <ActionButton
-                      busy={pending === `history:${row.id}`}
-                      busyLabel="Loading…"
-                      disabled={busy && pending !== `history:${row.id}`}
-                      onClick={() => {
-                        setPending(`history:${row.id}`);
-                        resultsApi
-                          .versions(row.id)
-                          .then((response) => {
-                            setVersions(response.data);
-                            report('search', 'success', 'Result history loaded.');
-                          })
-                          .catch((caught) => report('search', 'failure', caught.message || 'Result history could not be loaded.'))
-                          .finally(() => setPending(''));
-                      }}
-                    >
-                      History
-                    </ActionButton>
-                  </td>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Registration</th>
+                  <th>Subject</th>
+                  <th>Result</th>
+                  <th>Version</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {records.items.map((row) => (
+                  <tr key={row.id}>
+                    <td className="keep">{row.registrationNumber}</td>
+                    <td className="keep">{row.subjectCode}</td>
+                    <td className="keep">{row.resultCode}</td>
+                    <td className="keep">{row.version}</td>
+                    <td className="keep">
+                      <ActionButton
+                        busy={pending === `history:${row.id}`}
+                        busyLabel="Loading…"
+                        disabled={busy && pending !== `history:${row.id}`}
+                        onClick={() => {
+                          setPending(`history:${row.id}`);
+                          resultsApi
+                            .versions(row.id)
+                            .then((response) => {
+                              setVersions(response.data);
+                              report('search', 'success', 'Result history loaded.');
+                            })
+                            .catch((caught) => report('search', 'failure', caught.message || 'Result history could not be loaded.'))
+                            .finally(() => setPending(''));
+                        }}
+                      >
+                        History
+                      </ActionButton>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : null}
         {versions ? (
           <div>
@@ -802,181 +848,182 @@ export function AdminResultsPage() {
           </div>
         ) : null}
       </Panel>
-      <Panel>
-        <h2>GPA calculation checks</h2>
-        <p>Counts only. This does not rank students and does not edit a GPA by hand.</p>
-        <div className="import-upload__actions">
-          <ActionButton
-            busy={pending === 'gpa'}
-            busyLabel="Loading checks…"
-            disabled={busy}
-            onClick={() => {
-              setPending('gpa');
-              gpaApi
-                .quality()
-                .then((response) => {
-                  setGpaQuality(response.data);
-                  report('gpa', 'success', 'GPA checks loaded.');
-                })
-                .catch((caught) => report('gpa', 'failure', caught.message || 'GPA checks could not be loaded.'))
-                .finally(() => setPending(''));
-            }}
-          >
-            Load GPA checks
-          </ActionButton>
-          <ActionButton
-            busy={pending === 'rebuild'}
-            busyLabel="Rebuilding…"
-            disabled={busy}
-            onClick={() => {
-              if (!window.confirm('Rebuild GPA snapshots for students in this department from current official results?')) {
-                return;
-              }
-              setPending('rebuild');
-              gpaApi
-                .rebuild()
-                .then((response) => {
-                  const failed = response.data?.failed || 0;
-                  const calculated = response.data?.calculated || 0;
-                  return gpaApi.quality().then((quality) => {
-                    setGpaQuality(quality.data);
-                    report(
-                      'gpa',
-                      failed ? 'failure' : 'success',
-                      failed
-                        ? `Department GPA rebuild finished with ${failed} student${failed === 1 ? '' : 's'} not recalculated.`
-                        : `Department GPA rebuilt for ${calculated} student${calculated === 1 ? '' : 's'}.`,
-                    );
-                  });
-                })
-                .catch((caught) => report('gpa', 'failure', caught.message || 'Department GPA could not be rebuilt.'))
-                .finally(() => setPending(''));
-            }}
-          >
-            Rebuild department GPA
-          </ActionButton>
-        </div>
-        <OperationNotice notice={notices.gpa} />
-        {pending === 'gpa' || pending === 'rebuild' ? (
-          <LoadingPanel label={pending === 'rebuild' ? 'Rebuilding department GPA…' : 'Loading GPA checks…'} />
-        ) : null}
-        {gpaQuality ? (
-          <div className="result-summary">
-            <dl className="result-summary__stats">
-              <div>
-                <dt>Current</dt>
-                <dd>{gpaQuality.current}</dd>
-              </div>
-              <div>
-                <dt>Unavailable</dt>
-                <dd>{gpaQuality.unavailable}</dd>
-              </div>
-              <div>
-                <dt>Stale</dt>
-                <dd>{gpaQuality.stale}</dd>
-              </div>
-              <div>
-                <dt>Missing snapshot</dt>
-                <dd>{gpaQuality.missingSnapshot}</dd>
-              </div>
-              <div>
-                <dt>Unknown grades</dt>
-                <dd>{gpaQuality.unknownGradeRows}</dd>
-              </div>
-            </dl>
+      <div className="dashboard-grid dashboard-grid--primary">
+        <Panel title="GPA calculation checks" kicker="Quality & snapshots">
+          <p className="panel-lead">Counts only. This does not rank students and does not edit a GPA by hand.</p>
+          <div className="import-upload__actions">
+            <ActionButton
+              busy={pending === 'gpa'}
+              busyLabel="Loading checks…"
+              disabled={busy}
+              onClick={() => {
+                setPending('gpa');
+                gpaApi
+                  .quality()
+                  .then((response) => {
+                    setGpaQuality(response.data);
+                    report('gpa', 'success', 'GPA checks loaded.');
+                  })
+                  .catch((caught) => report('gpa', 'failure', caught.message || 'GPA checks could not be loaded.'))
+                  .finally(() => setPending(''));
+              }}
+            >
+              Load GPA checks
+            </ActionButton>
+            <ActionButton
+              busy={pending === 'rebuild'}
+              busyLabel="Rebuilding…"
+              disabled={busy}
+              onClick={() => {
+                if (!window.confirm('Rebuild GPA snapshots for students in this department from current official results?')) {
+                  return;
+                }
+                setPending('rebuild');
+                gpaApi
+                  .rebuild()
+                  .then((response) => {
+                    const failed = response.data?.failed || 0;
+                    const calculated = response.data?.calculated || 0;
+                    return gpaApi.quality().then((quality) => {
+                      setGpaQuality(quality.data);
+                      report(
+                        'gpa',
+                        failed ? 'failure' : 'success',
+                        failed
+                          ? `Department GPA rebuild finished with ${failed} student${failed === 1 ? '' : 's'} not recalculated.`
+                          : `Department GPA rebuilt for ${calculated} student${calculated === 1 ? '' : 's'}.`,
+                      );
+                    });
+                  })
+                  .catch((caught) => report('gpa', 'failure', caught.message || 'Department GPA could not be rebuilt.'))
+                  .finally(() => setPending(''));
+              }}
+            >
+              Rebuild department GPA
+            </ActionButton>
           </div>
-        ) : null}
-      </Panel>
-      <Panel>
-        <h2>Department result counts</h2>
-        <div className="import-upload__actions">
-          <ActionButton
-            busy={pending === 'counts'}
-            busyLabel="Loading counts…"
-            disabled={busy}
-            onClick={() => {
-              setPending('counts');
-              Promise.all([resultsApi.analytics(), resultsApi.reconciliation()])
-                .then(([counts, reconciliation]) => {
-                  setAnalytics(counts.data);
-                  setIssues(reconciliation.data);
-                  const issueCount = reconciliation.data?.issueCount || 0;
-                  report(
-                    'counts',
-                    'success',
-                    issueCount
-                      ? `Department result counts loaded. ${issueCount} check${issueCount === 1 ? '' : 's'} need attention.`
-                      : 'Department result counts loaded. No checks need attention.',
-                  );
-                })
-                .catch((caught) => report('counts', 'failure', caught.message || 'Department result counts could not be loaded.'))
-                .finally(() => setPending(''));
-            }}
-          >
-            Load counts and checks
-          </ActionButton>
-        </div>
-        <OperationNotice notice={notices.counts} />
-        {pending === 'counts' ? <LoadingPanel label="Loading department result counts…" /> : null}
-        {analytics ? (
-          <div className="result-summary">
-            <dl className="result-summary__stats">
-              <div>
-                <dt>Official rows</dt>
-                <dd>{analytics.officialResultCount}</dd>
-              </div>
-              <div>
-                <dt>E(CA)</dt>
-                <dd>{analytics.ecaCount}</dd>
-              </div>
-              <div>
-                <dt>Revisions</dt>
-                <dd>{analytics.revisionCount}</dd>
-              </div>
-              <div>
-                <dt>Checks</dt>
-                <dd>{issues?.issueCount ?? 0}</dd>
-              </div>
-            </dl>
-            {analytics.gradeDistribution?.length ? (
-              <div className="table-scroll result-summary__grades">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Result</th>
-                      <th>Count</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analytics.gradeDistribution.map((row) => (
-                      <tr key={row.resultCode}>
-                        <td>{row.resultCode}</td>
-                        <td>{row.count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {issues?.issues?.length ? (
-          <ul className="stack-list">
-            {issues.issues.map((issue) => (
-              <li key={`${issue.issue}-${issue.entityId}`}>
-                <div className="stack-item">
-                  <span>
-                    {issue.issue}
-                    {issue.registrationNumber ? ` · ${issue.registrationNumber}` : ''}
-                    {issue.subjectCode ? ` · ${issue.subjectCode}` : ''}
-                  </span>
-                  <span>{issue.recommendedAction}</span>
+          <OperationNotice notice={notices.gpa} />
+          {pending === 'gpa' || pending === 'rebuild' ? (
+            <LoadingPanel label={pending === 'rebuild' ? 'Rebuilding department GPA…' : 'Loading GPA checks…'} />
+          ) : null}
+          {gpaQuality ? (
+            <div className="result-summary">
+              <dl className="result-summary__stats">
+                <div>
+                  <dt>Current</dt>
+                  <dd>{gpaQuality.current}</dd>
                 </div>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </Panel>
+                <div>
+                  <dt>Unavailable</dt>
+                  <dd>{gpaQuality.unavailable}</dd>
+                </div>
+                <div>
+                  <dt>Stale</dt>
+                  <dd>{gpaQuality.stale}</dd>
+                </div>
+                <div>
+                  <dt>Missing snapshot</dt>
+                  <dd>{gpaQuality.missingSnapshot}</dd>
+                </div>
+                <div>
+                  <dt>Unknown grades</dt>
+                  <dd>{gpaQuality.unknownGradeRows}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+        </Panel>
+        <Panel title="Department result counts" kicker="Reconciliation">
+          <p className="panel-lead">Inspect official result row totals, grade distribution, and reconciliation checks.</p>
+          <div className="import-upload__actions">
+            <ActionButton
+              busy={pending === 'counts'}
+              busyLabel="Loading counts…"
+              disabled={busy}
+              onClick={() => {
+                setPending('counts');
+                Promise.all([resultsApi.analytics(), resultsApi.reconciliation()])
+                  .then(([counts, reconciliation]) => {
+                    setAnalytics(counts.data);
+                    setIssues(reconciliation.data);
+                    const issueCount = reconciliation.data?.issueCount || 0;
+                    report(
+                      'counts',
+                      'success',
+                      issueCount
+                        ? `Department result counts loaded. ${issueCount} check${issueCount === 1 ? '' : 's'} need attention.`
+                        : 'Department result counts loaded. No checks need attention.',
+                    );
+                  })
+                  .catch((caught) => report('counts', 'failure', caught.message || 'Department result counts could not be loaded.'))
+                  .finally(() => setPending(''));
+              }}
+            >
+              Load counts and checks
+            </ActionButton>
+          </div>
+          <OperationNotice notice={notices.counts} />
+          {pending === 'counts' ? <LoadingPanel label="Loading department result counts…" /> : null}
+          {analytics ? (
+            <div className="result-summary">
+              <dl className="result-summary__stats">
+                <div>
+                  <dt>Official rows</dt>
+                  <dd>{analytics.officialResultCount}</dd>
+                </div>
+                <div>
+                  <dt>E(CA)</dt>
+                  <dd>{analytics.ecaCount}</dd>
+                </div>
+                <div>
+                  <dt>Revisions</dt>
+                  <dd>{analytics.revisionCount}</dd>
+                </div>
+                <div>
+                  <dt>Checks</dt>
+                  <dd>{issues?.issueCount ?? 0}</dd>
+                </div>
+              </dl>
+              {analytics.gradeDistribution?.length ? (
+                <div className="table-scroll result-summary__grades">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Result</th>
+                        <th>Count</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.gradeDistribution.map((row) => (
+                        <tr key={row.resultCode}>
+                          <td>{row.resultCode}</td>
+                          <td>{row.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {issues?.issues?.length ? (
+            <ul className="stack-list">
+              {issues.issues.map((issue) => (
+                <li key={`${issue.issue}-${issue.entityId}`}>
+                  <div className="stack-item">
+                    <span>
+                      {issue.issue}
+                      {issue.registrationNumber ? ` · ${issue.registrationNumber}` : ''}
+                      {issue.subjectCode ? ` · ${issue.subjectCode}` : ''}
+                    </span>
+                    <span>{issue.recommendedAction}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Panel>
+      </div>
     </section>
   );
 }

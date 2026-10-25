@@ -465,77 +465,213 @@ export function AdminDashboardPage() {
       </div>
 
       <div className="admin-home__grid admin-home__grid--primary">
-        <Panel
-          title="Action center"
-          kicker={attentionCount ? `${attentionCount} needing attention` : 'Clear'}
-        >
-          <p className="panel-lead panel-lead--tight">
-            Live administrative work only. Rows appear when a count is greater than zero.
-          </p>
-          {actionItems.length === 0 ? (
-            <EmptyState to="/admin/academic" action="Academic admin">
-              No open administrative tasks right now.
-            </EmptyState>
-          ) : (
-            <ul className="action-center">
-              {actionItems.map((item) => (
-                <li key={item.id}>
-                  <Link
-                    className={`action-center__item action-center__item--${item.tone}`}
-                    to={item.to}
-                  >
-                    <StatIcon name={item.icon} className="action-center__icon" />
-                    <span className="action-center__copy">
-                      <span className="action-center__title">{item.title}</span>
-                      <span className="action-center__meta">{item.meta}</span>
-                    </span>
-                    <span className="action-center__count">{item.count}</span>
-                    <StatIcon name="chevron" className="action-center__chevron" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
+        <div className="admin-home__stack">
+          <Panel
+            title="Action center"
+            kicker={attentionCount ? `${attentionCount} needing attention` : 'Clear'}
+          >
+            <p className="panel-lead panel-lead--tight">
+              Live administrative work only. Rows appear when a count is greater than zero.
+            </p>
+            {actionItems.length === 0 ? (
+              <EmptyState to="/admin/academic" action="Academic admin">
+                No open administrative tasks right now.
+              </EmptyState>
+            ) : (
+              <ul className="action-center">
+                {actionItems.map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      className={`action-center__item action-center__item--${item.tone}`}
+                      to={item.to}
+                    >
+                      <StatIcon name={item.icon} className="action-center__icon" />
+                      <span className="action-center__copy">
+                        <span className="action-center__title">{item.title}</span>
+                        <span className="action-center__meta">{item.meta}</span>
+                      </span>
+                      <span className="action-center__count">{item.count}</span>
+                      <StatIcon name="chevron" className="action-center__chevron" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel title="Grade & coverage distribution" kicker="Live department analytics">
+            <div className="mini-chart-summary">
+              <div className="mini-chart-pill">
+                <span className="mini-chart-pill__label">Official results</span>
+                <strong className="mini-chart-pill__value">
+                  {extras.analytics?.officialResultCount ?? '—'}
+                </strong>
+              </div>
+              <div className="mini-chart-pill">
+                <span className="mini-chart-pill__label">Subjects cataloged</span>
+                <strong className="mini-chart-pill__value">
+                  {extras.overview?.counts?.subjects ?? '—'}
+                </strong>
+              </div>
+              <div className="mini-chart-pill">
+                <span className="mini-chart-pill__label">Curriculum mappings</span>
+                <strong className="mini-chart-pill__value">
+                  {extras.overview?.counts?.curriculumMappings ?? '—'}
+                </strong>
+              </div>
+            </div>
+
+            {gradeRows.length ? (
+              <div className="ops-vchart" aria-label="Official grade distribution chart">
+                <div className="ops-vchart__bars">
+                  {gradeRows.slice(0, 8).map((row) => {
+                    const max = Math.max(...gradeRows.map((item) => asNumber(item.count)), 1);
+                    const total = Math.max(
+                      gradeRows.reduce((sum, item) => sum + asNumber(item.count), 0),
+                      1,
+                    );
+                    const count = asNumber(row.count);
+                    const heightPct = Math.max(12, Math.round((count / max) * 100));
+                    const sharePct = Math.round((count / total) * 100);
+                    const isEca = String(row.resultCode).includes('E');
+                    return (
+                      <div
+                        key={row.resultCode}
+                        className="ops-vchart__col"
+                        title={`${row.resultCode}: ${count} (${sharePct}%)`}
+                      >
+                        <span className="ops-vchart__count">{count}</span>
+                        <div className="ops-vchart__track">
+                          <span
+                            className={
+                              isEca
+                                ? 'ops-vchart__fill ops-vchart__fill--warn'
+                                : 'ops-vchart__fill'
+                            }
+                            style={{ height: `${heightPct}%` }}
+                          />
+                        </div>
+                        <span className="ops-vchart__code">{row.resultCode}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="deadline-empty">
+                {extras.intelligencePending
+                  ? 'Loading grade distribution chart…'
+                  : 'No official grade distribution recorded yet.'}
+              </p>
+            )}
+          </Panel>
+        </div>
 
         <Panel title="Academic overview" kicker="Current structure">
-          <p className="panel-lead panel-lead--tight">{formatDepartmentLead(department)}</p>
-          <dl className="overview-facts">
-            {department?.code ? (
-              <div>
-                <dt>Department code</dt>
-                <dd>{department.code}</dd>
+          <div className="overview-head">
+            <p className="panel-lead panel-lead--tight">{formatDepartmentLead(department)}</p>
+            <div className="overview-head__badges">
+              {department?.code ? (
+                <span className="overview-dept-badge" title="Department code">
+                  {department.code}
+                </span>
+              ) : null}
+              <span className="overview-summary-pill">
+                {extras.years?.length || 0} Years · {activeSemesterLabels.length || cards.activeSemesters || 0} Semesters
+              </span>
+            </div>
+          </div>
+
+          <div className="overview-section">
+            <div className="overview-section__header">
+              <span className="overview-section__title">Active academic years &amp; semesters</span>
+              <Link className="overview-section__action" to="/admin/academic">
+                Configure →
+              </Link>
+            </div>
+            {activeSemesterLabels.length ? (
+              <div
+                className="overview-year-grid"
+                aria-label={`${activeYearLabel} — ${activeSemesterLabels.join(', ')}`}
+              >
+                {(() => {
+                  const grouped = new Map();
+                  for (const label of activeYearLabel.split(', ').filter(Boolean)) {
+                    if (label !== 'None marked active') {
+                      grouped.set(label, []);
+                    }
+                  }
+                  for (const semLabel of activeSemesterLabels) {
+                    const [yearPart, semPart] = semLabel.split(' · ');
+                    if (semPart) {
+                      if (!grouped.has(yearPart)) {
+                        grouped.set(yearPart, []);
+                      }
+                      grouped.get(yearPart).push(semPart);
+                    } else {
+                      if (!grouped.has('Active')) {
+                        grouped.set('Active', []);
+                      }
+                      grouped.get('Active').push(semLabel);
+                    }
+                  }
+                  return [...grouped.entries()].map(([yearTitle, sems]) => (
+                    <div key={yearTitle} className="overview-year-card">
+                      <div className="overview-year-card__head">
+                        <span className="overview-year-card__title">{yearTitle}</span>
+                        <span className="overview-year-card__status">
+                          <span className="overview-chip__dot" aria-hidden="true" />
+                          Active
+                        </span>
+                      </div>
+                      <div className="overview-year-card__semesters">
+                        {sems.length ? (
+                          sems.map((sem) => (
+                            <span key={`${yearTitle}-${sem}`} className="overview-sem-pill">
+                              <span className="overview-chip__dot" aria-hidden="true" />
+                              {sem}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="overview-empty-inline">No active semesters</span>
+                        )}
+                      </div>
+                    </div>
+                  ));
+                })()}
               </div>
-            ) : null}
-            <div>
-              <dt>Active academic years</dt>
-              <dd>{activeYearLabel}</dd>
-            </div>
-            <div>
-              <dt>Active semesters</dt>
-              <dd>
-                {activeSemesterLabels.length
-                  ? activeSemesterLabels.join(', ')
-                  : `${cards.activeSemesters ?? 0} active`}
-              </dd>
-            </div>
-            <div>
-              <dt>Active subject offerings</dt>
-              <dd>{displayOrDash(cards.activeSubjectOfferings)}</dd>
-            </div>
-            <div>
-              <dt>Active lecturer assignments</dt>
-              <dd>{displayOrDash(extras.overview?.counts?.activeAssignments)}</dd>
-            </div>
-            <div>
-              <dt>Upcoming CA assessments</dt>
-              <dd>{displayOrDash(cards.upcomingCaAssessments)}</dd>
-            </div>
-            <div>
-              <dt>Student academic contexts</dt>
-              <dd>{displayOrDash(extras.overview?.counts?.studentContexts)}</dd>
-            </div>
-          </dl>
+            ) : (
+              <p className="overview-empty-inline">{activeYearLabel}</p>
+            )}
+          </div>
+
+          <div className="overview-stats-grid">
+            <Link className="overview-stat-tile" to="/admin/offerings-health">
+              <span className="overview-stat-tile__label">Active subject offerings</span>
+              <span className="overview-stat-tile__value">
+                {displayOrDash(cards.activeSubjectOfferings)}
+              </span>
+            </Link>
+            <Link className="overview-stat-tile" to="/admin/academic">
+              <span className="overview-stat-tile__label">Active lecturer assignments</span>
+              <span className="overview-stat-tile__value">
+                {displayOrDash(extras.overview?.counts?.activeAssignments)}
+              </span>
+            </Link>
+            <Link className="overview-stat-tile" to="/calendar">
+              <span className="overview-stat-tile__label">Upcoming CA assessments</span>
+              <span className="overview-stat-tile__value">
+                {displayOrDash(cards.upcomingCaAssessments)}
+              </span>
+            </Link>
+            <Link className="overview-stat-tile" to="/admin/people">
+              <span className="overview-stat-tile__label">Student academic contexts</span>
+              <span className="overview-stat-tile__value">
+                {displayOrDash(extras.overview?.counts?.studentContexts)}
+              </span>
+            </Link>
+          </div>
+
           <p className="panel-footnote">
             <Link to="/admin/academic">Manage academic structure</Link>
             <span className="panel-footnote__sep">·</span>

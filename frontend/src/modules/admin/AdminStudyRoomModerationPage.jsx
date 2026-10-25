@@ -3,6 +3,7 @@ import { studyRoomApi } from '../study-room/study-room-api.js';
 import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
+import { StatCard } from '../../ui/StatCard.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
 
@@ -84,30 +85,67 @@ export function AdminStudyRoomModerationPage() {
         </p>
       ) : null}
 
-      <Panel title="Moderation mode" kicker={reviewMode ? 'Admin review' : 'Non-review'}>
-        <p className="panel-lead">
-          Current mode:{' '}
-          <strong>
-            {reviewMode ? 'Admin review required' : 'Non-review (malware scan still required)'}
-          </strong>
-        </p>
-        <div className="panel-actions">
-          <ActionButton
-            busy={pending === 'mode'}
-            busyLabel="Saving…"
-            disabled={busy}
-            onClick={() =>
-              run('mode', () =>
-                studyRoomApi.updateModerationSettings({
-                  moderationMode: reviewMode ? 'NON_REVIEW' : 'ADMIN_REVIEW',
-                }),
-              )
-            }
-          >
-            Switch moderation mode
-          </ActionButton>
-        </div>
-      </Panel>
+      <div className="stat-row">
+        <StatCard
+          label="Moderation mode"
+          value={reviewMode ? 'Admin review' : 'Non-review'}
+          icon="ops"
+        />
+        <StatCard
+          label="Pending student files"
+          value={queue.length}
+          icon="chat"
+          tone="watch"
+        />
+        <StatCard
+          label="Student reports"
+          value={reports.length}
+          icon="attention"
+          tone="alert"
+        />
+      </div>
+
+      <div className="dashboard-grid dashboard-grid--primary">
+        <Panel title="Moderation mode" kicker={reviewMode ? 'Admin review' : 'Non-review'}>
+          <p className="panel-lead">
+            Current mode:{' '}
+            <strong>
+              {reviewMode ? 'Admin review required' : 'Non-review (malware scan still required)'}
+            </strong>
+          </p>
+          <div className="panel-actions">
+            <ActionButton
+              busy={pending === 'mode'}
+              busyLabel="Saving…"
+              disabled={busy}
+              onClick={() =>
+                run('mode', () =>
+                  studyRoomApi.updateModerationSettings({
+                    moderationMode: reviewMode ? 'NON_REVIEW' : 'ADMIN_REVIEW',
+                  }),
+                )
+              }
+            >
+              Switch moderation mode
+            </ActionButton>
+          </div>
+        </Panel>
+
+        <Panel title="Reports" kicker={`${reports.length} total`}>
+          {reports.length === 0 ? (
+            <p className="deadline-empty">No reports submitted by students.</p>
+          ) : (
+            <ul className="stack-list">
+              {reports.map((item) => (
+                <li key={item.id}>
+                  <span className="stack-item__title">{item.category}</span>
+                  <span className="stack-item__meta">{item.status}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
 
       <Panel title="Pending student files" kicker={`${queue.length} waiting`}>
         {queue.length === 0 ? (
@@ -140,21 +178,6 @@ export function AdminStudyRoomModerationPage() {
                     Reject
                   </ActionButton>
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-
-      <Panel title="Reports" kicker={`${reports.length} total`}>
-        {reports.length === 0 ? (
-          <p className="deadline-empty">No reports.</p>
-        ) : (
-          <ul className="stack-list">
-            {reports.map((item) => (
-              <li key={item.id}>
-                <span className="stack-item__title">{item.category}</span>
-                <span className="stack-item__meta">{item.status}</span>
               </li>
             ))}
           </ul>

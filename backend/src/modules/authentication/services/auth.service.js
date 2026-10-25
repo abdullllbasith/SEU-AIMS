@@ -2,7 +2,7 @@ import { createOpaqueToken, hashSecret, signAccessToken } from '../security/toke
 import { hashPassword, verifyPassword } from '../security/passwords.js';
 import { createSession, rotateSession, revokeSessionByRefreshToken, revokeUserSessions } from './session.service.js';
 import { findUserByLoginIdentifier } from './identity-lookup.service.js';
-import { User } from '../models/user.model.js';
+import { ACCOUNT_STATUSES, User } from '../models/user.model.js';
 import { AuthSession } from '../models/auth-session.model.js';
 import { PasswordResetToken } from '../models/password-reset-token.model.js';
 import { UnauthorizedError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
@@ -180,18 +180,34 @@ export async function createUserAsAdmin({ actor, email, password, role, displayN
   return publicUser(user);
 }
 
-export async function setAccountStatus({ actor, userId, accountStatus }) {
-  if (actor.role !== ROLES.DEPARTMENT_ADMINISTRATOR) {
+const MANAGED_ACCOUNT_ROLES = new Set([ROLES.STUDENT, ROLES.LECTURER]);
+
+function assertDepartmentActor(actor) {
+  if (!actor || actor.role !== ROLES.DEPARTMENT_ADMINISTRATOR) {
     throw new ForbiddenError('Forbidden');
   }
   if (!actor.departmentId) {
     throw new ValidationError('Department is not configured for this administrator');
   }
+}
 
-  const user = await User.findById(userId);
+async function loadManagedAccount(actor, userId) {
+  assertDepartmentActor(actor);
+  const user = await User.findById(userId).select('+passwordHash');
   if (!user || !user.departmentId || String(user.departmentId) !== String(actor.departmentId)) {
     throw new NotFoundError('User not found');
   }
+  if (!MANAGED_ACCOUNT_ROLES.has(user.role)) {
+    throw new ValidationError('Only student and lecturer accounts can be changed here');
+  }
+  return user;
+}
+
+export async function setAccountStatus({ actor, userId, accountStatus }) {
+  if (!ACCOUNT_STATUSES.includes(accountStatus)) {
+    throw new ValidationError('Invalid account status');
+  }
+  const user = await loadManagedAccount(actor, userId);
 
   user.accountStatus = accountStatus;
   user.authVersion += 1;
@@ -207,6 +223,22 @@ export async function setAccountStatus({ actor, userId, accountStatus }) {
     metadata: { accountStatus },
   });
   return publicUser(user);
+}
+
+export async function setPasswordAsAdmin({ actor, userId, password, config }) {
+  const user = await loadManagedAccount(actor, userId);
+  user.passwordHash = await hashPassword(password, { minLength: config.auth.passwordMinLength });
+  user.authVersion += 1;
+  await user.save();
+  await revokeUserSessions(user._id);
+  disconnectStudyRoomSockets({ userId: String(user._id) });
+  await recordAudit({
+    actorUserId: actor.userId,
+    action: 'auth.admin-password-set',
+    entityId: user._id,
+    metadata: { role: user.role },
+  });
+  return { passwordUpdated: true };
 }
 
 export function toPublicUser(user, extras) {

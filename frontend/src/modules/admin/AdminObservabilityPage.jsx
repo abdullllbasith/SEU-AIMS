@@ -87,18 +87,19 @@ export function AdminObservabilityPage() {
       ) : null}
 
       <div className="stat-row">
-        <StatCard label="Denied audits" value={summary?.denied ?? '—'} />
-        <StatCard label="Queue failed" value={ops?.queue?.failed ?? '—'} />
-        <StatCard label="Integrity issues" value={ops?.integrity?.issueCount ?? '—'} />
+        <StatCard label="Denied audits" value={summary?.denied ?? '—'} icon="attention" tone="alert" />
+        <StatCard label="Queue failed" value={ops?.queue?.failed ?? '—'} icon="ops" tone="alert" />
+        <StatCard label="Integrity issues" value={ops?.integrity?.issueCount ?? '—'} icon="health" tone="watch" />
         <StatCard
           label="Upcoming events"
           value={calendar?.upcomingPublishedEvents ?? '—'}
+          icon="semesters"
         />
       </div>
 
-      <div className="dashboard-grid dashboard-grid--primary">
+      <div className="ops-console-grid">
         <Panel title="Queue & jobs" kicker={ops?.queue?.adapter || 'adapter'}>
-          <dl className="record-dl">
+          <dl className="record-dl record-dl--inline">
             <div>
               <dt>Adapter</dt>
               <dd>{ops?.queue?.adapter || '—'}</dd>
@@ -125,40 +126,49 @@ export function AdminObservabilityPage() {
             Integrity issues: <strong>{ops?.integrity?.issueCount ?? '—'}</strong>. Diagnostic only;
             this view does not repair records.
           </p>
-          <p className="stack-item__meta">
-            Notification groups: {notify?.byStatusAndChannel?.length ?? '—'}
-            <span className="panel-footnote__sep">·</span>
-            Recent failures: {notify?.recentFailures?.length ?? '—'}
+          <dl className="record-dl record-dl--inline">
+            <div>
+              <dt>Notification groups</dt>
+              <dd>{notify?.byStatusAndChannel?.length ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Recent failures</dt>
+              <dd>{notify?.recentFailures?.length ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Draft notices</dt>
+              <dd>{calendar?.draftNotices ?? '—'}</dd>
+            </div>
+          </dl>
+        </Panel>
+
+        <Panel title="Stored files" kicker="Reconciliation">
+          <p className="panel-lead">
+            Verify object storage metadata and malware scan consistency across department files.
           </p>
-          <p className="stack-item__meta">
-            Draft notices: {calendar?.draftNotices ?? '—'}
-          </p>
+          <div className="panel-actions">
+            <button
+              type="button"
+              onClick={() =>
+                apiRequest('/files/admin/reconciliation')
+                  .then((response) => setFiles(response.data))
+                  .catch((caught) => setError(caught.message || 'Unable to check stored files'))
+              }
+            >
+              Check stored files
+            </button>
+          </div>
+          {files ? (
+            <div className="panel-subsection">
+              <p className="panel-lead">
+                Stored-file issues <strong>{files.issueCount}</strong>. {files.note}
+              </p>
+            </div>
+          ) : (
+            <p className="deadline-empty">Run a check to load stored-file diagnostics.</p>
+          )}
         </Panel>
       </div>
-
-      <Panel title="Stored files" kicker="Reconciliation">
-        <div className="panel-actions">
-          <button
-            type="button"
-            onClick={() =>
-              apiRequest('/files/admin/reconciliation')
-                .then((response) => setFiles(response.data))
-                .catch((caught) => setError(caught.message || 'Unable to check stored files'))
-            }
-          >
-            Check stored files
-          </button>
-        </div>
-        {files ? (
-          <div className="panel-subsection">
-            <p className="panel-lead">
-              Stored-file issues <strong>{files.issueCount}</strong>. {files.note}
-            </p>
-          </div>
-        ) : (
-          <p className="deadline-empty">Run a check to load stored-file diagnostics.</p>
-        )}
-      </Panel>
     </section>
   );
 }

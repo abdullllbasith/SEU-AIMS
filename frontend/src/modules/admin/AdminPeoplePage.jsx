@@ -82,7 +82,7 @@ export function AdminPeoplePage() {
     <section className="record-page">
       <PageHeader
         title="People"
-        purpose="Results update as you type a name or registration number. Pattern characters are rejected. Phone numbers are omitted from this directory."
+        purpose="Open a student or lecturer to suspend the account or set a new password. Phone numbers are omitted from this directory."
       />
 
       <nav className="tab-nav" aria-label="People directory">
@@ -190,6 +190,8 @@ export function AdminPeoplePage() {
                       <span className="offering-card__name">{row.lecturerStatus}</span>
                     </p>
                     <p className="offering-card__meta">
+                      <span className="status-pill">{row.accountStatus}</span>
+                      <span className="panel-footnote__sep">·</span>
                       Active assignments {row.activeAssignmentCount}
                     </p>
                   </Link>

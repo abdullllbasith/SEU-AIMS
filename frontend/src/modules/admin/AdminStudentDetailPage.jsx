@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { adminApi } from './admin-api.js';
+import { AccountActions } from './AccountActions.jsx';
 import { StudentEnrollmentsPanel } from './enrollment-admin.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
@@ -46,7 +47,7 @@ export function AdminStudentDetailPage() {
     <section className="record-page">
       <PageHeader
         title="Student overview"
-        purpose="Read-only composition. Official result edits stay on result import."
+        purpose="Open a student to suspend the login or set a new password. Official result edits stay on result import."
         actions={
           <Link className="text-action" to="/admin/people">
             Back to people
@@ -84,6 +85,10 @@ export function AdminStudentDetailPage() {
                 <dd>{data.registrationNumber}</dd>
               </div>
               <div>
+                <dt>Email</dt>
+                <dd>{data.email}</dd>
+              </div>
+              <div>
                 <dt>Account status</dt>
                 <dd>
                   <span className="status-pill">{data.accountStatus}</span>
@@ -91,6 +96,14 @@ export function AdminStudentDetailPage() {
               </div>
             </dl>
           </Panel>
+
+          <AccountActions
+            key={userId}
+            userId={userId}
+            email={data.email}
+            accountStatus={data.accountStatus}
+            onStatusChange={(accountStatus) => setData((current) => ({ ...current, accountStatus }))}
+          />
 
           <Panel title="Results" kicker={`${(data.results || []).length} row${(data.results || []).length === 1 ? '' : 's'}`}>
             {(data.results || []).length === 0 ? (

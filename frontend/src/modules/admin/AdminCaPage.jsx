@@ -6,6 +6,7 @@ import { ActionButton } from '../../ui/ActionButton.jsx';
 import { OperationNotice } from '../../ui/OperationNotice.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
+import { StatCard } from '../../ui/StatCard.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
 import {
@@ -201,6 +202,32 @@ export function AdminCaPage() {
         </p>
       ) : null}
 
+      <div className="stat-row">
+        <StatCard
+          label="Open E(CA) conditions"
+          value={conditions.length}
+          icon="eca"
+          tone="alert"
+        />
+        <StatCard
+          label="Recovery reviews pending"
+          value={reviews.length}
+          icon="imports"
+          tone="watch"
+        />
+        <StatCard
+          label="Application windows"
+          value={windows.length}
+          icon="semesters"
+        />
+        <StatCard
+          label="Applications in queue"
+          value={items.length}
+          icon="applications"
+          tone="watch"
+        />
+      </div>
+
       <Panel
         id="unresolved-eca"
         title="Unresolved E(CA)"
@@ -237,64 +264,69 @@ export function AdminCaPage() {
         )}
       </Panel>
 
-      <RecoveryResultReviews
-        items={reviews}
-        pending={pending}
-        onDecide={(id, decision) => run(`${decision}:${id}`, () => caApi.decideRecovery(id, decision))}
-      />
+      <div className="dashboard-grid dashboard-grid--primary">
+        <RecoveryResultReviews
+          items={reviews}
+          pending={pending}
+          onDecide={(id, decision) => run(`${decision}:${id}`, () => caApi.decideRecovery(id, decision))}
+        />
 
-      <Panel title="Diagnostics" kicker="Conditions">
-        <div className="stack-item__actions">
-          <ActionButton
-            busy={pending === 'checks'}
-            busyLabel="Checking…"
-            disabled={busy}
-            onClick={() => {
-              setPending('checks');
-              setError('');
-              caApi
-                .reconciliation()
-                .then((response) => setReport(response.data))
-                .catch((caught) => setError(caught.message))
-                .finally(() => setPending(''));
-            }}
-          >
-            Check CA conditions
-          </ActionButton>
-          <ActionButton
-            busy={pending === 'backfill'}
-            busyLabel="Backfilling…"
-            disabled={busy}
-            onClick={() => {
-              if (
-                !window.confirm(
-                  'Create missing incomplete-CA conditions for current E(CA) results? Official grades are not changed.',
-                )
-              ) {
-                return;
-              }
-              setPending('backfill');
-              setError('');
-              caApi
-                .backfill()
-                .then(() => caApi.reconciliation())
-                .then((response) => setReport(response.data))
-                .catch((caught) => setError(caught.message))
-                .finally(() => setPending(''));
-            }}
-          >
-            Backfill missing conditions
-          </ActionButton>
-        </div>
-        {report ? (
-          <div className="panel-subsection">
-            <p className="panel-lead">
-              Checks reported <strong>{report.issueCount}</strong> issue
-              {report.issueCount === 1 ? '' : 's'}.
-            </p>
+        <Panel title="Diagnostics" kicker="Conditions">
+          <p className="panel-lead">
+            Verify that every official E(CA) result has an active recovery condition record, or backfill missing conditions.
+          </p>
+          <div className="stack-item__actions">
+            <ActionButton
+              busy={pending === 'checks'}
+              busyLabel="Checking…"
+              disabled={busy}
+              onClick={() => {
+                setPending('checks');
+                setError('');
+                caApi
+                  .reconciliation()
+                  .then((response) => setReport(response.data))
+                  .catch((caught) => setError(caught.message))
+                  .finally(() => setPending(''));
+              }}
+            >
+              Check CA conditions
+            </ActionButton>
+            <ActionButton
+              busy={pending === 'backfill'}
+              busyLabel="Backfilling…"
+              disabled={busy}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Create missing incomplete-CA conditions for current E(CA) results? Official grades are not changed.',
+                  )
+                ) {
+                  return;
+                }
+                setPending('backfill');
+                setError('');
+                caApi
+                  .backfill()
+                  .then(() => caApi.reconciliation())
+                  .then((response) => setReport(response.data))
+                  .catch((caught) => setError(caught.message))
+                  .finally(() => setPending(''));
+              }}
+            >
+              Backfill missing conditions
+            </ActionButton>
           </div>
-        ) : null}
-      </Panel>
+          {report ? (
+            <div className="panel-subsection">
+              <p className="panel-lead">
+                Checks reported <strong>{report.issueCount}</strong> issue
+                {report.issueCount === 1 ? '' : 's'}.
+              </p>
+            </div>
+          ) : null}
+        </Panel>
+      </div>
 
       <Panel title="Application windows" kicker={editingId ? 'Edit' : 'Publish'}>
         {windows.length === 0 ? (

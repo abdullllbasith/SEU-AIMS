@@ -15,6 +15,16 @@ export const adminApi = {
   dashboard: () => apiRequest('/admin/dashboard'),
   students: (params) => apiRequest(`/admin/students${qs(params)}`),
   student: (userId) => apiRequest(`/admin/students/${userId}`),
+  setAccountStatus: (userId, accountStatus) =>
+    apiRequest(`/auth/users/${userId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ accountStatus }),
+    }),
+  setAccountPassword: (userId, password) =>
+    apiRequest(`/auth/users/${userId}/password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ password }),
+    }),
   lecturers: (params) => apiRequest(`/admin/lecturers${qs(params)}`),
   lecturer: (userId) => apiRequest(`/admin/lecturers/${userId}`),
   offerings: (params) => apiRequest(`/admin/offerings${qs(params)}`),

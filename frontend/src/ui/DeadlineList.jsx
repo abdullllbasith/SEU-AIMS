@@ -3,7 +3,12 @@ import { Link } from 'react-router-dom';
 export function DeadlineList({ title, items, empty = 'None in this window.' }) {
   return (
     <div className="agenda-block">
-      <h3>{title}</h3>
+      <div className="agenda-block__head">
+        <h3>{title}</h3>
+        <span className={items.length ? 'status-pill status-pill--info' : 'status-pill status-pill--muted'}>
+          {items.length ? `${items.length}` : '0'}
+        </span>
+      </div>
       {items.length === 0 ? <p className="deadline-empty">{empty}</p> : null}
       {items.length ? (
         <ul className="stack-list">

@@ -35,6 +35,34 @@ const OVERVIEW_ICONS = {
   activeLecturers: 'lecturers',
 };
 
+const OVERVIEW_LABELS = {
+  batches: 'Batches',
+  academicYears: 'Academic years',
+  semesters: 'Semesters',
+  subjects: 'Subjects',
+  curriculumMappings: 'Curriculum mappings',
+  subjectOfferings: 'Subject offerings',
+  lecturers: 'Lecturers',
+  activeAssignments: 'Active assignments',
+  studentContexts: 'Student contexts',
+  activeBatches: 'Active batches',
+  activeSemesters: 'Active semesters',
+  activeStudents: 'Active students',
+  activeLecturers: 'Active lecturers',
+};
+
+const OVERVIEW_TAB_TARGETS = {
+  batches: 'Batches',
+  academicYears: 'Years',
+  semesters: 'Semesters',
+  subjects: 'Subjects',
+  curriculumMappings: 'Curriculum',
+  subjectOfferings: 'Offerings',
+  lecturers: 'Lecturers',
+  activeAssignments: 'Assignments',
+  studentContexts: 'Students',
+};
+
 const TABS = [
   'Overview',
   'Department',
@@ -502,15 +530,25 @@ export function AcademicAdminPage() {
           {department ? <CatalogImportPanel /> : null}
 
           {countEntries.length ? (
-            <div className="stat-row">
-              {countEntries.slice(0, 9).map(([key, value]) => (
-                <StatCard
-                  key={key}
-                  label={key.replace(/([A-Z])/g, ' $1')}
-                  value={value}
-                  icon={OVERVIEW_ICONS[key] || 'academic'}
-                />
-              ))}
+            <div className="stat-row stat-row--overview">
+              {countEntries.slice(0, 9).map(([key, value]) => {
+                const targetTab = OVERVIEW_TAB_TARGETS[key];
+                return (
+                  <StatCard
+                    key={key}
+                    label={
+                      OVERVIEW_LABELS[key] ||
+                      key
+                        .replace(/([A-Z])/g, ' $1')
+                        .replace(/^./, (char) => char.toUpperCase())
+                    }
+                    value={value}
+                    hint={targetTab ? `Open ${targetTab.toLowerCase()} →` : undefined}
+                    onClick={targetTab ? () => setTab(targetTab) : undefined}
+                    icon={OVERVIEW_ICONS[key] || 'academic'}
+                  />
+                );
+              })}
             </div>
           ) : null}
 
@@ -980,7 +1018,8 @@ export function AcademicAdminPage() {
                         <td>
                           <span className={statusPillClass(row.lecturerStatus)}>{row.lecturerStatus}</span>
                         </td>
-                        <td>
+                        <td className="data-table__actions">
+                          <Link to={`/admin/people/lecturers/${row.id}`}>Account</Link>
                           {row.lecturerStatus !== 'VERIFIED' ? (
                             <button
                               type="button"
@@ -1020,52 +1059,14 @@ export function AcademicAdminPage() {
       {tab === 'Assignments' ? (
         <div className="admin-crud admin-crud--stacked">
           <Panel title="Assign lecturer" kicker="Active offerings">
-            <form
-              className="settings-form"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                const form = new FormData(event.target);
-                await run(() =>
-                  academicApi.assignLecturer({
-                    lecturerUserId: form.get('lecturerUserId'),
-                    subjectOfferingId: form.get('subjectOfferingId'),
-                  }),
-                );
-                event.target.reset();
-                await reload();
-              }}
-            >
-              <Field label="Lecturer">
-                <select name="lecturerUserId" required>
-                  {lecturers.items
-                    .filter((item) => item.lecturerStatus === 'VERIFIED')
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.email}
-                      </option>
-                    ))}
-                </select>
-              </Field>
-              <Field label="Offering">
-                <select name="subjectOfferingId" required>
-                  {offerings.items
-                    .filter((item) => item.status === 'ACTIVE')
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {formatSubjectLabel({
-                          code: item.subjectCode || lookups.subjects.get(String(item.subjectId))?.code,
-                          name: item.subjectName || lookups.subjects.get(String(item.subjectId))?.name,
-                        }) || item.id}
-                        {' · '}
-                        {formatBatchLabel(lookups.batches.get(String(item.batchId))) || 'Batch'}
-                      </option>
-                    ))}
-                </select>
-              </Field>
-              <div className="panel-actions">
-                <button type="submit">Assign lecturer</button>
-              </div>
-            </form>
+            <LecturerAssignForm
+              lecturers={lecturers.items}
+              years={years.items}
+              semesters={semesters.items}
+              lookups={lookups}
+              onAssign={(body) => run(() => academicApi.assignLecturer(body))}
+              onDone={reload}
+            />
           </Panel>
 
           <Panel
@@ -1302,6 +1303,7 @@ export function AcademicAdminPage() {
                           <span className={statusPillClass(row.status)}>{row.status}</span>
                         </td>
                         <td className="data-table__actions">
+                          <Link to={`/admin/people/students/${row.userId}`}>Account</Link>
                           {row.status === 'ACTIVE' ? (
                             <button
                               type="button"
@@ -1498,6 +1500,204 @@ function assignPeriodMessage(data) {
     parts.push(`${otherSkips} left out because the subject is not active.`);
   }
   return parts.join(' ');
+}
+
+function LecturerAssignForm({ lecturers, years, semesters, lookups, onAssign, onDone }) {
+  const [lecturerId, setLecturerId] = useState('');
+  const [yearId, setYearId] = useState('');
+  const [semesterId, setSemesterId] = useState('');
+  const [periodOfferings, setPeriodOfferings] = useState([]);
+  const [loadingOfferings, setLoadingOfferings] = useState(false);
+  const [offeringError, setOfferingError] = useState('');
+  const activeYears = years.filter((item) => item.status === 'ACTIVE');
+  const verifiedLecturers = lecturers.filter((item) => item.lecturerStatus === 'VERIFIED');
+  const semesterOptions = semesters.filter(
+    (item) => item.status === 'ACTIVE' && yearId && item.academicYearId === yearId,
+  );
+
+  useEffect(() => {
+    if (!yearId || !semesterId) {
+      setPeriodOfferings([]);
+      setOfferingError('');
+      setLoadingOfferings(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setPeriodOfferings([]);
+    setLoadingOfferings(true);
+    setOfferingError('');
+    const pageSize = 50;
+    async function loadPeriodOfferings() {
+      const collected = [];
+      let page = 1;
+      let total = 0;
+      do {
+        const response = await academicApi.offerings({
+          status: 'ACTIVE',
+          academicYearId: yearId,
+          semesterId,
+          page,
+          pageSize,
+        });
+        const items = response.data?.items || [];
+        total = response.data?.total ?? items.length;
+        if (!items.length) {
+          break;
+        }
+        collected.push(...items);
+        page += 1;
+      } while (collected.length < total && page < 20);
+      return collected;
+    }
+    loadPeriodOfferings()
+      .then((items) => {
+        if (!cancelled) {
+          setPeriodOfferings(items);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setPeriodOfferings([]);
+          setOfferingError(caught.message || 'Unable to load offerings for this period');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingOfferings(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [yearId, semesterId]);
+
+  const offeringPlaceholder = !yearId
+    ? 'Select a year first'
+    : !semesterId
+      ? 'Select a semester first'
+      : loadingOfferings
+        ? 'Loading offerings…'
+        : periodOfferings.length
+          ? 'Select offering'
+          : 'No offerings for this period';
+
+  return (
+    <form
+      className="settings-form"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.target);
+        const assigned = await onAssign({
+          lecturerUserId: lecturerId,
+          subjectOfferingId: form.get('subjectOfferingId'),
+        });
+        if (!assigned) {
+          return;
+        }
+        event.target.reset();
+        setLecturerId('');
+        setYearId('');
+        setSemesterId('');
+        setPeriodOfferings([]);
+        await onDone();
+      }}
+    >
+      <p className="panel-lead">
+        Choose the year and semester first. The offering list shows only active subjects opened for that period.
+      </p>
+      <Field label="Lecturer">
+        <select
+          name="lecturerUserId"
+          required
+          value={lecturerId}
+          onChange={(event) => setLecturerId(event.target.value)}
+        >
+          <option value="" disabled>
+            Select lecturer
+          </option>
+          {verifiedLecturers.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.email}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Academic year">
+        <select
+          name="academicYearId"
+          required
+          value={yearId}
+          onChange={(event) => {
+            setYearId(event.target.value);
+            setSemesterId('');
+          }}
+        >
+          <option value="" disabled>
+            Select year
+          </option>
+          {activeYears.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatYearLabel(item)}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Semester">
+        <select
+          name="semesterId"
+          required
+          value={semesterId}
+          disabled={!yearId}
+          onChange={(event) => setSemesterId(event.target.value)}
+        >
+          <option value="" disabled>
+            {yearId ? 'Select semester' : 'Select a year first'}
+          </option>
+          {semesterOptions.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatSemesterLabel(item, lookups.years.get(String(item.academicYearId)))}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Offering">
+        <select
+          key={`${yearId}:${semesterId}`}
+          name="subjectOfferingId"
+          required
+          defaultValue=""
+          disabled={!semesterId || loadingOfferings || periodOfferings.length === 0}
+        >
+          <option value="" disabled>
+            {offeringPlaceholder}
+          </option>
+          {periodOfferings.map((item) => (
+            <option key={item.id} value={item.id}>
+              {formatSubjectLabel({
+                code: item.subjectCode || lookups.subjects.get(String(item.subjectId))?.code,
+                name: item.subjectName || lookups.subjects.get(String(item.subjectId))?.name,
+              }) || item.id}
+              {' · '}
+              {formatBatchLabel(lookups.batches.get(String(item.batchId))) || item.batchCode || 'Batch'}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {offeringError ? (
+        <p className="form-error" role="alert">
+          {offeringError}
+        </p>
+      ) : null}
+      <div className="panel-actions">
+        <button
+          type="submit"
+          disabled={!lecturerId || !semesterId || loadingOfferings || periodOfferings.length === 0}
+        >
+          Assign lecturer
+        </button>
+      </div>
+    </form>
+  );
 }
 
 function OfferingAssignForm({ batches, years, semesters, subjects, lookups, onAssignPeriod, onCreateOne, onDone }) {

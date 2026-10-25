@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { studyRoomApi } from './study-room-api.js';
 import { connectStudyRoomSocket } from './socket-client.js';
 import { loadOrCreateIdentity } from './key-store.js';
@@ -70,6 +70,7 @@ export function StudyRoomPage() {
   const [privateId, setPrivateId] = useState(null);
   const [pending, setPending] = useState([]);
   const [searchBusy, setSearchBusy] = useState(false);
+  const keyCacheRef = useRef(new Map());
 
   const conversationId = tab === 'private' ? privateId : overview?.commonConversation?.id;
 
@@ -117,33 +118,44 @@ export function StudyRoomPage() {
 
   const resolveConversationKey = useCallback(
     async (id, currentIdentity) => {
-      const detail = await studyRoomApi.getConversation(id);
-      const conversation = detail.data.conversation;
-      if (conversation.type === 'PRIVATE') {
-        const resolvedPeer = (conversation.participantUserIds || []).find(
-          (item) => String(item) !== String(user.id || user.userId),
-        );
-        const keyResponse = await studyRoomApi.getPublicKey(resolvedPeer);
-        if (!keyResponse.data.publicKeyJwk) {
-          throw new Error('The other student has not published a public key yet');
+      const cacheKey = `${id}:${currentIdentity?.keyVersion || '1'}`;
+      if (keyCacheRef.current.has(cacheKey)) {
+        return keyCacheRef.current.get(cacheKey);
+      }
+      const promise = (async () => {
+        const detail = await studyRoomApi.getConversation(id);
+        const conversation = detail.data.conversation;
+        if (conversation.type === 'PRIVATE') {
+          const resolvedPeer = (conversation.participantUserIds || []).find(
+            (item) => String(item) !== String(user.id || user.userId),
+          );
+          const keyResponse = await studyRoomApi.getPublicKey(resolvedPeer);
+          if (!keyResponse.data.publicKeyJwk) {
+            throw new Error('The other student has not published a public key yet');
+          }
+          const peerPublic = await importPublicJwk(keyResponse.data.publicKeyJwk);
+          const participantKey = [...conversation.participantUserIds].sort().join(':');
+          return derivePrivateConversationKey(currentIdentity.privateKey, peerPublic, conversation.id, participantKey);
         }
-        const peerPublic = await importPublicJwk(keyResponse.data.publicKeyJwk);
-        const participantKey = [...conversation.participantUserIds].sort().join(':');
-        return derivePrivateConversationKey(currentIdentity.privateKey, peerPublic, conversation.id, participantKey);
-      }
-      if (detail.data.myEnvelope) {
-        const wrapper = await studyRoomApi.getPublicKey(detail.data.myEnvelope.wrappedByUserId);
-        const wrapperPublic = await importPublicJwk(wrapper.data.publicKeyJwk);
-        return unwrapGroupKey(detail.data.myEnvelope, currentIdentity.privateKey, wrapperPublic);
-      }
-      const groupKey = await generateGroupKey();
-      const raw = await exportRawKey(groupKey);
-      const selfWrap = await wrapGroupKey(raw, currentIdentity.privateKey, currentIdentity.publicKey);
-      await studyRoomApi.putEnvelopes(id, {
-        keyVersion: conversation.currentKeyVersion,
-        envelopes: [{ recipientUserId: user.id || user.userId, ...selfWrap }],
+        if (detail.data.myEnvelope) {
+          const wrapper = await studyRoomApi.getPublicKey(detail.data.myEnvelope.wrappedByUserId);
+          const wrapperPublic = await importPublicJwk(wrapper.data.publicKeyJwk);
+          return unwrapGroupKey(detail.data.myEnvelope, currentIdentity.privateKey, wrapperPublic);
+        }
+        const groupKey = await generateGroupKey();
+        const raw = await exportRawKey(groupKey);
+        const selfWrap = await wrapGroupKey(raw, currentIdentity.privateKey, currentIdentity.publicKey);
+        await studyRoomApi.putEnvelopes(id, {
+          keyVersion: conversation.currentKeyVersion,
+          envelopes: [{ recipientUserId: user.id || user.userId, ...selfWrap }],
+        });
+        return groupKey;
+      })().catch((err) => {
+        keyCacheRef.current.delete(cacheKey);
+        throw err;
       });
-      return groupKey;
+      keyCacheRef.current.set(cacheKey, promise);
+      return promise;
     },
     [user],
   );
@@ -455,44 +467,87 @@ export function StudyRoomPage() {
             {tab === 'private' && !privateId ? (
               <EmptyState>Select a classmate above to open a private encrypted chat.</EmptyState>
             ) : (
-              <>
+              <div className="chat-shell">
+                <div className="chat-shell__banner">
+                  <span className="chat-shell__lock">
+                    End-to-end encrypted · AES-256-GCM
+                  </span>
+                  <span className="chat-shell__count">
+                    {decrypted.length} message{decrypted.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
                 <div className="study-room__thread" aria-live="polite">
                   {decrypted.length === 0 && pending.length === 0 ? (
-                    <p className="deadline-empty">No messages in this conversation yet.</p>
+                    <div className="chat-empty-state">
+                      <p className="deadline-empty">No messages in this conversation yet. Say hello to your batch!</p>
+                    </div>
                   ) : (
                     <ul className="study-room__messages">
-                      {decrypted.map((item) => (
-                        <li key={item.id || item.clientMessageId} className="study-room__message">
-                          <div className="study-room__message-body">
-                            {item.deletedAt ? (
-                              <p className="study-room__message-text is-removed">[removed]</p>
-                            ) : (
-                              <MessagePlain
-                                identity={identity}
-                                conversationId={conversationId}
-                                message={item}
-                                resolveKey={resolveConversationKey}
-                              />
-                            )}
-                          </div>
-                          <span className="study-room__message-meta">
-                            {item.localStatus === 'acknowledged' ? 'Delivered' : item.localStatus}
-                          </span>
-                        </li>
-                      ))}
+                      {decrypted.map((item) => {
+                        const isMine =
+                          Boolean(user?.id || user?.userId) &&
+                          String(item.senderUserId) === String(user?.id || user?.userId);
+                        const timeLabel = item.createdAt
+                          ? new Date(item.createdAt).toLocaleTimeString(undefined, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '';
+                        return (
+                          <li
+                            key={item.id || item.clientMessageId}
+                            className={
+                              isMine
+                                ? 'study-room__message study-room__message--mine'
+                                : 'study-room__message study-room__message--peer'
+                            }
+                          >
+                            {!isMine ? (
+                              <span className="chat-avatar" aria-hidden="true">
+                                {String(item.senderDisplayName || 'S')
+                                  .slice(0, 2)
+                                  .toUpperCase()}
+                              </span>
+                            ) : null}
+                            <div className="study-room__bubble">
+                              <div className="study-room__message-body">
+                                {item.deletedAt ? (
+                                  <p className="study-room__message-text is-removed">[removed]</p>
+                                ) : (
+                                  <MessagePlain
+                                    identity={identity}
+                                    conversationId={conversationId}
+                                    message={item}
+                                    resolveKey={resolveConversationKey}
+                                  />
+                                )}
+                              </div>
+                              <span className="study-room__message-meta">
+                                {isMine ? 'You' : item.senderDisplayName || 'Classmate'}
+                                {timeLabel ? ` · ${timeLabel}` : ''}
+                                {' · '}
+                                {item.localStatus === 'acknowledged' ? 'Delivered' : item.localStatus}
+                              </span>
+                            </div>
+                          </li>
+                        );
+                      })}
                       {pending.map((item) => (
                         <li
                           key={item.clientMessageId}
                           className={
                             item.localStatus === 'failed'
-                              ? 'study-room__message is-failed'
-                              : 'study-room__message is-pending'
+                              ? 'study-room__message study-room__message--mine is-failed'
+                              : 'study-room__message study-room__message--mine is-pending'
                           }
                         >
-                          <div className="study-room__message-body">
-                            <p className="study-room__message-text">{item.preview}</p>
+                          <div className="study-room__bubble">
+                            <div className="study-room__message-body">
+                              <p className="study-room__message-text">{item.preview}</p>
+                            </div>
+                            <span className="study-room__message-meta">{item.localStatus}</span>
                           </div>
-                          <span className="study-room__message-meta">{item.localStatus}</span>
                         </li>
                       ))}
                     </ul>
@@ -500,21 +555,31 @@ export function StudyRoomPage() {
                 </div>
 
                 <form className="study-room__composer" onSubmit={sendDraft}>
-                  <label htmlFor="composer">Message</label>
-                  <textarea
-                    id="composer"
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    rows={3}
-                    placeholder="Write a message — encrypted before send"
-                  />
-                  <div className="panel-actions">
+                  <label htmlFor="composer" className="visually-hidden">
+                    Message
+                  </label>
+                  <div className="study-room__composer-bar">
+                    <textarea
+                      id="composer"
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault();
+                          if (draft.trim() && sendState !== 'sending') {
+                            sendDraft(event);
+                          }
+                        }
+                      }}
+                      rows={1}
+                      placeholder="Write a message — encrypted on your device before send (Enter to send)"
+                    />
                     <button type="submit" disabled={sendState === 'sending' || !draft.trim()}>
                       {sendState === 'sending' ? 'Sending…' : 'Send'}
                     </button>
                   </div>
                 </form>
-              </>
+              </div>
             )}
           </Panel>
         </div>

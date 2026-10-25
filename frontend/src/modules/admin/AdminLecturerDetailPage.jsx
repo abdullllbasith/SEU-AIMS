@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { adminApi } from './admin-api.js';
+import { AccountActions } from './AccountActions.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { StatCard } from '../../ui/StatCard.jsx';
@@ -48,7 +49,7 @@ export function AdminLecturerDetailPage() {
     <section className="record-page">
       <PageHeader
         title="Lecturer overview"
-        purpose="Assignment counts only. No workload policy is applied on this page."
+        purpose="Open a lecturer to suspend the login or set a new password. Assignment counts do not apply a workload policy."
         actions={
           <Link className="text-action" to="/admin/people">
             Back to people
@@ -92,6 +93,10 @@ export function AdminLecturerDetailPage() {
                 </dd>
               </div>
               <div>
+                <dt>Email</dt>
+                <dd>{data.email}</dd>
+              </div>
+              <div>
                 <dt>Account status</dt>
                 <dd>
                   <span className="status-pill">{data.accountStatus}</span>
@@ -99,6 +104,14 @@ export function AdminLecturerDetailPage() {
               </div>
             </dl>
           </Panel>
+
+          <AccountActions
+            key={userId}
+            userId={userId}
+            email={data.email}
+            accountStatus={data.accountStatus}
+            onStatusChange={(accountStatus) => setData((current) => ({ ...current, accountStatus }))}
+          />
 
           <Panel title="Assignments" kicker={`${assignments.length} listed`}>
             {assignments.length === 0 ? (

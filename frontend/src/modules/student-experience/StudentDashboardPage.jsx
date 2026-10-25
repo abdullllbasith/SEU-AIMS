@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { experienceApi, formatGpaDisplay } from './experience-api.js';
+import { GpaTrajectoryPanel } from './GpaTrajectoryPanel.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { StatCard } from '../../ui/StatCard.jsx';
@@ -8,6 +9,18 @@ import { AttentionList } from '../../ui/AttentionList.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { DeadlineList } from '../../ui/DeadlineList.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
+
+function formatNotificationTitle(rawTitle) {
+  const text = String(rawTitle || '').trim();
+  if (!text) {
+    return 'Notification';
+  }
+  if (/^[A-Z0-9_]+$/.test(text)) {
+    const cleaned = text.toLowerCase().replaceAll('_', ' ');
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  return text;
+}
 
 function SectionError({ message }) {
   if (!message) {
@@ -101,6 +114,8 @@ export function StudentDashboardPage() {
         />
       </div>
 
+      <GpaTrajectoryPanel gpa={data.performance} compact />
+
       <div className="home-dashboard__band">
         <Panel
           tone="attention"
@@ -117,22 +132,22 @@ export function StudentDashboardPage() {
       </div>
 
       <div className="dashboard-grid dashboard-grid--primary">
-        <Panel title="Upcoming deadlines and events">
+        <Panel title="Upcoming deadlines and events" kicker="Schedule windows">
           <SectionError message={!sections.calendar?.ok ? sections.calendar?.error : ''} />
           {sections.calendar?.ok ? (
-            <>
+            <div className="agenda-grid">
               <DeadlineList title="Today" items={groups.today} />
               <DeadlineList title="Next few days" items={groups.nextFewDays} />
               <DeadlineList title="This week" items={groups.nextWeek} />
               <DeadlineList title="Later" items={groups.later} />
-            </>
+            </div>
           ) : null}
           <p className="panel-footnote">
             <Link to="/calendar">Open calendar</Link>
           </p>
         </Panel>
 
-        <Panel title="Current subjects">
+        <Panel title="Current subjects" kicker={`${data.currentSubjects?.length ?? 0} enrolled`}>
           {data.currentSubjects?.length ? (
             <ul className="entity-list">
               {data.currentSubjects.map((item) => (
@@ -168,7 +183,7 @@ export function StudentDashboardPage() {
       </div>
 
       <div className="dashboard-grid">
-        <Panel title="Recently published official resources">
+        <Panel title="Recently published official resources" kicker="Course files">
           <SectionError message={!sections.learning?.ok ? sections.learning?.error : ''} />
           {sections.learning?.ok && !data.resources?.latestResources?.length ? (
             <EmptyState to="/learning" action="Browse official resources">
@@ -199,9 +214,26 @@ export function StudentDashboardPage() {
           </p>
         </Panel>
 
-        <Panel title="Performance">
+        <Panel title="Performance" kicker={data.performance?.classification || 'Official GPA'}>
           <SectionError message={!sections.gpa?.ok ? sections.gpa?.error : ''} />
-          <p className="figure-line">{formatGpaDisplay(data.performance)}</p>
+          <div className="student-insight">
+            <div className="student-insight__hero student-insight__hero--gpa">
+              <div>
+                <p className="student-insight__label">Cumulative GPA</p>
+                <p className="student-insight__value">{formatGpaDisplay(data.performance)}</p>
+                <p className="student-insight__meta">
+                  {data.performance?.credits
+                    ? `${data.performance.credits} official credits counted`
+                    : 'Calculated from official results'}
+                </p>
+              </div>
+              {data.performance?.available ? (
+                <span className="status-pill status-pill--ok">
+                  {data.performance?.classification || 'Verified'}
+                </span>
+              ) : null}
+            </div>
+          </div>
           {data.results?.eca?.length ? (
             <p className="stack-item__meta">
               Unresolved E(CA): {data.results.eca.map((item) => item.subjectCode).join(', ')}. See{' '}
@@ -215,7 +247,7 @@ export function StudentDashboardPage() {
           </p>
         </Panel>
 
-        <Panel title="CA recovery">
+        <Panel title="CA recovery" kicker="Incomplete CA status">
           <SectionError message={!sections.ca?.ok ? sections.ca?.error : ''} />
           {data.caRecovery?.window?.lifecycle ? (
             <p className="panel-lead">
@@ -229,13 +261,20 @@ export function StudentDashboardPage() {
             <ul className="stack-list">
               {data.caRecovery.unresolvedConditions.map((item) => (
                 <li key={item.subjectCode}>
-                  <span className="stack-item__title">{item.subjectCode}</span>
-                  <span className="stack-item__meta">Condition {item.status}</span>
+                  <div className="stack-item">
+                    <span className="stack-item__title">{item.subjectCode}</span>
+                    <span className="status-pill status-pill--pending">Condition {item.status}</span>
+                  </div>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="deadline-empty">No open incomplete CA conditions.</p>
+            <div className="student-card-highlight">
+              <p className="deadline-empty" style={{ margin: 0 }}>
+                No open incomplete CA conditions.
+              </p>
+              <span className="status-pill status-pill--ok">Clear</span>
+            </div>
           )}
           {data.caRecovery?.application ? (
             <p className="stack-item__meta">
@@ -248,10 +287,15 @@ export function StudentDashboardPage() {
           </p>
         </Panel>
 
-        <Panel title="Notices">
+        <Panel title="Notices" kicker="Department feed">
           <SectionError message={!sections.notices?.ok ? sections.notices?.error : ''} />
           {sections.notices?.ok && !(data.notices?.length) ? (
-            <p className="deadline-empty">No current notices.</p>
+            <div className="student-card-highlight">
+              <p className="deadline-empty" style={{ margin: 0 }}>
+                No current notices.
+              </p>
+              <span className="status-pill status-pill--muted">0</span>
+            </div>
           ) : null}
           {data.notices?.length ? (
             <ul className="stack-list">
@@ -269,26 +313,40 @@ export function StudentDashboardPage() {
           </p>
         </Panel>
 
-        <Panel title="Notifications">
+        <Panel title="Notifications" kicker="Recent activity">
           <SectionError
             message={!sections.notifications?.ok ? sections.notifications?.error : ''}
           />
-          <p className="figure-line">
-            Unread {data.notifications?.unreadCount ?? 'unavailable'}
-          </p>
+          <div className="student-insight">
+            <div className="student-insight__hero student-insight__hero--notify">
+              <div>
+                <p className="student-insight__label">Unread messages</p>
+                <p className="student-insight__value">{data.notifications?.unreadCount ?? '—'}</p>
+                <p className="student-insight__meta">Activity from modules linked to your account</p>
+              </div>
+              <span className="status-pill status-pill--info">Inbox</span>
+            </div>
+          </div>
           {(data.notifications?.recent || []).length ? (
             <ul className="stack-list">
-              {(data.notifications?.recent || []).map((item) => (
-                <li key={item.id}>
-                  {item.actionPath ? (
-                    <Link to={item.actionPath}>
-                      <span className="stack-item__title">{item.title}</span>
-                    </Link>
-                  ) : (
-                    <span className="stack-item__title">{item.title}</span>
-                  )}
-                </li>
-              ))}
+              {(data.notifications?.recent || []).map((item) => {
+                const label = formatNotificationTitle(item.title);
+                return (
+                  <li key={item.id}>
+                    {item.actionPath ? (
+                      <Link to={item.actionPath}>
+                        <span className="stack-item__title">{label}</span>
+                        <span className="attention-item__go">Open →</span>
+                      </Link>
+                    ) : (
+                      <div className="stack-item">
+                        <span className="stack-item__title">{label}</span>
+                        <span className="status-pill status-pill--muted">Alert</span>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="deadline-empty">No recent notifications.</p>

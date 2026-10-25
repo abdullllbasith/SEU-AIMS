@@ -118,7 +118,7 @@ export function OfferingLearningPage() {
   const lecturerNames = (page.lecturers || []).map((item) => item.displayName).filter(Boolean);
 
   return (
-    <section className="record-page admin-page">
+    <section className="record-page learning-offering-page">
       <PageHeader
         title={`${offering.subjectCode} — ${offering.subjectName}`}
         purpose="Official resources for this subject offering only. This is not the Student Study Room."
@@ -137,85 +137,114 @@ export function OfferingLearningPage() {
       ) : null}
 
       {canManage ? (
-        <Panel title="Organize and publish" kicker="Staff only">
-          <p className="panel-lead">
+        <div className="learning-offering__staff">
+          <p className="panel-lead panel-lead--tight learning-offering__staff-lead">
             Files stay unpublished until security scanning succeeds and you explicitly publish.
           </p>
-          <div className="form-grid form-grid--wide">
-            <form
-              className="inline-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                run('section', () => learningApi.createSection(offeringId, { name: sectionName }));
-              }}
-            >
-              <label>
-                Section name
-                <input
-                  value={sectionName}
-                  onChange={(event) => setSectionName(event.target.value)}
-                  required
-                />
-              </label>
-              <ActionButton type="submit" busy={pending === 'section'} busyLabel="Creating…" disabled={busy}>
-                Create section
-              </ActionButton>
-            </form>
-            <form
-              className="inline-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const data = new FormData();
-                data.append('title', title);
-                data.append('category', category);
-                data.append('sectionId', sectionId);
-                data.append('file', file);
-                run('upload', async () => {
-                  await learningApi.createResource(offeringId, data);
-                  setTitle('');
-                  setFile(null);
-                });
-              }}
-            >
-              <label>
-                Title
-                <input value={title} onChange={(event) => setTitle(event.target.value)} required />
-              </label>
-              <label>
-                Section
-                <select
-                  value={sectionId}
-                  onChange={(event) => setSectionId(event.target.value)}
-                  required
-                >
-                  {page.sections.map((section) => (
-                    <option key={section.id} value={section.id}>
-                      {section.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Category
-                <select value={category} onChange={(event) => setCategory(event.target.value)}>
-                  <option value="LECTURE">Lecture</option>
-                  <option value="TUTORIAL">Tutorial</option>
-                  <option value="PRACTICAL">Practical</option>
-                  <option value="REFERENCE">Reference</option>
-                  <option value="PAST_PAPER">Past paper</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </label>
-              <label>
-                File
-                <input type="file" onChange={(event) => setFile(event.target.files[0])} required />
-              </label>
-              <ActionButton type="submit" busy={pending === 'upload'} busyLabel="Uploading…" disabled={busy || !file || !sectionId}>
-                Upload draft
-              </ActionButton>
-            </form>
+          <div className="learning-offering__staff-grid">
+            <Panel title="Sections" kicker="Organize">
+              <form
+                className="learning-offering-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  run('section', () => learningApi.createSection(offeringId, { name: sectionName }));
+                }}
+              >
+                <label>
+                  Section name
+                  <input
+                    value={sectionName}
+                    onChange={(event) => setSectionName(event.target.value)}
+                    required
+                    maxLength={80}
+                    placeholder="e.g. Lecture Materials"
+                  />
+                </label>
+                <div className="learning-offering-form__actions">
+                  <ActionButton
+                    type="submit"
+                    busy={pending === 'section'}
+                    busyLabel="Creating…"
+                    disabled={busy}
+                  >
+                    Create section
+                  </ActionButton>
+                </div>
+              </form>
+            </Panel>
+
+            <Panel title="Upload resource" kicker="Draft file">
+              <form
+                className="learning-offering-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const data = new FormData();
+                  data.append('title', title);
+                  data.append('category', category);
+                  data.append('sectionId', sectionId);
+                  data.append('file', file);
+                  run('upload', async () => {
+                    await learningApi.createResource(offeringId, data);
+                    setTitle('');
+                    setFile(null);
+                  });
+                }}
+              >
+                <label>
+                  Title
+                  <input
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    required
+                    placeholder="Display name for students"
+                  />
+                </label>
+                <div className="learning-offering-form__row">
+                  <label>
+                    Section
+                    <select
+                      value={sectionId}
+                      onChange={(event) => setSectionId(event.target.value)}
+                      required
+                    >
+                      {page.sections.map((section) => (
+                        <option key={section.id} value={section.id}>
+                          {section.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Category
+                    <select value={category} onChange={(event) => setCategory(event.target.value)}>
+                      <option value="LECTURE">Lecture</option>
+                      <option value="TUTORIAL">Tutorial</option>
+                      <option value="PRACTICAL">Practical</option>
+                      <option value="REFERENCE">Reference</option>
+                      <option value="PAST_PAPER">Past paper</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="learning-offering-form__file">
+                  File
+                  <input type="file" onChange={(event) => setFile(event.target.files[0])} required />
+                </label>
+                <div className="learning-offering-form__actions">
+                  <ActionButton
+                    type="submit"
+                    className="btn--upload"
+                    busy={pending === 'upload'}
+                    busyLabel="Uploading…"
+                    disabled={busy || !file || !sectionId}
+                  >
+                    Upload draft
+                  </ActionButton>
+                </div>
+              </form>
+            </Panel>
           </div>
-        </Panel>
+        </div>
       ) : null}
 
       <Panel title="Materials" kicker={`${resources.length} resource${resources.length === 1 ? '' : 's'}`}>
@@ -232,7 +261,12 @@ export function OfferingLearningPage() {
           }
           return (
             <div key={section.id} className="material-section">
-              <h3>{section.name}</h3>
+              <div className="material-section__head">
+                <h3>{section.name}</h3>
+                <span className="material-section__count">
+                  {sectionResources.length} file{sectionResources.length === 1 ? '' : 's'}
+                </span>
+              </div>
               {sectionResources.length === 0 ? (
                 <p className="deadline-empty">No resources in this section yet.</p>
               ) : (
