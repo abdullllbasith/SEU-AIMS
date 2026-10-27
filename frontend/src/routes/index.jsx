@@ -37,6 +37,20 @@ import { ProfilePage } from '../modules/student-experience/ProfilePage.jsx';
 import { AcademicHistoryPage } from '../modules/student-experience/AcademicHistoryPage.jsx';
 import { PerformancePage } from '../modules/student-experience/PerformancePage.jsx';
 import { ROLES } from '../constants/roles.js';
+import { useAuth } from '../state/AuthProvider.jsx';
+import { LandingPage } from '../modules/landing/LandingPage.jsx';
+
+function HomeRoute() {
+  const { status } = useAuth();
+  if (status === 'unauthenticated') {
+    return <LandingPage />;
+  }
+  return (
+    <ProtectedRoute>
+      <FoundationHome />
+    </ProtectedRoute>
+  );
+}
 
 export function AppRoutes() {
   return (
@@ -44,14 +58,7 @@ export function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <FoundationHome />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/" element={<HomeRoute />} />
       <Route
         path="/search"
         element={
@@ -254,6 +261,14 @@ export function AppRoutes() {
       />
       <Route
         path="/admin/ca"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminCaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/ca/:applicationId"
         element={
           <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
             <AdminCaPage />

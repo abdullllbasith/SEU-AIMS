@@ -297,7 +297,7 @@ test('submit generates PDF and QR without exposing grades; IDOR is denied', asyn
   assert.equal(submitted.status, 200);
   assert.equal(submitted.body.data.workflowStatus, 'SUBMITTED');
   assert.equal(submitted.body.data.pdfStatus, 'READY');
-  assert.match(submitted.body.data.applicationId, /^CA-[a-f0-9]{32}$/);
+  assert.match(submitted.body.data.applicationId, /^CA-22ICT001-Y\d+S\d+$/);
   const stored = await CaApplication.findOne({ applicationId: submitted.body.data.applicationId });
   const verify = await request(app).get(`/api/ca/verify/${stored.qrVerificationToken}`);
   assert.equal(verify.status, 200);
@@ -313,7 +313,7 @@ test('submit generates PDF and QR without exposing grades; IDOR is denied', asyn
   assert.equal(idor.status, 404);
   const pdfIdor = await other.agent.get(`/api/ca/applications/${stored.applicationId}/pdf`);
   assert.equal(pdfIdor.status, 404);
-  const unknownPdf = await other.agent.get(`/api/ca/applications/CA-${'0'.repeat(32)}/pdf`);
+  const unknownPdf = await other.agent.get('/api/ca/applications/CA-00ICT000-Y9S9/pdf');
   assert.equal(unknownPdf.status, 404);
   const ownerPdf = await student.agent.get(`/api/ca/applications/${stored.applicationId}/pdf`);
   assert.equal(ownerPdf.status, 200);
@@ -353,10 +353,32 @@ test('physical verify, approve, lecturer scope, schedule, reminders, and cancel'
     .set('X-CSRF-Token', admin.csrfToken)
     .send({});
   assert.equal(earlyApprove.status, 400);
-  await admin.agent
+  const missingReceipt = await admin.agent
     .post(`/api/ca/admin/applications/${applicationId}/verify`)
     .set('X-CSRF-Token', admin.csrfToken)
     .send({ outcome: 'verified' });
+  assert.equal(missingReceipt.status, 400);
+  const wrongReceipt = await admin.agent
+    .post(`/api/ca/admin/applications/${applicationId}/confirm-receipt`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({ receipt: 'CA-00ICT000-Y9S9' });
+  assert.equal(wrongReceipt.status, 400);
+  const stored = await CaApplication.findOne({ applicationId });
+  const confirmed = await admin.agent
+    .post(`/api/ca/admin/applications/${applicationId}/confirm-receipt`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({ receipt: `http://localhost:3001/api/ca/verify/${stored.qrVerificationToken}` });
+  assert.equal(confirmed.status, 200);
+  assert.equal(confirmed.body.data.matched, true);
+  const verified = await admin.agent
+    .post(`/api/ca/admin/applications/${applicationId}/verify`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({
+      outcome: 'verified',
+      receipt: `http://localhost:3001/api/ca/verify/${stored.qrVerificationToken}`,
+    });
+  assert.equal(verified.status, 200);
+  assert.equal(verified.body.data.physicalVerificationStatus, 'PHYSICALLY_VERIFIED');
   const approved = await admin.agent
     .post(`/api/ca/admin/applications/${applicationId}/approve`)
     .set('X-CSRF-Token', admin.csrfToken)
@@ -459,7 +481,25 @@ test('reject and reopen restore draft editability; later official result resolve
     .set('X-CSRF-Token', admin.csrfToken)
     .send({ reason: 'Student may resubmit' });
   assert.equal(reopened.body.data.workflowStatus, 'DRAFT');
+  assert.equal(reopened.body.data.reopenReason, 'Student may resubmit');
   assert.equal(await CaApplication.countDocuments(), 1);
+  const inbox = await student.agent.get('/api/notifications');
+  const notice = inbox.body.data.items.find((item) => item.type === 'CA_APPLICATION_REOPENED');
+  assert.equal(Boolean(notice), true);
+  assert.match(notice.body, /Student may resubmit/);
+  assert.match(notice.body, /correct the form/);
+  const corrected = await student.agent
+    .patch(`/api/ca/applications/${applicationId}`)
+    .set('X-CSRF-Token', student.csrfToken)
+    .send({ form: { ...(reopened.body.data.form || {}), address: 'COLOMBO' } });
+  assert.equal(corrected.status, 200);
+  assert.equal(corrected.body.data.form.address, 'COLOMBO');
+  const resubmitted = await student.agent
+    .post(`/api/ca/applications/${applicationId}/submit`)
+    .set('X-CSRF-Token', student.csrfToken)
+    .send({});
+  assert.equal(resubmitted.status, 200);
+  assert.equal(resubmitted.body.data.workflowStatus, 'SUBMITTED');
 
   result.isEca = false;
   result.resultCode = 'A';
@@ -498,7 +538,7 @@ test('concurrent semester applications leave one record; completing CA does not 
   await admin.agent
     .post(`/api/ca/admin/applications/${applicationId}/verify`)
     .set('X-CSRF-Token', admin.csrfToken)
-    .send({ outcome: 'verified' });
+    .send({ outcome: 'verified', receipt: applicationId });
   await admin.agent.post(`/api/ca/admin/applications/${applicationId}/approve`).set('X-CSRF-Token', admin.csrfToken).send({});
   await lecturer.agent
     .post('/api/ca/lecturer/schedules')
@@ -549,7 +589,7 @@ test('completed or resolved cycle does not block a later E(CA) application; dupl
   await admin.agent
     .post(`/api/ca/admin/applications/${firstApplicationId}/verify`)
     .set('X-CSRF-Token', admin.csrfToken)
-    .send({ outcome: 'verified' });
+    .send({ outcome: 'verified', receipt: firstApplicationId });
   await admin.agent
     .post(`/api/ca/admin/applications/${firstApplicationId}/approve`)
     .set('X-CSRF-Token', admin.csrfToken)

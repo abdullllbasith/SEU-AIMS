@@ -3,9 +3,16 @@ import { apiRequest } from '../../services/api-client.js';
 export const studyRoomApi = {
   access: () => apiRequest('/study-room/access'),
   putPublicKey: (body) => apiRequest('/study-room/crypto/public-key', { method: 'PUT', body: JSON.stringify(body) }),
+  claimIdentity: () => apiRequest('/study-room/crypto/identity'),
   getPublicKey: (userId) => apiRequest(`/study-room/crypto/public-keys/${userId}`),
   searchStudents: (q) => apiRequest(`/study-room/students/search?q=${encodeURIComponent(q)}`),
   conversations: () => apiRequest('/study-room/conversations'),
+  attention: (resourcesSeenAt) =>
+    apiRequest(
+      `/study-room/attention${
+        resourcesSeenAt ? `?resourcesSeenAt=${encodeURIComponent(resourcesSeenAt)}` : ''
+      }`,
+    ),
   createConversation: (participantUserId) =>
     apiRequest('/study-room/conversations', { method: 'POST', body: JSON.stringify({ participantUserId }) }),
   getConversation: (id) => apiRequest(`/study-room/conversations/${id}`),
@@ -24,7 +31,12 @@ export const studyRoomApi = {
     apiRequest(`/study-room/conversations/${id}/read`, { method: 'PATCH', body: JSON.stringify({ lastReadMessageId }) }),
   folders: () => apiRequest('/study-room/folders'),
   createFolder: (body) => apiRequest('/study-room/folders', { method: 'POST', body: JSON.stringify(body) }),
+  updateFolder: (id, body) => apiRequest(`/study-room/folders/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteFolder: (id) => apiRequest(`/study-room/folders/${id}`, { method: 'DELETE' }),
   folderResources: (folderId) => apiRequest(`/study-room/folders/${folderId}/resources`),
+  renameResource: (id, body) =>
+    apiRequest(`/study-room/resources/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteResource: (id) => apiRequest(`/study-room/resources/${id}`, { method: 'DELETE' }),
   uploadResource: (folderId, form) =>
     apiRequest(`/study-room/folders/${folderId}/resources`, { method: 'POST', body: form }),
   reportResource: (resourceId, body) =>

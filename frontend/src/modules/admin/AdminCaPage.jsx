@@ -1,5 +1,7 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { caApi } from '../ca-recovery/ca-api.js';
+import { AdminCaReview } from './AdminCaReview.jsx';
 import { RecoveryResultReviews } from '../ca-recovery/RecoveryResultReviews.jsx';
 import { academicApi } from './academic-api.js';
 import { ActionButton } from '../../ui/ActionButton.jsx';
@@ -15,7 +17,6 @@ import {
   indexById,
 } from '../../ui/academic-labels.js';
 import { formatWorkflowStatus } from '../../ui/status-labels.js';
-
 const WINDOW_STATUS = {
   OPEN: { label: 'Open', className: 'status-pill status-pill--ok' },
   SCHEDULED: { label: 'Scheduled', className: 'status-pill status-pill--info' },
@@ -62,18 +63,15 @@ const PHYSICAL_LABEL = {
   VERIFICATION_FAILED: 'Failed',
 };
 
-function queueActions(item) {
-  const status = item.workflowStatus;
-  const physical = item.physicalVerificationStatus;
-  return {
-    verify: ['SUBMITTED', 'UNDER_VERIFICATION'].includes(status) && physical !== 'PHYSICALLY_VERIFIED',
-    approve: status === 'UNDER_VERIFICATION' && physical === 'PHYSICALLY_VERIFIED',
-    reject: ['DRAFT', 'SUBMITTED', 'UNDER_VERIFICATION'].includes(status),
-    reopen: ['REJECTED', 'SUBMITTED'].includes(status),
-  };
+export function AdminCaPage() {
+  const { applicationId } = useParams();
+  if (applicationId) {
+    return <AdminCaReview applicationId={applicationId} />;
+  }
+  return <AdminCaQueue />;
 }
 
-export function AdminCaPage() {
+function AdminCaQueue() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
@@ -83,12 +81,13 @@ export function AdminCaPage() {
   const [semesters, setSemesters] = useState([]);
   const [windows, setWindows] = useState([]);
   const [conditions, setConditions] = useState([]);
-  const [reasons, setReasons] = useState({});
   const [notices, setNotices] = useState({});
   const [pending, setPending] = useState('');
   const busy = Boolean(pending);
+  const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY_WINDOW_FORM);
   const [editingId, setEditingId] = useState('');
+  const [windowOpen, setWindowOpen] = useState(false);
 
   async function reload() {
     const [apps, yearRes, semRes, reviewRes, windowRes, conditionRes] = await Promise.all([
@@ -165,6 +164,22 @@ export function AdminCaPage() {
     return [yearName, semesterName].filter(Boolean).join(' · ');
   }
 
+  function subjectPeriodLabel(item) {
+    const fromLookup = periodLabel(item.subjectAcademicYearId, item.subjectSemesterId);
+    if (fromLookup) {
+      return fromLookup;
+    }
+    const yearName = formatYearLabel({
+      name: item.subjectAcademicYearName,
+      sequence: item.subjectAcademicYearSequence,
+    });
+    const semesterName = formatSemesterShortName(
+      { name: item.subjectSemesterName, sequence: item.subjectSemesterSequence },
+      { name: item.subjectAcademicYearName, sequence: item.subjectAcademicYearSequence },
+    );
+    return [yearName, semesterName].filter(Boolean).join(' · ');
+  }
+
   function selectWindow(item) {
     setEditingId(item.id);
     setForm({
@@ -175,15 +190,34 @@ export function AdminCaPage() {
       published: item.published !== false,
     });
     setNotices((current) => ({ ...current, window: null }));
-    requestAnimationFrame(() => {
-      document.getElementById('ca-window-form')?.scrollIntoView({ block: 'nearest' });
-    });
+    setWindowOpen(true);
   }
 
   function clearWindowForm() {
     setEditingId('');
     setForm(EMPTY_WINDOW_FORM);
+    setWindowOpen(false);
   }
+
+  function openWindowDialog() {
+    setEditingId('');
+    setForm(EMPTY_WINDOW_FORM);
+    setNotices((current) => ({ ...current, window: null }));
+    setWindowOpen(true);
+  }
+
+  useEffect(() => {
+    if (!windowOpen) {
+      return undefined;
+    }
+    function onKey(event) {
+      if (event.key === 'Escape' && !busy) {
+        clearWindowForm();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [windowOpen, busy]);
 
   if (loading) {
     return <PageSkeleton title="CA recovery administration" variant="list" />;
@@ -194,6 +228,9 @@ export function AdminCaPage() {
       <PageHeader
         title="CA recovery administration"
         purpose="CA windows, verification, and approvals."
+        actions={
+          <ActionButton onClick={openWindowDialog}>Create window</ActionButton>
+        }
       />
 
       {error ? (
@@ -246,6 +283,7 @@ export function AdminCaPage() {
                   <th>Registration</th>
                   <th>Subject</th>
                   <th>Period</th>
+                  <th>Subject period</th>
                   <th>Detected</th>
                 </tr>
               </thead>
@@ -255,6 +293,7 @@ export function AdminCaPage() {
                     <td className="keep">{item.registrationNumber}</td>
                     <td className="keep">{item.subjectCode}</td>
                     <td className="keep">{periodLabel(item.academicYearId, item.semesterId) || '—'}</td>
+                    <td className="keep">{subjectPeriodLabel(item) || '—'}</td>
                     <td className="keep">{item.detectedAt ? formatWhen(item.detectedAt) : '—'}</td>
                   </tr>
                 ))}
@@ -328,9 +367,9 @@ export function AdminCaPage() {
         </Panel>
       </div>
 
-      <Panel title="Application windows" kicker={editingId ? 'Edit' : 'Publish'}>
+      <Panel title="Application windows" kicker={`${windows.length} published`}>
         {windows.length === 0 ? (
-          <p className="panel-lead">No application windows yet. Publish one below.</p>
+          <p className="panel-lead">No application windows yet. Use Create window to set when students can apply.</p>
         ) : (
           <div className="table-scroll">
             <table className="data-table">
@@ -347,7 +386,7 @@ export function AdminCaPage() {
                 {windows.map((item) => {
                   const status = WINDOW_STATUS[item.lifecycle] || WINDOW_STATUS.UNPUBLISHED;
                   return (
-                    <tr key={item.id} className={editingId === item.id ? 'is-selected' : undefined}>
+                    <tr key={item.id}>
                       <td className="keep">{periodLabel(item.academicYearId, item.semesterId)}</td>
                       <td className="keep">
                         <span className={status.className}>{status.label}</span>
@@ -362,7 +401,7 @@ export function AdminCaPage() {
                             disabled={busy}
                             onClick={() => selectWindow(item)}
                           >
-                            {editingId === item.id ? 'Selected' : 'Edit'}
+                            Edit
                           </ActionButton>
                           <ActionButton
                             busy={pending === `delete:${item.id}`}
@@ -399,110 +438,124 @@ export function AdminCaPage() {
             </table>
           </div>
         )}
-        <form
-          id="ca-window-form"
-          className="window-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const year = yearById.get(String(form.academicYearId));
-            const semester = semesterById.get(String(form.semesterId));
-            if (!year || !semester || String(semester.academicYearId) !== String(form.academicYearId)) {
-              notify('window', 'failure', 'Choose an academic year, then one of its semesters.');
-              return;
+        <OperationNotice notice={windowOpen ? null : notices.window} />
+      </Panel>
+      {windowOpen ? (
+        <div
+          className="window-dialog"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !busy) {
+              clearWindowForm();
             }
-            setPending('window');
-            setError('');
-            caApi
-              .saveWindow({
-                academicYearId: form.academicYearId,
-                semesterId: form.semesterId,
-                opensAt: new Date(form.opensAt).toISOString(),
-                closesAt: new Date(form.closesAt).toISOString(),
-                published: form.published,
-                suspended: false,
-              })
-              .then(() => {
-                const label = `${formatYearLabel(year)} · ${formatSemesterShortName(semester, year)}`;
-                notify(
-                  'window',
-                  'success',
-                  editingId ? `Saved changes for ${label}.` : `Application window published for ${label}.`,
-                );
-                clearWindowForm();
-                return reload();
-              })
-              .catch((caught) => notify('window', 'failure', caught.message || 'Application window could not be saved.'))
-              .finally(() => setPending(''));
           }}
         >
-          <p className="panel-lead" style={{ gridColumn: '1 / -1' }}>
-            {editingId
-              ? `Editing ${periodLabel(form.academicYearId, form.semesterId)}. Change the dates, then save. The year and semester stay the same.`
-              : 'Choose the year, then the semester, and set when students can apply.'}
-          </p>
-          <label>
-            Academic year
-            <select
-              value={form.academicYearId}
-              onChange={(event) => setForm({ ...form, academicYearId: event.target.value, semesterId: '' })}
-              required
-              disabled={Boolean(editingId)}
+          <div className="window-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="window-dialog-title">
+            <h2 id="window-dialog-title">{editingId ? 'Edit application window' : 'Create application window'}</h2>
+            <form
+              id="ca-window-form"
+              className="window-form window-form--dialog"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const year = yearById.get(String(form.academicYearId));
+                const semester = semesterById.get(String(form.semesterId));
+                if (!year || !semester || String(semester.academicYearId) !== String(form.academicYearId)) {
+                  notify('window', 'failure', 'Choose an academic year, then one of its semesters.');
+                  return;
+                }
+                setPending('window');
+                setError('');
+                caApi
+                  .saveWindow({
+                    academicYearId: form.academicYearId,
+                    semesterId: form.semesterId,
+                    opensAt: new Date(form.opensAt).toISOString(),
+                    closesAt: new Date(form.closesAt).toISOString(),
+                    published: form.published,
+                    suspended: false,
+                  })
+                  .then(() => {
+                    const label = `${formatYearLabel(year)} · ${formatSemesterShortName(semester, year)}`;
+                    notify(
+                      'window',
+                      'success',
+                      editingId ? `Saved changes for ${label}.` : `Application window published for ${label}.`,
+                    );
+                    clearWindowForm();
+                    return reload();
+                  })
+                  .catch((caught) => notify('window', 'failure', caught.message || 'Application window could not be saved.'))
+                  .finally(() => setPending(''));
+              }}
             >
-              <option value="">Select year</option>
-              {(Array.isArray(years) ? years : []).map((item) => (
-                <option key={item.id || item._id} value={item.id || item._id}>
-                  {formatYearLabel(item) || item.name || item.id}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Semester
-            <select
-              value={form.semesterId}
-              onChange={(event) => setForm({ ...form, semesterId: event.target.value })}
-              required
-              disabled={Boolean(editingId) || !form.academicYearId}
-            >
-              <option value="">{form.academicYearId ? 'Select semester' : 'Select a year first'}</option>
-              {semesterChoices.map((item) => (
-                <option key={item.id || item._id} value={item.id || item._id}>
-                  {formatSemesterShortName(item, yearById.get(String(item.academicYearId))) || item.name || item.id}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Opens
-            <input
-              type="datetime-local"
-              value={form.opensAt}
-              onChange={(event) => setForm({ ...form, opensAt: event.target.value })}
-              required
-            />
-          </label>
-          <label>
-            Closes
-            <input
-              type="datetime-local"
-              value={form.closesAt}
-              onChange={(event) => setForm({ ...form, closesAt: event.target.value })}
-              required
-            />
-          </label>
-          <div className="window-form__actions">
-            <ActionButton type="submit" busy={pending === 'window'} busyLabel="Saving…" disabled={busy}>
-              {editingId ? 'Save changes' : 'Publish window'}
-            </ActionButton>
-            {editingId ? (
-              <ActionButton disabled={busy} onClick={clearWindowForm}>
-                Cancel
-              </ActionButton>
-            ) : null}
+              <p className="panel-lead">
+                {editingId
+                  ? `Editing ${periodLabel(form.academicYearId, form.semesterId)}. Change the dates, then save. The year and semester stay the same.`
+                  : 'Choose the year, then the semester, and set when students can apply.'}
+              </p>
+              <label>
+                Academic year
+                <select
+                  value={form.academicYearId}
+                  onChange={(event) => setForm({ ...form, academicYearId: event.target.value, semesterId: '' })}
+                  required
+                  disabled={Boolean(editingId)}
+                >
+                  <option value="">Select year</option>
+                  {(Array.isArray(years) ? years : []).map((item) => (
+                    <option key={item.id || item._id} value={item.id || item._id}>
+                      {formatYearLabel(item) || item.name || item.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Semester
+                <select
+                  value={form.semesterId}
+                  onChange={(event) => setForm({ ...form, semesterId: event.target.value })}
+                  required
+                  disabled={Boolean(editingId) || !form.academicYearId}
+                >
+                  <option value="">{form.academicYearId ? 'Select semester' : 'Select a year first'}</option>
+                  {semesterChoices.map((item) => (
+                    <option key={item.id || item._id} value={item.id || item._id}>
+                      {formatSemesterShortName(item, yearById.get(String(item.academicYearId))) || item.name || item.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Opens
+                <input
+                  type="datetime-local"
+                  value={form.opensAt}
+                  onChange={(event) => setForm({ ...form, opensAt: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Closes
+                <input
+                  type="datetime-local"
+                  value={form.closesAt}
+                  onChange={(event) => setForm({ ...form, closesAt: event.target.value })}
+                  required
+                />
+              </label>
+              <div className="window-form__actions">
+                <ActionButton type="button" disabled={busy} onClick={clearWindowForm}>
+                  Cancel
+                </ActionButton>
+                <ActionButton type="submit" busy={pending === 'window'} busyLabel="Saving…" disabled={busy}>
+                  {editingId ? 'Save changes' : 'Publish'}
+                </ActionButton>
+              </div>
+            </form>
+            <OperationNotice notice={notices.window} />
           </div>
-        </form>
-        <OperationNotice notice={notices.window} />
-      </Panel>
+        </div>
+      ) : null}
 
       <Panel title="Application queue" kicker={`${items.length} application${items.length === 1 ? '' : 's'}`}>
         {items.length === 0 ? (
@@ -521,146 +574,29 @@ export function AdminCaPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => {
-                  const actions = queueActions(item);
-                  const needsReason = actions.reject || actions.reopen;
-                  const reason = reasons[item.applicationId] || '';
-                  const hasActions = actions.verify || actions.approve || actions.reject || actions.reopen;
-                  return (
-                    <Fragment key={item.id}>
-                    <tr>
-                      <td className="keep">{item.applicationId}</td>
-                      <td className="keep">
-                        <span className="result-subject">{item.registrationNumber}</span>
-                      </td>
-                      <td className="keep">
-                        <span className="status-pill">{formatWorkflowStatus(item.workflowStatus)}</span>
-                      </td>
-                      <td className="keep">{PHYSICAL_LABEL[item.physicalVerificationStatus] || item.physicalVerificationStatus}</td>
-                    </tr>
-                    {hasActions || item.workflowStatus === 'DRAFT' ? (
-                      <tr className="queue-detail">
-                        <td colSpan={4}>
-                          <div className="queue-detail__bar">
-                            {item.workflowStatus === 'DRAFT' ? (
-                              <p className="queue-note">
-                                Still a draft. Physical verification starts after the student submits it.
-                              </p>
-                            ) : (
-                              <span />
-                            )}
-                            <div className="queue-detail__actions">
-                          {actions.verify ? (
-                            <ActionButton
-                              busy={pending === `verify:${item.applicationId}`}
-                              busyLabel="Saving…"
-                              disabled={busy}
-                              onClick={() => {
-                                setPending(`verify:${item.applicationId}`);
-                                setError('');
-                                caApi
-                                  .verify(item.applicationId, { outcome: 'verified' })
-                                  .then(() => {
-                                    notify('queue', 'success', `${item.applicationId} marked physically verified.`);
-                                    return reload();
-                                  })
-                                  .catch((caught) => notify('queue', 'failure', caught.message || 'Physical verification failed.'))
-                                  .finally(() => setPending(''));
-                              }}
-                            >
-                              Physical OK
-                            </ActionButton>
-                          ) : null}
-                          {actions.approve ? (
-                            <ActionButton
-                              busy={pending === `approve:${item.applicationId}`}
-                              busyLabel="Approving…"
-                              disabled={busy}
-                              onClick={() => {
-                                setPending(`approve:${item.applicationId}`);
-                                setError('');
-                                caApi
-                                  .approve(item.applicationId)
-                                  .then(() => {
-                                    notify('queue', 'success', `${item.applicationId} approved.`);
-                                    return reload();
-                                  })
-                                  .catch((caught) => notify('queue', 'failure', caught.message || 'Application could not be approved.'))
-                                  .finally(() => setPending(''));
-                              }}
-                            >
-                              Approve
-                            </ActionButton>
-                          ) : null}
-                          {needsReason ? (
-                            <label className="queue-reason">
-                              Reason
-                              <input
-                                value={reason}
-                                onChange={(event) =>
-                                  setReasons((current) => ({ ...current, [item.applicationId]: event.target.value }))
-                                }
-                              />
-                            </label>
-                          ) : null}
-                          {actions.reject ? (
-                            <ActionButton
-                              busy={pending === `reject:${item.applicationId}`}
-                              busyLabel="Rejecting…"
-                              disabled={busy}
-                              onClick={() => {
-                                if (!reason.trim()) {
-                                  notify('queue', 'failure', 'Enter a reason before rejecting this application.');
-                                  return;
-                                }
-                                setPending(`reject:${item.applicationId}`);
-                                setError('');
-                                caApi
-                                  .reject(item.applicationId, { reason: reason.trim() })
-                                  .then(() => {
-                                    notify('queue', 'success', `${item.applicationId} rejected.`);
-                                    return reload();
-                                  })
-                                  .catch((caught) => notify('queue', 'failure', caught.message || 'Application could not be rejected.'))
-                                  .finally(() => setPending(''));
-                              }}
-                            >
-                              Reject
-                            </ActionButton>
-                          ) : null}
-                          {actions.reopen ? (
-                            <ActionButton
-                              busy={pending === `reopen:${item.applicationId}`}
-                              busyLabel="Reopening…"
-                              disabled={busy}
-                              onClick={() => {
-                                if (!reason.trim()) {
-                                  notify('queue', 'failure', 'Enter a reason before reopening this application.');
-                                  return;
-                                }
-                                setPending(`reopen:${item.applicationId}`);
-                                setError('');
-                                caApi
-                                  .reopen(item.applicationId, { reason: reason.trim() })
-                                  .then(() => {
-                                    notify('queue', 'success', `${item.applicationId} reopened as a draft.`);
-                                    return reload();
-                                  })
-                                  .catch((caught) => notify('queue', 'failure', caught.message || 'Application could not be reopened.'))
-                                  .finally(() => setPending(''));
-                              }}
-                            >
-                              Reopen
-                            </ActionButton>
-                          ) : null}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : null}
-                    </Fragment>
-                  );
-                })}
+                {items.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="queue-row"
+                    onClick={(event) => {
+                      if (event.target.closest('a')) {
+                        return;
+                      }
+                      navigate(`/admin/ca/${encodeURIComponent(item.applicationId)}`);
+                    }}
+                  >
+                    <td className="keep">
+                      <Link to={`/admin/ca/${encodeURIComponent(item.applicationId)}`}>{item.applicationId}</Link>
+                    </td>
+                    <td className="keep">
+                      <span className="result-subject">{item.registrationNumber}</span>
+                    </td>
+                    <td className="keep">
+                      <span className="status-pill">{formatWorkflowStatus(item.workflowStatus)}</span>
+                    </td>
+                    <td className="keep">{PHYSICAL_LABEL[item.physicalVerificationStatus] || item.physicalVerificationStatus}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

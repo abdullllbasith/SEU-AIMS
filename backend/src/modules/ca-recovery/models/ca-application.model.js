@@ -49,6 +49,32 @@ const caApplicationSchema = new mongoose.Schema(
     decidedByUserId: { type: objectId, ref: 'User' },
     reopenedAt: Date,
     reopenedByUserId: { type: objectId, ref: 'User' },
+    form: {
+      title: { type: String, enum: ['', 'Mr.', 'Ms.'], default: '' },
+      name: { type: String, trim: true, default: '' },
+      registrationNumber: { type: String, trim: true, uppercase: true, default: '' },
+      currentYear: { type: String, trim: true, default: '' },
+      currentSemester: { type: String, trim: true, default: '' },
+      examinationSemester: { type: String, enum: ['', 'I', 'II'], default: '' },
+      examinationYear: { type: String, enum: ['', '1', '2', '3', '4'], default: '' },
+      specialization: { type: String, trim: true, default: '' },
+      address: { type: String, trim: true, default: '' },
+      mobile: { type: String, trim: true, default: '' },
+      subjects: {
+        type: [
+          new mongoose.Schema(
+            {
+              code: { type: String, trim: true, default: '' },
+              credits: { type: String, trim: true, default: '' },
+              title: { type: String, trim: true, default: '' },
+            },
+            { _id: false },
+          ),
+        ],
+        default: [],
+      },
+      signedOn: { type: String, trim: true, default: '' },
+    },
   },
   persistenceOptions,
 );

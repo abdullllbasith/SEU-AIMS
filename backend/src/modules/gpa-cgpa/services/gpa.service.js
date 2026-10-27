@@ -135,6 +135,20 @@ export async function recalculateStudentGpa(studentUserId) {
     });
   }
 
+  const storedSemesters = await GpaSnapshot.find({ studentUserId, scope: 'SEMESTER' }).select(
+    'academicYearId semesterId',
+  );
+  for (const stored of storedSemesters) {
+    const stillCounted = semesters.some(
+      (item) =>
+        String(item.academicYearId) === String(stored.academicYearId) &&
+        String(item.semesterId) === String(stored.semesterId),
+    );
+    if (!stillCounted) {
+      await GpaSnapshot.deleteOne({ _id: stored._id });
+    }
+  }
+
   const cumulative = calculateWeightedGpa(courses);
   const overallPayload = snapshotPayload(cumulative, courses);
   const overall = await GpaSnapshot.findOneAndUpdate(

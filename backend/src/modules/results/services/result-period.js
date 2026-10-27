@@ -129,6 +129,83 @@ function withoutDuplicateBatchlessPeriods(periods) {
   });
 }
 
+/**
+ * The curriculum period a subject belongs to for a batch.
+ * A single curriculum mapping wins. Several mappings are narrowed by that batch's offering.
+ * The student's current year and semester are not used.
+ */
+export function chooseSubjectPeriod({
+  subjectId,
+  batchId,
+  mappings = [],
+  offerings = [],
+  years = [],
+  semesters = [],
+} = {}) {
+  const subjectKey = id(subjectId);
+  const batchKey = id(batchId);
+  if (!subjectKey) {
+    return null;
+  }
+  const mapped = [
+    ...new Set(
+      mappings
+        .filter((mapping) => id(mapping.subjectId) === subjectKey)
+        .map((mapping) => `${id(mapping.academicYearId)}|${id(mapping.semesterId)}`)
+        .filter((period) => period !== '|'),
+    ),
+  ];
+  const offered = [
+    ...new Set(
+      offerings
+        .filter(
+          (offering) =>
+            id(offering.subjectId) === subjectKey && (!batchKey || id(offering.batchId) === batchKey),
+        )
+        .map((offering) => `${id(offering.academicYearId)}|${id(offering.semesterId)}`)
+        .filter((period) => period !== '|'),
+    ),
+  ];
+  let periods = mapped;
+  if (mapped.length !== 1) {
+    const overlap = mapped.length ? offered.filter((period) => mapped.includes(period)) : offered;
+    if (overlap.length) {
+      periods = overlap;
+    }
+  }
+  if (!periods.length) {
+    return null;
+  }
+  const yearById = new Map(years.map((year) => [id(year._id || year.id), year]));
+  const semesterById = new Map(semesters.map((semester) => [id(semester._id || semester.id), semester]));
+  periods.sort((left, right) => {
+    const [leftYearId, leftSemesterId] = left.split('|');
+    const [rightYearId, rightSemesterId] = right.split('|');
+    const yearDelta =
+      (yearById.get(leftYearId)?.sequence ?? 99) - (yearById.get(rightYearId)?.sequence ?? 99);
+    if (yearDelta) {
+      return yearDelta;
+    }
+    return (
+      (semesterById.get(leftSemesterId)?.sequence ?? 99) -
+      (semesterById.get(rightSemesterId)?.sequence ?? 99)
+    );
+  });
+  const [academicYearId, semesterId] = periods[0].split('|');
+  const offering = offerings.find(
+    (item) =>
+      id(item.subjectId) === subjectKey &&
+      (!batchKey || id(item.batchId) === batchKey) &&
+      id(item.academicYearId) === academicYearId &&
+      id(item.semesterId) === semesterId,
+  );
+  return {
+    academicYearId,
+    semesterId,
+    subjectOfferingId: offering?._id || offering?.id || null,
+  };
+}
+
 export async function deriveResultPeriods(departmentId, rows = []) {
   const subjectIds = [...new Set(rows.map((row) => row.subjectId).filter(Boolean))];
   const studentIds = [...new Set(rows.map((row) => row.matchedStudentUserId).filter(Boolean))];

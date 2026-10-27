@@ -42,8 +42,8 @@ export function canStudentUseConversation(conversation, context, userId) {
   return false;
 }
 
-export function canRenameFolder(folder, userId) {
-  return folder && !folder.deletedAt && String(folder.createdByUserId) === String(userId);
+export function canManageSharedItem(item) {
+  return Boolean(item && !item.deletedAt);
 }
 
 export function isStudentDownloadable(resource, file) {
@@ -59,7 +59,7 @@ export function isStudentDownloadable(resource, file) {
 
 const ALLOWED_TRANSITIONS = {
   UPLOADING: ['QUARANTINED', 'SCANNING'],
-  QUARANTINED: ['SCANNING', 'SCAN_FAILED'],
+  QUARANTINED: ['SCANNING', 'SCAN_FAILED', 'PENDING_REVIEW', 'AVAILABLE'],
   SCANNING: ['PENDING_REVIEW', 'AVAILABLE', 'SCAN_FAILED', 'QUARANTINED'],
   PENDING_REVIEW: ['AVAILABLE', 'REJECTED', 'REMOVED'],
   AVAILABLE: ['REMOVED'],

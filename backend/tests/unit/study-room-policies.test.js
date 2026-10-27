@@ -5,7 +5,7 @@ import {
   canAccessStudyRoom,
   canModerateStudyRoom,
   canStudentUseConversation,
-  canRenameFolder,
+  canManageSharedItem,
   canTransitionResource,
   isStudentDownloadable,
 } from '../../src/modules/study-room/policies/study-room.policies.js';
@@ -48,14 +48,18 @@ test('private conversations require membership, not just a student role', () => 
   assert.equal(canStudentUseConversation(conversation, context, 's3'), false);
 });
 
-test('only the folder creator can rename or archive', () => {
-  assert.equal(canRenameFolder({ createdByUserId: 's1' }, 's1'), true);
-  assert.equal(canRenameFolder({ createdByUserId: 's1' }, 's2'), false);
+test('any classmate can rename or delete a shared folder or file that is still present', () => {
+  assert.equal(canManageSharedItem({ createdByUserId: 's1' }), true);
+  assert.equal(canManageSharedItem({ createdByUserId: 's2' }), true);
+  assert.equal(canManageSharedItem({ createdByUserId: 's1', deletedAt: new Date() }), false);
+  assert.equal(canManageSharedItem(null), false);
 });
 
 test('resource state machine rejects impossible transitions', () => {
   assert.equal(canTransitionResource('SCANNING', 'AVAILABLE'), true);
   assert.equal(canTransitionResource('SCANNING', 'PENDING_REVIEW'), true);
+  assert.equal(canTransitionResource('QUARANTINED', 'AVAILABLE'), true);
+  assert.equal(canTransitionResource('QUARANTINED', 'PENDING_REVIEW'), true);
   assert.equal(canTransitionResource('AVAILABLE', 'PENDING_REVIEW'), false);
   assert.equal(canTransitionResource('REJECTED', 'AVAILABLE'), false);
 });

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { studyRoomApi } from './study-room-api.js';
 import { connectStudyRoomSocket } from './socket-client.js';
-import { loadOrCreateIdentity, loadRoomKeyMaterial, rememberRoomKeyMaterial } from './key-store.js';
+import { loadOrCreateIdentity, persistIdentity, readStoredIdentity, loadRoomKeyMaterial, rememberRoomKeyMaterial } from './key-store.js';
 import {
   decryptPayload,
   derivePrivateConversationKey,
@@ -23,6 +23,15 @@ import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import { UpdateBadge } from '../../ui/UpdateBadge.jsx';
+import {
+  markResourcesSeen,
+  notePrivateMessagesRead,
+  refreshStudyRoomAttention,
+  subscribeStudyRoomAttention,
+} from './study-room-attention.js';
+
+const PdfView = lazy(() => import('./PdfView.jsx').then((module) => ({ default: module.PdfView })));
 
 function clientMessageId() {
   return crypto.randomUUID ? crypto.randomUUID() : `m_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -382,6 +391,76 @@ function connectionTone(socketState) {
   return 'status-pill status-pill--pending';
 }
 
+function fileExtension(name) {
+  const match = String(name || '').match(/\.([a-z0-9]{1,8})$/i);
+  return match ? match[1].toUpperCase() : 'FILE';
+}
+
+function isPdfResource(resource) {
+  const name = `${resource?.displayFilename || ''} ${resource?.title || ''}`.toLowerCase();
+  const mime = String(resource?.mimeType || '').toLowerCase();
+  return mime.includes('pdf') || name.endsWith('.pdf');
+}
+
+function isImageResource(resource) {
+  const mime = String(resource?.mimeType || '').toLowerCase();
+  return mime.startsWith('image/');
+}
+
+const INFO_TIP_DELAY_MS = 1500;
+
+function formatSharedWhen(value) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function infoLines(kind, item) {
+  const who = item?.createdByDisplayName || 'Classmate';
+  const when = formatSharedWhen(item?.createdAt);
+  if (kind === 'folder') {
+    return [
+      ['Created by', who],
+      when ? ['Created', when] : null,
+    ].filter(Boolean);
+  }
+  return [
+    ['Uploaded by', who],
+    when ? ['Uploaded', when] : null,
+  ].filter(Boolean);
+}
+
+function MoreIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="12" cy="5" r="1.7" />
+      <circle cx="12" cy="12" r="1.7" />
+      <circle cx="12" cy="19" r="1.7" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 4v10" />
+      <path d="m8 10 4 4 4-4" />
+      <path d="M5 19h14" />
+    </svg>
+  );
+}
+
 function resourceStatusClass(label) {
   const value = String(label || '').toUpperCase();
   if (value.includes('AVAILABLE') || value.includes('APPROVED') || value.includes('SAFE')) {
@@ -410,8 +489,15 @@ export function StudyRoomPage() {
   const [socketState, setSocketState] = useState('disconnected');
   const [folders, setFolders] = useState([]);
   const [folderName, setFolderName] = useState('');
+  const [nameDialog, setNameDialog] = useState(null);
+  const [folderBusy, setFolderBusy] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [infoTip, setInfoTip] = useState(null);
   const [activeFolder, setActiveFolder] = useState(null);
   const [resources, setResources] = useState([]);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const [peers, setPeers] = useState([]);
   const [query, setQuery] = useState('');
   const [privateId, setPrivateId] = useState(null);
@@ -419,21 +505,37 @@ export function StudyRoomPage() {
   const [threadReady, setThreadReady] = useState(false);
   const [searchBusy, setSearchBusy] = useState(false);
   const [inbox, setInbox] = useState([]);
+  const [attention, setAttention] = useState({ common: 0, private: 0, resources: 0, total: 0 });
   const keyCacheRef = useRef(new Map());
   const conversationIdRef = useRef(null);
   const socketRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const infoTipTimer = useRef(null);
 
   const conversationId = tab === 'private' ? privateId : overview?.commonConversation?.id;
   const meId = String(user?.id || user?.userId || '');
   conversationIdRef.current = conversationId;
 
   const prepareIdentity = useCallback(async () => {
-    const next = await loadOrCreateIdentity(
-      generateIdentityKeyPair,
-      exportPrivateJwk,
-      importPrivateJwk,
-      exportPublicJwk,
-    );
+    let next = await readStoredIdentity(importPrivateJwk);
+    if (!next) {
+      try {
+        const claimed = await studyRoomApi.claimIdentity();
+        if (claimed.data?.privateKeyJwk && claimed.data?.publicKeyJwk) {
+          next = await persistIdentity(claimed.data, importPrivateJwk);
+        }
+      } catch {
+        // A device key is created below when this browser has nothing to recover.
+      }
+    }
+    if (!next) {
+      next = await loadOrCreateIdentity(
+        generateIdentityKeyPair,
+        exportPrivateJwk,
+        importPrivateJwk,
+        exportPublicJwk,
+      );
+    }
     setIdentity(next);
     await studyRoomApi.putPublicKey({ publicKeyJwk: next.publicJwk, keyVersion: next.keyVersion || '1' });
     return next;
@@ -514,7 +616,14 @@ export function StudyRoomPage() {
 
   const refreshInbox = useCallback(async () => {
     const result = await studyRoomApi.conversations();
-    const items = sortInbox((result.data.items || []).filter((item) => item.type === 'PRIVATE'));
+    const openId = conversationIdRef.current;
+    const items = sortInbox(
+      (result.data.items || [])
+        .filter((item) => item.type === 'PRIVATE')
+        .map((item) =>
+          openId && String(item.id) === String(openId) ? { ...item, unreadCount: 0 } : item,
+        ),
+    );
     setInbox(items);
     return items;
   }, []);
@@ -555,6 +664,66 @@ export function StudyRoomPage() {
   );
 
   useEffect(() => {
+    return subscribeStudyRoomAttention(setAttention);
+  }, []);
+
+  useEffect(() => {
+    if (status !== 'ready' || !meId) {
+      return undefined;
+    }
+    refreshStudyRoomAttention(meId).catch(() => {});
+    return undefined;
+  }, [status, meId]);
+
+  useEffect(() => {
+    if (status !== 'ready' || tab !== 'files' || !meId) {
+      return undefined;
+    }
+    markResourcesSeen(meId);
+    refreshStudyRoomAttention(meId).catch(() => {});
+    return undefined;
+  }, [status, tab, meId]);
+
+  useEffect(() => {
+    if (!nameDialog && !preview && !menu) {
+      return undefined;
+    }
+    function onKey(event) {
+      if (event.key !== 'Escape' || folderBusy || previewBusy) {
+        return;
+      }
+      if (menu) {
+        setMenu(null);
+        return;
+      }
+      if (preview) {
+        closePreview();
+        return;
+      }
+      closeNameDialog();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [nameDialog, preview, menu, folderBusy, previewBusy]);
+
+  useEffect(() => {
+    if (!menu) {
+      return undefined;
+    }
+    function onPointerDown(event) {
+      const target = event.target;
+      if (target?.closest?.('.tile-menu') || target?.closest?.('.tile-more')) {
+        return;
+      }
+      setMenu(null);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [menu]);
+
+  useEffect(() => () => clearTimeout(infoTipTimer.current), []);
+
+  useEffect(() => {
     if (status !== 'ready' || !identity) {
       return undefined;
     }
@@ -571,6 +740,7 @@ export function StudyRoomPage() {
     socket.on('connect_error', () => setSocketState('unauthorized'));
     socket.on('study-room:message:new', (message) => {
       if (String(message.conversationId) !== String(conversationIdRef.current)) {
+        refreshStudyRoomAttention(meId).catch(() => {});
         return;
       }
       resolveConversationKey(message.conversationId, identity)
@@ -587,7 +757,10 @@ export function StudyRoomPage() {
             }),
           );
           if (String(message.senderUserId) !== meId && message.id) {
-            studyRoomApi.markRead(message.conversationId, message.id).catch(() => {});
+            studyRoomApi
+              .markRead(message.conversationId, message.id)
+              .catch(() => {})
+              .then(() => refreshStudyRoomAttention(meId).catch(() => {}));
           }
         })
         .catch(() => {});
@@ -614,6 +787,8 @@ export function StudyRoomPage() {
             .catch(() => {});
           return current;
         }
+        const viewing = String(conversationIdFromEvent) === String(conversationIdRef.current);
+        const incomingFromPeer = Boolean(payload.message) && String(payload.message.senderUserId) !== meId;
         const updated = {
           ...existing,
           lastMessageAt: payload.lastMessageAt || existing.lastMessageAt,
@@ -625,7 +800,12 @@ export function StudyRoomPage() {
                 sentAt: payload.message.sentAt,
               }
             : existing.lastMessage,
-          preview: String(payload.message?.senderUserId) === meId ? existing.preview : 'New message',
+          preview: incomingFromPeer ? 'New message' : existing.preview,
+          unreadCount: viewing
+            ? 0
+            : incomingFromPeer
+              ? (Number(existing.unreadCount) || 0) + 1
+              : existing.unreadCount || 0,
         };
         return sortInbox([updated, ...current.filter((item) => item.id !== conversationIdFromEvent)]);
       });
@@ -700,7 +880,10 @@ export function StudyRoomPage() {
       setThreadReady(true);
       const latest = items.filter((row) => row.id && !row.deletedAt).at(-1);
       if (latest?.id) {
-        studyRoomApi.markRead(conversationId, latest.id).catch(() => {});
+        studyRoomApi
+          .markRead(conversationId, latest.id)
+          .catch(() => {})
+          .then(() => refreshStudyRoomAttention(meId).catch(() => {}));
       }
       const me = meId;
       const conversation = keyBundle.conversation;
@@ -822,8 +1005,18 @@ export function StudyRoomPage() {
     };
   }, [query, tab]);
 
+  function clearInboxUnread(conversationId) {
+    setInbox((current) =>
+      current.map((item) =>
+        String(item.id) === String(conversationId) ? { ...item, unreadCount: 0 } : item,
+      ),
+    );
+  }
+
   function openExistingChat(item) {
     setError('');
+    notePrivateMessagesRead(item?.unreadCount);
+    clearInboxUnread(item.id);
     setPrivateId(item.id);
     setTab('private');
     setMessages([]);
@@ -894,27 +1087,93 @@ export function StudyRoomPage() {
     }
   }
 
+  function clearInfoTip() {
+    clearTimeout(infoTipTimer.current);
+    setInfoTip(null);
+  }
+
+  function armInfoTip(kind, id) {
+    clearTimeout(infoTipTimer.current);
+    setInfoTip((current) => (current?.kind === kind && current?.id === id ? current : null));
+    infoTipTimer.current = setTimeout(() => setInfoTip({ kind, id }), INFO_TIP_DELAY_MS);
+  }
+
+  function closeNameDialog() {
+    if (folderBusy) {
+      return;
+    }
+    setNameDialog(null);
+    setFolderName('');
+    setError('');
+  }
+
+  function openCreateFolder() {
+    setError('');
+    setMenu(null);
+    setFolderName('');
+    setNameDialog({ purpose: 'create-folder' });
+  }
+
+  function openRename(kind, item, currentName) {
+    setError('');
+    setMenu(null);
+    setFolderName(currentName || '');
+    setNameDialog({ purpose: kind === 'folder' ? 'rename-folder' : 'rename-file', id: item.id });
+  }
+
+  function openDelete(kind, item) {
+    setError('');
+    setMenu(null);
+    setNameDialog({ purpose: kind === 'folder' ? 'delete-folder' : 'delete-file', id: item.id, label: item.name || item.displayFilename || item.title });
+  }
+
+  function closePreview() {
+    setPreview((current) => {
+      if (current?.url) {
+        URL.revokeObjectURL(current.url);
+      }
+      return null;
+    });
+  }
+
   async function createFolder(event) {
     event.preventDefault();
+    const name = folderName.trim();
+    if (!name) {
+      return;
+    }
     setError('');
+    setFolderBusy(true);
     try {
-      const created = await studyRoomApi.createFolder({ name: folderName });
-      setFolders((current) => [created.data, ...current]);
+      const created = await studyRoomApi.createFolder({ name });
+      setFolders((current) => [created.data, ...current.filter((item) => item.id !== created.data.id)]);
       setFolderName('');
+      setNameDialog(null);
+      await openFolder(created.data);
     } catch (caught) {
       setError(caught.message || 'Unable to create folder');
+    } finally {
+      setFolderBusy(false);
     }
   }
 
   async function openFolder(folder) {
     setError('');
+    closePreview();
     setActiveFolder(folder);
     try {
       const listed = await studyRoomApi.folderResources(folder.id);
-      setResources(listed.data.items);
+      setResources(listed.data.items || []);
     } catch (caught) {
       setError(caught.message || 'Unable to open folder');
     }
+  }
+
+  function leaveFolder() {
+    closePreview();
+    setActiveFolder(null);
+    setResources([]);
+    setError('');
   }
 
   async function uploadFile(event) {
@@ -923,6 +1182,7 @@ export function StudyRoomPage() {
       return;
     }
     setError('');
+    setUploadBusy(true);
     try {
       const form = new FormData();
       form.append('file', file);
@@ -932,11 +1192,103 @@ export function StudyRoomPage() {
     } catch (caught) {
       setError(caught.message || 'Upload failed');
     } finally {
+      setUploadBusy(false);
       event.target.value = '';
     }
   }
 
+  async function openResource(resource) {
+    if (!resource?.downloadable || previewBusy) {
+      return;
+    }
+    if (!isPdfResource(resource) && !isImageResource(resource)) {
+      return;
+    }
+    setError('');
+    setPreviewBusy(true);
+    try {
+      const response = await fetch(studyRoomApi.downloadUrl(resource.id), { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error('Unable to open this file');
+      }
+      const blob = await response.blob();
+      const mime = blob.type || resource.mimeType || '';
+      const image = mime.startsWith('image/') || isImageResource(resource);
+      const url = image ? URL.createObjectURL(blob) : '';
+      const data = image ? null : await blob.arrayBuffer();
+      setPreview((current) => {
+        if (current?.url) {
+          URL.revokeObjectURL(current.url);
+        }
+        return {
+          name: resource.displayFilename || resource.title || 'Shared file',
+          url,
+          data,
+          mime,
+          downloadUrl: studyRoomApi.downloadUrl(resource.id),
+        };
+      });
+    } catch (caught) {
+      setError(caught.message || 'Unable to open this file');
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
+  async function saveRename(event) {
+    event.preventDefault();
+    const name = folderName.trim();
+    if (!name || !nameDialog?.id) {
+      return;
+    }
+    setError('');
+    setFolderBusy(true);
+    try {
+      if (nameDialog.purpose === 'rename-folder') {
+        const updated = await studyRoomApi.updateFolder(nameDialog.id, { name });
+        setFolders((current) => current.map((item) => (item.id === nameDialog.id ? { ...item, ...updated.data } : item)));
+        setActiveFolder((current) => (current?.id === nameDialog.id ? { ...current, ...updated.data } : current));
+      } else {
+        const updated = await studyRoomApi.renameResource(nameDialog.id, { name });
+        setResources((current) => current.map((item) => (item.id === nameDialog.id ? { ...item, ...updated.data } : item)));
+      }
+      setFolderName('');
+      setNameDialog(null);
+    } catch (caught) {
+      setError(caught.message || 'Unable to rename');
+    } finally {
+      setFolderBusy(false);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!nameDialog?.id) {
+      return;
+    }
+    setError('');
+    setFolderBusy(true);
+    try {
+      if (nameDialog.purpose === 'delete-folder') {
+        await studyRoomApi.deleteFolder(nameDialog.id);
+        setFolders((current) => current.filter((item) => item.id !== nameDialog.id));
+        if (activeFolder?.id === nameDialog.id) {
+          leaveFolder();
+        }
+      } else {
+        await studyRoomApi.deleteResource(nameDialog.id);
+        setResources((current) => current.filter((item) => item.id !== nameDialog.id));
+        closePreview();
+      }
+      setNameDialog(null);
+    } catch (caught) {
+      setError(caught.message || 'Unable to delete');
+    } finally {
+      setFolderBusy(false);
+    }
+  }
+
   async function reportFile(resourceId) {
+    setMenu(null);
     setError('');
     try {
       await studyRoomApi.reportResource(resourceId, {
@@ -1015,7 +1367,7 @@ export function StudyRoomPage() {
         </p>
       ) : null}
 
-      {error ? (
+      {error && !nameDialog ? (
         <p className="form-error" role="alert">
           {error}
         </p>
@@ -1030,6 +1382,7 @@ export function StudyRoomPage() {
           onClick={() => setTab('common')}
         >
           Common chat
+          <UpdateBadge count={attention.common} label="new common chat messages" />
         </button>
         <button
           type="button"
@@ -1039,6 +1392,7 @@ export function StudyRoomPage() {
           onClick={() => setTab('private')}
         >
           Private chats
+          <UpdateBadge count={attention.private} label="new private chats" />
         </button>
         <button
           type="button"
@@ -1048,6 +1402,7 @@ export function StudyRoomPage() {
           onClick={() => setTab('files')}
         >
           Shared resources
+          <UpdateBadge count={tab === 'files' ? 0 : attention.resources} label="resource updates" />
         </button>
       </div>
 
@@ -1117,6 +1472,10 @@ export function StudyRoomPage() {
                             </span>
                           </span>
                           <span className="inbox-row__time">{inboxTime(item.lastMessageAt)}</span>
+                          <UpdateBadge
+                            count={item.id === privateId ? 0 : item.unreadCount}
+                            label="unread messages"
+                          />
                         </button>
                       </li>
                     );
@@ -1261,81 +1620,317 @@ export function StudyRoomPage() {
         </div>
       ) : (
         <div className="study-room__files">
-          <Panel title="Shared folders" kicker={`${folders.length} folder${folders.length === 1 ? '' : 's'}`}>
-            <p className="panel-lead">Student-created files only. These are not official lecturer resources.</p>
-            <form className="inline-form" onSubmit={createFolder}>
-              <label>
-                New folder name
+          <Panel
+            title={activeFolder ? activeFolder.name : 'Shared folders'}
+            kicker={
+              activeFolder
+                ? `${resources.length} file${resources.length === 1 ? '' : 's'}`
+                : `${folders.length} folder${folders.length === 1 ? '' : 's'}`
+            }
+          >
+            <div className="file-browser__bar">
+              {activeFolder ? (
+                <button type="button" onClick={leaveFolder}>
+                  Back
+                </button>
+              ) : (
+                <p className="panel-lead file-browser__lead">
+                  Student-created files only. These are not official lecturer resources.
+                </p>
+              )}
+              {activeFolder ? (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadBusy}
+                >
+                  {uploadBusy ? 'Importing…' : 'Import'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={openCreateFolder}
+                >
+                  Create folder
+                </button>
+              )}
+              {activeFolder ? (
                 <input
-                  value={folderName}
-                  onChange={(event) => setFolderName(event.target.value)}
-                  required
-                  maxLength={80}
+                  ref={fileInputRef}
+                  className="file-browser__file-input"
+                  type="file"
+                  onChange={uploadFile}
+                  aria-label="Import a file"
                 />
-              </label>
-              <div className="panel-actions">
-                <button type="submit">Create folder</button>
-              </div>
-            </form>
-            {folders.length === 0 ? (
+              ) : null}
+            </div>
+            {activeFolder ? (
+              resources.length === 0 ? (
+                <EmptyState>No files in this folder yet. Import a file to share it with your batch.</EmptyState>
+              ) : (
+                <ul className="file-grid">
+                  {resources.map((resource) => {
+                    const name = resource.displayFilename || resource.title || 'Shared file';
+                    const canOpen = resource.downloadable && (isPdfResource(resource) || isImageResource(resource));
+                    const menuOpen = menu?.kind === 'file' && menu.id === resource.id;
+                    return (
+                      <li
+                        key={resource.id}
+                        className={`file-tile tile-wrap${menuOpen ? ' is-menu-open' : ''}${infoTip?.kind === 'file' && infoTip.id === resource.id ? ' is-info-open' : ''}`}
+                        onMouseEnter={() => armInfoTip('file', resource.id)}
+                        onMouseLeave={clearInfoTip}
+                      >
+                        <button
+                          type="button"
+                          className="file-tile__open"
+                          onClick={() => openResource(resource)}
+                          disabled={!canOpen || previewBusy}
+                        >
+                          <span className="file-tile__sheet" aria-hidden="true">
+                            <span className="file-tile__fold" />
+                            <span className="file-tile__mark">{fileExtension(name)}</span>
+                          </span>
+                          <span className="file-tile__name">{name}</span>
+                        </button>
+                        {infoTip?.kind === 'file' && infoTip.id === resource.id ? (
+                          <div className="tile-tip" role="tooltip">
+                            {infoLines('file', resource).map(([label, value]) => (
+                              <p key={label}>
+                                <span className="tile-tip__label">{label}: </span>
+                                {value}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+                        {resource.studentStatusLabel && resource.studentStatusLabel !== 'Available' ? (
+                          <span className={resourceStatusClass(resource.studentStatusLabel)}>
+                            {resource.studentStatusLabel}
+                          </span>
+                        ) : null}
+                        <div className="file-tile__actions">
+                          {resource.downloadable ? (
+                            <a className="tile-icon-btn" href={studyRoomApi.downloadUrl(resource.id)} aria-label={`Download ${name}`}>
+                              <DownloadIcon />
+                            </a>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="tile-more"
+                            aria-label={`Actions for ${name}`}
+                            aria-expanded={menuOpen}
+                            aria-haspopup="menu"
+                            onClick={() => {
+                              clearInfoTip();
+                              setMenu(menuOpen ? null : { kind: 'file', id: resource.id });
+                            }}
+                          >
+                            <MoreIcon />
+                          </button>
+                        </div>
+                        {menuOpen ? (
+                          <div className="tile-menu" role="menu">
+                            <button type="button" role="menuitem" onClick={() => openRename('file', resource, name)}>
+                              Rename
+                            </button>
+                            <button type="button" role="menuitem" onClick={() => reportFile(resource.id)}>
+                              Report
+                            </button>
+                            <button type="button" role="menuitem" className="tile-menu__danger" onClick={() => openDelete('file', resource)}>
+                              Delete
+                            </button>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
+            ) : folders.length === 0 ? (
               <EmptyState>No shared folders yet. Create one to start collecting student files.</EmptyState>
             ) : (
-              <ul className="resource-list">
-                {folders.map((folder) => (
-                  <li key={folder.id} className="resource-row">
-                    <div className="resource-row__main">
-                      <p className="resource-row__title">{folder.name}</p>
-                      <p className="resource-row__meta">
-                        {activeFolder?.id === folder.id ? 'Open' : 'Student folder'}
-                      </p>
-                    </div>
-                    <div className="resource-row__aside">
-                      <button type="button" onClick={() => openFolder(folder)}>
-                        {activeFolder?.id === folder.id ? 'Refresh' : 'Open'}
+              <ul className="file-grid">
+                {folders.map((folder) => {
+                  const menuOpen = menu?.kind === 'folder' && menu.id === folder.id;
+                  return (
+                    <li
+                      key={folder.id}
+                      className={`tile-wrap${menuOpen ? ' is-menu-open' : ''}${infoTip?.kind === 'folder' && infoTip.id === folder.id ? ' is-info-open' : ''}`}
+                      onMouseEnter={() => armInfoTip('folder', folder.id)}
+                      onMouseLeave={clearInfoTip}
+                    >
+                      <button type="button" className="folder-tile" onClick={() => openFolder(folder)}>
+                        <span className="folder-tile__icon" aria-hidden="true">
+                          <svg viewBox="0 0 48 40" width="48" height="40">
+                            <path
+                              d="M4 8.5A3.5 3.5 0 0 1 7.5 5H18l4 4.5h18.5A3.5 3.5 0 0 1 44 13v18.5A3.5 3.5 0 0 1 40.5 35h-33A3.5 3.5 0 0 1 4 31.5v-23Z"
+                              fill="currentColor"
+                            />
+                            <path
+                              d="M4 16.5h40v15A3.5 3.5 0 0 1 40.5 35h-33A3.5 3.5 0 0 1 4 31.5v-15Z"
+                              fill="currentColor"
+                              opacity="0.72"
+                            />
+                          </svg>
+                        </span>
+                        <span className="folder-tile__name">{folder.name}</span>
                       </button>
-                    </div>
-                  </li>
-                ))}
+                      {infoTip?.kind === 'folder' && infoTip.id === folder.id ? (
+                        <div className="tile-tip" role="tooltip">
+                          {infoLines('folder', folder).map(([label, value]) => (
+                            <p key={label}>
+                              <span className="tile-tip__label">{label}: </span>
+                              {value}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="tile-more"
+                        aria-label={`Actions for ${folder.name}`}
+                        aria-expanded={menuOpen}
+                        aria-haspopup="menu"
+                        onClick={() => {
+                          clearInfoTip();
+                          setMenu(menuOpen ? null : { kind: 'folder', id: folder.id });
+                        }}
+                      >
+                        <MoreIcon />
+                      </button>
+                      {menuOpen ? (
+                        <div className="tile-menu" role="menu">
+                          <button type="button" role="menuitem" onClick={() => openRename('folder', folder, folder.name)}>
+                            Rename
+                          </button>
+                          <button type="button" role="menuitem" className="tile-menu__danger" onClick={() => openDelete('folder', folder)}>
+                            Delete
+                          </button>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </Panel>
-
-          {activeFolder ? (
-            <Panel title={activeFolder.name} kicker={`${resources.length} file${resources.length === 1 ? '' : 's'}`}>
-              <label className="study-room__upload">
-                Upload a student file
-                <input type="file" onChange={uploadFile} />
-              </label>
-              {resources.length === 0 ? (
-                <EmptyState>No files in this folder yet.</EmptyState>
-              ) : (
-                <ul className="resource-list">
-                  {resources.map((resource) => (
-                    <li key={resource.id} className="resource-row">
-                      <div className="resource-row__main">
-                        <p className="resource-row__title">{resource.displayFilename}</p>
-                        <p className="resource-row__meta">
-                          <span className={resourceStatusClass(resource.studentStatusLabel || resource.studentStatus)}>
-                            {resource.studentStatusLabel || resource.studentStatus}
-                          </span>
-                        </p>
-                      </div>
-                      <div className="resource-row__aside">
-                        {resource.downloadable ? (
-                          <a href={studyRoomApi.downloadUrl(resource.id)}>Download</a>
-                        ) : null}
-                        <button type="button" onClick={() => reportFile(resource.id)}>
-                          Report
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Panel>
-          ) : null}
         </div>
       )}
+      {nameDialog ? (
+        <div
+          className="window-dialog"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeNameDialog();
+            }
+          }}
+        >
+          <div className="window-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="folder-dialog-title">
+            <h2 id="folder-dialog-title">
+              {nameDialog.purpose === 'create-folder'
+                ? 'Create folder'
+                : nameDialog.purpose === 'rename-folder'
+                  ? 'Rename folder'
+                  : nameDialog.purpose === 'rename-file'
+                    ? 'Rename file'
+                    : nameDialog.purpose === 'delete-folder'
+                      ? 'Delete folder'
+                      : 'Delete file'}
+            </h2>
+            {nameDialog.purpose.startsWith('delete-') ? (
+              <form
+                className="window-form window-form--dialog"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  confirmDelete();
+                }}
+              >
+                <p className="panel-lead">
+                  {nameDialog.purpose === 'delete-folder'
+                    ? `Delete “${nameDialog.label}”? Anyone in your batch will lose this folder.`
+                    : `Delete “${nameDialog.label}”? Anyone in your batch will lose this file.`}
+                </p>
+                {error ? (
+                  <p className="form-error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                <div className="window-form__actions">
+                  <button type="button" onClick={closeNameDialog} disabled={folderBusy}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn--danger" disabled={folderBusy}>
+                    {folderBusy ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form
+                className="window-form window-form--dialog"
+                onSubmit={nameDialog.purpose === 'create-folder' ? createFolder : saveRename}
+              >
+                <label>
+                  {nameDialog.purpose === 'rename-file' ? 'File name' : 'Folder name'}
+                  <input
+                    value={folderName}
+                    onChange={(event) => setFolderName(event.target.value)}
+                    required
+                    maxLength={80}
+                    autoFocus
+                  />
+                </label>
+                {error ? (
+                  <p className="form-error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                <div className="window-form__actions">
+                  <button type="button" onClick={closeNameDialog} disabled={folderBusy}>
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={folderBusy || !folderName.trim()}>
+                    {folderBusy ? 'Saving…' : nameDialog.purpose === 'create-folder' ? 'Create' : 'Save'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      ) : null}
+      {preview ? (
+        <div
+          className="window-dialog file-preview"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closePreview();
+            }
+          }}
+        >
+          <div className="window-dialog__panel file-preview__panel" role="dialog" aria-modal="true" aria-labelledby="file-preview-title">
+            <div className="file-preview__bar">
+              <h2 id="file-preview-title">{preview.name}</h2>
+              <div className="file-preview__bar-actions">
+                <a className="file-tile__download" href={preview.downloadUrl}>
+                  Download
+                </a>
+                <button type="button" onClick={closePreview}>
+                  Close
+                </button>
+              </div>
+            </div>
+            {String(preview.mime).startsWith('image/') ? (
+              <img className="file-preview__image" src={preview.url} alt={preview.name} />
+            ) : (
+              <Suspense fallback={<p className="panel-lead">Opening PDF…</p>}>
+                <PdfView data={preview.data} />
+              </Suspense>
+            )}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

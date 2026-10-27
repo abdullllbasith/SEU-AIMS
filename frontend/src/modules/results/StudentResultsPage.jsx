@@ -4,6 +4,7 @@ import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import { formatSemesterLabel } from '../../ui/academic-labels.js';
 
 export function StudentResultsPage() {
   const [error, setError] = useState('');
@@ -53,8 +54,7 @@ export function StudentResultsPage() {
     );
   }
 
-  const current = results?.current || [];
-  const history = results?.history || [];
+  const periods = resultPeriods(results);
   const gpaReady = gpa && Number(gpa.credits);
 
   return (
@@ -86,34 +86,52 @@ export function StudentResultsPage() {
         <p className="deadline-empty">Performance calculation is not yet available.</p>
       )}
 
-      <Panel title="Current semester" kicker={`${current.length} result${current.length === 1 ? '' : 's'}`}>
-        {current.length === 0 ? (
+      {periods.length === 0 ? (
+        <Panel title="Subject results">
           <EmptyState to="/academic/me" action="Open academic context">
-            No official results for the current semester.
+            No official results yet.
           </EmptyState>
-        ) : (
-          <>
-            <ResultCards rows={current} />
+        </Panel>
+      ) : (
+        periods.map((period) => (
+          <Panel
+            key={`${period.academicYearId}-${period.semesterId}`}
+            title={periodTitle(period)}
+            kicker={`${period.results.length} result${period.results.length === 1 ? '' : 's'}${period.current ? ' · current semester' : ''}`}
+          >
+            <ResultCards rows={period.results} />
             <div className="table-scroll">
-              <ResultTable rows={current} />
+              <ResultTable rows={period.results} />
             </div>
-          </>
-        )}
-      </Panel>
-
-      <Panel title="Academic history" kicker={`${history.length} result${history.length === 1 ? '' : 's'}`}>
-        {history.length === 0 ? (
-          <p className="deadline-empty">No earlier official results.</p>
-        ) : (
-          <>
-            <ResultCards rows={history} />
-            <div className="table-scroll">
-              <ResultTable rows={history} />
-            </div>
-          </>
-        )}
-      </Panel>
+          </Panel>
+        ))
+      )}
     </section>
+  );
+}
+
+function resultPeriods(results) {
+  if (Array.isArray(results?.periods) && results.periods.length) {
+    return results.periods;
+  }
+  const current = results?.current || [];
+  const history = results?.history || [];
+  return [
+    current.length
+      ? { academicYearId: 'current', semesterId: 'current', academicYearName: 'Current semester', results: current, current: true }
+      : null,
+    history.length
+      ? { academicYearId: 'history', semesterId: 'history', academicYearName: 'Earlier results', results: history, current: false }
+      : null,
+  ].filter(Boolean);
+}
+
+function periodTitle(period) {
+  return (
+    formatSemesterLabel(
+      { name: period.semesterName, sequence: period.semesterSequence },
+      { name: period.academicYearName, sequence: period.academicYearSequence },
+    ) || 'Semester'
   );
 }
 

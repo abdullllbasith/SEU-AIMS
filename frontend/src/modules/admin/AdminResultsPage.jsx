@@ -83,6 +83,28 @@ function pivotPreviewRows(items = []) {
   };
 }
 
+function ImportProgress({ item }) {
+  if (!QUEUED_IMPORT_STATUSES.includes(item?.processingStatus) || !item.progress) {
+    return null;
+  }
+  const { completed, total, percent } = item.progress;
+  const width = percent == null ? 12 : percent;
+  const label =
+    percent == null
+      ? 'Starting'
+      : total
+        ? `${percent}% · ${completed} of ${total}`
+        : `${percent}%`;
+  return (
+    <div className="import-progress" aria-label={label}>
+      <span className="import-progress__track" aria-hidden="true">
+        <span className="import-progress__fill" style={{ width: `${width}%` }} />
+      </span>
+      <span className="import-progress__label">{label}</span>
+    </div>
+  );
+}
+
 function formatImportStatus(status) {
   const label = String(status || '')
     .toLowerCase()
@@ -276,6 +298,16 @@ export function AdminResultsPage() {
     const response = await resultsApi.preview(id, { pageSize: 2000 });
     setPreview(response.data);
   }
+
+  useEffect(() => {
+    if (pending !== 'upload') {
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      reload().catch(() => {});
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [pending]);
 
   useEffect(() => {
     if (!items.some((item) => QUEUED_IMPORT_STATUSES.includes(item.processingStatus))) {
@@ -520,6 +552,7 @@ export function AdminResultsPage() {
                   <tr key={item.id} className={selectedId === item.id ? 'is-selected' : undefined}>
                     <td className="keep">
                       <span className={importStatusClass(item.processingStatus)}>{formatImportStatus(item.processingStatus)}</span>
+                      <ImportProgress item={item} />
                     </td>
                     <td>
                       {(() => {
@@ -604,10 +637,19 @@ export function AdminResultsPage() {
               );
             })}
           </dl>
-          {status === 'COMMITTING' ? (
-            <p className="review-callout">
-              {preview.import.commitStale ? 'The previous commit stopped before it finished.' : 'Commit in progress.'}
-            </p>
+          {QUEUED_IMPORT_STATUSES.includes(status) ? (
+            <div className="review-callout">
+              <p>
+                {status === 'COMMITTING'
+                  ? preview.import.commitStale
+                    ? 'The previous commit stopped before it finished.'
+                    : 'Commit in progress.'
+                  : status === 'PROCESSING'
+                    ? 'Parsing the file.'
+                    : 'Upload received. Waiting to parse.'}
+              </p>
+              <ImportProgress item={preview.import} />
+            </div>
           ) : null}
           {preview.import.duplicateOfImportId ? (
             <p className="review-callout">This file matches a previously committed import. Review it before committing.</p>

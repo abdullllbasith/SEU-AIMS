@@ -115,6 +115,10 @@ export async function listConversations(principal) {
           .select('conversationId senderUserId encryptedPayload sentAt')
       : [],
   ]);
+  const unreadCounts = await countUnreadByConversation(
+    principal.userId,
+    privateChats.map((chat) => chat._id),
+  );
   const names = new Map(users.map((user) => [String(user._id), user.displayName || '']));
   const registrations = new Map(contexts.map((row) => [String(row.userId), row.registrationNumber || '']));
   const latestByConversation = new Map();
@@ -146,9 +150,103 @@ export async function listConversations(principal) {
                 sentAt: latest.sentAt,
               }
             : null,
+          unreadCount: unreadCounts.get(String(chat._id)) || 0,
         });
       }),
     ].filter(Boolean),
+  };
+}
+
+const RESOURCE_ATTENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function countUnreadByConversation(userId, conversationIds) {
+  const counts = new Map(conversationIds.map((id) => [String(id), 0]));
+  if (!conversationIds.length) {
+    return counts;
+  }
+  const receipts = await MessageReceipt.find({
+    userId,
+    conversationId: { $in: conversationIds },
+  }).select('conversationId lastReadMessageId');
+  const anchorIds = receipts.map((row) => row.lastReadMessageId).filter(Boolean);
+  const anchors = anchorIds.length ? await Message.find({ _id: { $in: anchorIds } }).select('sentAt') : [];
+  const anchorById = new Map(anchors.map((row) => [String(row._id), row]));
+  const receiptByConversation = new Map(receipts.map((row) => [String(row.conversationId), row]));
+  await Promise.all(
+    conversationIds.map(async (id) => {
+      const receipt = receiptByConversation.get(String(id));
+      const anchor = receipt?.lastReadMessageId ? anchorById.get(String(receipt.lastReadMessageId)) : null;
+      counts.set(String(id), await Message.countDocuments(unreadFilter(id, userId, anchor)));
+    }),
+  );
+  return counts;
+}
+
+function unreadFilter(conversationId, userId, anchor) {
+  const filter = {
+    conversationId,
+    senderUserId: { $ne: userId },
+    deletedAt: null,
+  };
+  if (anchor?.sentAt) {
+    filter.$or = [
+      { sentAt: { $gt: anchor.sentAt } },
+      { sentAt: anchor.sentAt, _id: { $gt: anchor._id } },
+    ];
+  }
+  return filter;
+}
+
+export async function attentionCounts(principal, query = {}) {
+  const { context } = await requireStudentScope(principal);
+  const conversations = await Conversation.find({
+    $or: [
+      { type: 'BATCH', batchId: context.batchId, departmentId: context.departmentId },
+      { type: 'PRIVATE', participantUserIds: principal.userId, status: 'ACTIVE' },
+    ],
+  }).select('type');
+  const receipts = conversations.length
+    ? await MessageReceipt.find({
+        userId: principal.userId,
+        conversationId: { $in: conversations.map((row) => row._id) },
+      }).select('conversationId lastReadMessageId')
+    : [];
+  const anchorIds = receipts.map((row) => row.lastReadMessageId).filter(Boolean);
+  const anchors = anchorIds.length ? await Message.find({ _id: { $in: anchorIds } }).select('sentAt') : [];
+  const anchorById = new Map(anchors.map((row) => [String(row._id), row]));
+  const receiptByConversation = new Map(receipts.map((row) => [String(row.conversationId), row]));
+  let common = 0;
+  let privateCount = 0;
+  await Promise.all(
+    conversations.map(async (conversation) => {
+      const receipt = receiptByConversation.get(String(conversation._id));
+      const anchor = receipt?.lastReadMessageId
+        ? anchorById.get(String(receipt.lastReadMessageId))
+        : null;
+      const count = await Message.countDocuments(unreadFilter(conversation._id, principal.userId, anchor));
+      if (conversation.type === 'BATCH') {
+        common += count;
+      } else {
+        privateCount += count;
+      }
+    }),
+  );
+  const seenRaw = String(query.resourcesSeenAt || '').trim();
+  const seen = seenRaw ? new Date(seenRaw) : null;
+  const seenAt = seen && !Number.isNaN(seen.getTime()) ? seen : new Date(Date.now() - RESOURCE_ATTENTION_WINDOW_MS);
+  const resources = await SharedResource.countDocuments({
+    departmentId: context.departmentId,
+    batchId: context.batchId,
+    moderationState: 'AVAILABLE',
+    createdByUserId: { $ne: principal.userId },
+    deletedAt: null,
+    updatedAt: { $gt: seenAt },
+  });
+  return {
+    common,
+    private: privateCount,
+    resources,
+    total: common + privateCount + resources,
   };
 }
 

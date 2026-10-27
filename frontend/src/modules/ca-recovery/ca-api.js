@@ -15,14 +15,39 @@ export const caApi = {
   conditions: (params) => apiRequest(`/ca/conditions${qs(params)}`),
   windowsMe: (params) => apiRequest(`/ca/windows/me${qs(params)}`),
   applications: () => apiRequest('/ca/applications'),
+  preview: (params) => apiRequest(`/ca/applications/preview${qs(params)}`),
   create: (body) => apiRequest('/ca/applications', { method: 'POST', body: JSON.stringify(body) }),
   get: (id) => apiRequest(`/ca/applications/${id}`),
+  update: (id, body) => apiRequest(`/ca/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   submit: (id) => apiRequest(`/ca/applications/${id}/submit`, { method: 'POST', body: JSON.stringify({}) }),
   pdfUrl: (id) => `/api/ca/applications/${id}/pdf`,
+  download: async (id) => {
+    const load = () => fetch(`/api/ca/applications/${id}/pdf`, { credentials: 'include', cache: 'no-store' });
+    let response = await load();
+    if (response.status === 401) {
+      await apiRequest('/auth/refresh', { method: 'POST', _retry: true });
+      response = await load();
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error?.message || 'The form could not be downloaded.');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${id}.pdf`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
   adminWindows: () => apiRequest('/ca/admin/windows'),
   saveWindow: (body) => apiRequest('/ca/admin/windows', { method: 'POST', body: JSON.stringify(body) }),
   deleteWindow: (id) => apiRequest(`/ca/admin/windows/${id}`, { method: 'DELETE' }),
   adminApplications: (params) => apiRequest(`/ca/admin/applications${qs(params)}`),
+  confirmReceipt: (id, receipt) =>
+    apiRequest(`/ca/admin/applications/${id}/confirm-receipt`, { method: 'POST', body: JSON.stringify({ receipt }) }),
   verify: (id, body) =>
     apiRequest(`/ca/admin/applications/${id}/verify`, { method: 'POST', body: JSON.stringify(body) }),
   approve: (id) => apiRequest(`/ca/admin/applications/${id}/approve`, { method: 'POST', body: JSON.stringify({}) }),

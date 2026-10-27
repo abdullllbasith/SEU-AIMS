@@ -326,6 +326,18 @@ export async function getAcademicHistory(principal, query = {}) {
   };
 }
 
+function comparePeriods(left, right) {
+  const yearDelta = (left.academicYearSequence ?? 99) - (right.academicYearSequence ?? 99);
+  if (yearDelta) {
+    return yearDelta;
+  }
+  const semesterDelta = (left.semesterSequence ?? 99) - (right.semesterSequence ?? 99);
+  if (semesterDelta) {
+    return semesterDelta;
+  }
+  return String(left.subjectCode || '').localeCompare(String(right.subjectCode || ''));
+}
+
 export async function getPerformance(principal, query = {}) {
   assertStudent(principal);
   if (query.studentId && String(query.studentId) !== String(principal.userId)) {
@@ -385,22 +397,26 @@ export async function getPerformance(principal, query = {}) {
   };
   return {
     gpa,
-    trend: trendSource.map((item) => ({
-      ...item,
-      ...enrichPeriod(item),
-    })),
+    trend: trendSource
+      .map((item) => ({
+        ...item,
+        ...enrichPeriod(item),
+      }))
+      .sort(comparePeriods),
     distribution: Object.entries(distribution).map(([resultCode, count]) => ({ resultCode, count })),
-    subjects: results.all.map((item) => ({
-      subjectCode: item.subjectCode,
-      subjectName: byCode.get(item.subjectCode)?.name || item.subjectCode,
-      credits: byCode.get(item.subjectCode)?.credits || null,
-      resultCode: item.resultCode,
-      isEca: item.isEca,
-      academicYearId: item.academicYearId,
-      semesterId: item.semesterId,
-      ...enrichPeriod(item),
-      updatedAt: item.updatedAt,
-    })),
+    subjects: results.all
+      .map((item) => ({
+        subjectCode: item.subjectCode,
+        subjectName: byCode.get(item.subjectCode)?.name || item.subjectCode,
+        credits: byCode.get(item.subjectCode)?.credits || null,
+        resultCode: item.resultCode,
+        isEca: item.isEca,
+        academicYearId: item.academicYearId,
+        semesterId: item.semesterId,
+        ...enrichPeriod(item),
+        updatedAt: item.updatedAt,
+      }))
+      .sort(comparePeriods),
     completedCount: results.all.filter((item) => !item.isEca).length,
     pendingEcaCount: results.all.filter((item) => item.isEca).length,
     explanation:

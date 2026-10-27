@@ -4,6 +4,7 @@
  * Registration numbers are SEU/IS/21/ICT/001 … SEU/IS/21/ICT/140.
  * Skips emails or registration numbers that already exist.
  * Placed in the 21 ICT batch, one academic year ahead of the 22 ICT cohort (Year 3 · Semester 2).
+ * Odd registration numbers are Software Technologies (SWT). Even numbers are Network & Security Technologies (NST).
  */
 import dotenv from 'dotenv';
 import { connectMongo, disconnectMongo } from '../src/infrastructure/database/mongo.js';
@@ -30,6 +31,11 @@ const TO = 140;
 
 function pad(n) {
   return String(n).padStart(3, '0');
+}
+
+function specializationFor(registrationNumber) {
+  const sequence = Number(String(registrationNumber).match(/(\d+)$/)?.[1] || 0);
+  return sequence % 2 === 1 ? 'SWT' : 'NST';
 }
 
 await connectMongo({ uri: process.env.MONGODB_URI, serverSelectionTimeoutMS: 20000 });
@@ -76,11 +82,8 @@ const skipEmails = new Set(existingUsers.map((row) => row.email));
 const skipRegs = new Set(existingRegs.map((row) => row.registrationNumber));
 const toCreate = wanted.filter((row) => !skipEmails.has(row.email) && !skipRegs.has(row.registrationNumber));
 
-if (!toCreate.length) {
-  console.log(JSON.stringify({ created: 0, skippedExisting: wanted.length }, null, 2));
-  await disconnectMongo();
-  process.exit(0);
-}
+let created = 0;
+if (toCreate.length) {
 
 const users = await User.insertMany(
   toCreate.map((row) => ({
@@ -103,7 +106,7 @@ const contexts = await StudentAcademicContext.insertMany(
     registrationNumber: toCreate[index].registrationNumber,
     currentAcademicYearId: year._id,
     currentSemesterId: semester._id,
-    specialization: null,
+    specialization: specializationFor(toCreate[index].registrationNumber),
     status: 'ACTIVE',
   })),
   { ordered: true },
@@ -115,17 +118,67 @@ await StudentAcademicHistory.insertMany(
     userId: context.userId,
     academicYearId: year._id,
     semesterId: semester._id,
-    specialization: null,
+    specialization: context.specialization,
     recordedAt: new Date(),
   })),
   { ordered: true },
 );
+  created = users.length;
+}
+
+const year3 = await StudentAcademicContext.find({
+  batchId: batch._id,
+  currentAcademicYearId: year._id,
+  status: 'ACTIVE',
+})
+  .select('userId registrationNumber specialization currentSemesterId')
+  .lean();
+
+const contextUpdates = [];
+const historyUpdates = [];
+const counts = { SWT: 0, NST: 0 };
+for (const context of year3) {
+  const specialization = specializationFor(context.registrationNumber);
+  counts[specialization] += 1;
+  if (context.specialization !== specialization) {
+    contextUpdates.push({
+      updateOne: {
+        filter: { _id: context._id },
+        update: { $set: { specialization } },
+      },
+    });
+  }
+  historyUpdates.push({
+    updateOne: {
+      filter: {
+        studentAcademicContextId: context._id,
+        academicYearId: year._id,
+        semesterId: context.currentSemesterId || semester._id,
+      },
+      update: {
+        $set: { specialization },
+        $setOnInsert: { userId: context.userId, recordedAt: new Date() },
+      },
+      upsert: true,
+    },
+  });
+}
+
+if (contextUpdates.length) {
+  await StudentAcademicContext.bulkWrite(contextUpdates, { ordered: false });
+}
+if (historyUpdates.length) {
+  await StudentAcademicHistory.bulkWrite(historyUpdates, { ordered: false });
+}
 
 console.log(
   JSON.stringify(
     {
-      created: users.length,
+      created,
       skippedExisting: wanted.length - toCreate.length,
+      year3Students: year3.length,
+      specialization: counts,
+      updated: contextUpdates.length,
       placement: {
         batch: batch.code,
         year: year.name,

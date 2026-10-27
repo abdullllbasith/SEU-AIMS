@@ -37,6 +37,10 @@ const resultImportSchema = new mongoose.Schema(
     },
     committingStartedAt: Date,
     commitToken: { type: String, trim: true },
+    operationProgress: {
+      completed: { type: Number, default: 0 },
+      total: { type: Number, default: 0 },
+    },
     processingStatus: {
       type: String,
       required: true,

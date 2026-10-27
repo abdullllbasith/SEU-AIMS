@@ -66,6 +66,55 @@ export async function rememberRoomKeyMaterial(conversationId, rawKeys) {
   }
 }
 
+export async function readStoredIdentity(importPrivateJwk) {
+  try {
+    const db = await openDb();
+    const stored = await idbGet(db, 'identity');
+    if (!stored?.privateJwk || !stored?.publicJwk) {
+      return null;
+    }
+    const privateKey = await importPrivateJwk(stored.privateJwk);
+    const publicKey = await crypto.subtle.importKey(
+      'jwk',
+      stored.publicJwk,
+      { name: 'ECDH', namedCurve: 'P-256' },
+      true,
+      [],
+    );
+    return { privateKey, publicKey, publicJwk: stored.publicJwk, keyVersion: stored.keyVersion || '1' };
+  } catch {
+    return null;
+  }
+}
+
+export async function persistIdentity(record, importPrivateJwk) {
+  const publicJwk = {
+    kty: 'EC',
+    crv: 'P-256',
+    x: record.publicKeyJwk.x,
+    y: record.publicKeyJwk.y,
+  };
+  const privateKey = await importPrivateJwk(record.privateKeyJwk);
+  const publicKey = await crypto.subtle.importKey(
+    'jwk',
+    publicJwk,
+    { name: 'ECDH', namedCurve: 'P-256' },
+    true,
+    [],
+  );
+  try {
+    const db = await openDb();
+    await idbPut(db, 'identity', {
+      privateJwk: record.privateKeyJwk,
+      publicJwk,
+      keyVersion: record.keyVersion || '1',
+    });
+  } catch {
+    // This browser can still use the key for the current visit.
+  }
+  return { privateKey, publicKey, publicJwk, keyVersion: record.keyVersion || '1' };
+}
+
 export async function loadOrCreateIdentity(generateIdentityKeyPair, exportPrivateJwk, importPrivateJwk, exportPublicJwk) {
   try {
     const db = await openDb();

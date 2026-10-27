@@ -16,6 +16,8 @@ const resultImportRowSchema = new mongoose.Schema(
     matchedStudentUserId: { type: objectId, ref: 'User' },
     subjectId: { type: objectId, ref: 'Subject' },
     subjectOfferingId: { type: objectId, ref: 'SubjectOffering' },
+    academicYearId: { type: objectId, ref: 'AcademicYear' },
+    semesterId: { type: objectId, ref: 'Semester' },
     matchStatus: {
       type: String,
       enum: MATCH_STATUSES,

@@ -146,11 +146,12 @@ export function PerformancePage() {
           <table className="data-table">
             <caption>Subject-level official results</caption>
             <thead>
-              <tr>
-                <th>Subject</th>
-                <th>Credits</th>
-                <th>Result</th>
-              </tr>
+                <tr>
+                  <th>Subject</th>
+                  <th>Semester</th>
+                  <th>Credits</th>
+                  <th>Result</th>
+                </tr>
             </thead>
             <tbody>
               {subjects.map((item) => (
@@ -158,6 +159,12 @@ export function PerformancePage() {
                   <td>
                     <span className="result-subject">{item.subjectCode}</span>{' '}
                     {item.subjectName}
+                  </td>
+                  <td>
+                    {formatSemesterLabel(
+                      { name: item.semesterName, sequence: item.semesterSequence },
+                      { name: item.academicYearName, sequence: item.academicYearSequence },
+                    ) || '—'}
                   </td>
                   <td>{item.credits ?? '—'}</td>
                   <td>

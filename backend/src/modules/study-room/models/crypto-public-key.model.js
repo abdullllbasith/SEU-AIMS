@@ -8,6 +8,7 @@ const cryptoPublicKeySchema = new mongoose.Schema(
     algorithm: { type: String, required: true, default: 'ECDH-P256' },
     protocolVersion: { type: String, required: true, default: CRYPTO_PROTOCOL },
     publicKeyJwk: { type: mongoose.Schema.Types.Mixed, required: true },
+    recoveryPrivateJwk: { type: mongoose.Schema.Types.Mixed },
     keyVersion: { type: String, required: true, default: '1' },
   },
   persistenceOptions,

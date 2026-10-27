@@ -172,10 +172,16 @@ export async function listAccessibleOfferings(principal, query = {}) {
   }
 
   const history = await StudentAcademicHistory.find({ studentAcademicContextId: context._id });
-  const keys = history.map((row) => ({
-    academicYearId: row.academicYearId,
-    semesterId: row.semesterId,
-  }));
+  const keys = history
+    .filter(
+      (row) =>
+        String(row.academicYearId) !== String(context.currentAcademicYearId) ||
+        String(row.semesterId) !== String(context.currentSemesterId),
+    )
+    .map((row) => ({
+      academicYearId: row.academicYearId,
+      semesterId: row.semesterId,
+    }));
   if (!keys.length) {
     return { items: [], scope: 'history' };
   }
@@ -232,12 +238,20 @@ export async function createSection(principal, offeringId, body) {
     throw new ValidationError('Section name is required');
   }
   const sortOrder = Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0;
-  const section = await ResourceSection.create({
-    departmentId: offering.departmentId,
-    subjectOfferingId: offering._id,
-    name,
-    sortOrder,
-  });
+  let section;
+  try {
+    section = await ResourceSection.create({
+      departmentId: offering.departmentId,
+      subjectOfferingId: offering._id,
+      name: name.slice(0, 80),
+      sortOrder,
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      throw new ConflictError('A folder with this name already exists');
+    }
+    throw error;
+  }
   await recordAudit({
     actorUserId: principal.userId,
     action: 'learning.section.create',
@@ -260,13 +274,51 @@ export async function updateSection(principal, sectionId, body) {
     if (!name) {
       throw new ValidationError('Section name is required');
     }
-    section.name = name;
+    section.name = name.slice(0, 80);
   }
   if (body.sortOrder !== undefined) {
     section.sortOrder = Number(body.sortOrder) || 0;
   }
-  await section.save();
+  try {
+    await section.save();
+  } catch (error) {
+    if (error?.code === 11000) {
+      throw new ConflictError('A folder with this name already exists');
+    }
+    throw error;
+  }
   return mapSection(section);
+}
+
+export async function deleteSection(principal, sectionId) {
+  requireObjectId(sectionId, 'section');
+  const section = await ResourceSection.findById(sectionId);
+  if (!section) {
+    throw new NotFoundError('Section not found');
+  }
+  const offering = await loadOffering(section.subjectOfferingId);
+  await assertCanManage(principal, offering);
+  const resources = await OfficialResource.find({ sectionId: section._id, deletedAt: null });
+  const removedAt = new Date();
+  for (const resource of resources) {
+    resource.deletedAt = removedAt;
+    resource.publicationState = 'UNPUBLISHED';
+    resource.updatedByUserId = principal.userId;
+    await resource.save();
+    const file = await StoredFile.findById(resource.fileId);
+    if (file) {
+      file.availability = 'UNAVAILABLE';
+      await file.save();
+    }
+  }
+  await ResourceSection.deleteOne({ _id: section._id });
+  await recordAudit({
+    actorUserId: principal.userId,
+    action: 'learning.section.delete',
+    entityId: section._id,
+    metadata: { subjectOfferingId: String(offering._id), removedResources: resources.length },
+  });
+  return { deleted: true };
 }
 
 async function storeOfficialFile({ buffer, originalname, mimetype, principal, offering, config, infrastructure }) {

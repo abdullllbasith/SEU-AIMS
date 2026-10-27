@@ -5,7 +5,7 @@ import { ResultImportRow } from '../models/result-import-row.model.js';
 import { AcademicResult } from '../models/academic-result.model.js';
 import { ResultRevision } from '../models/result-revision.model.js';
 import { RESULT_COMMIT_LOCK_MS, RESULT_PARSER_VERSION } from '../constants.js';
-import { RESULT_PERIOD_VERSION, deriveResultPeriods } from './result-period.js';
+import { RESULT_PERIOD_VERSION, chooseSubjectPeriod, deriveResultPeriods } from './result-period.js';
 import { parseXlsxResults } from './xlsx-parser.js';
 import { parsePdfResults } from './pdf-parser.js';
 import {
@@ -30,6 +30,9 @@ import {
   sanitizeDisplayFilename,
 } from '../../files/index.js';
 import {
+  AcademicYear,
+  CurriculumMapping,
+  Semester,
   Subject,
   SubjectOffering,
   StudentAcademicContext,
@@ -99,6 +102,41 @@ function summarize(rows) {
   };
 }
 
+async function periodForSubject(departmentId, subject, student) {
+  const [mappings, offerings, years, semesters] = await Promise.all([
+    CurriculumMapping.find({
+      departmentId,
+      subjectId: subject._id,
+      status: 'ACTIVE',
+    })
+      .select('subjectId academicYearId semesterId')
+      .lean(),
+    SubjectOffering.find({
+      departmentId,
+      subjectId: subject._id,
+      batchId: student.batchId,
+    })
+      .select('subjectId batchId academicYearId semesterId')
+      .lean(),
+    AcademicYear.find({ departmentId }).select('name sequence').lean(),
+    Semester.find({ departmentId }).select('name sequence academicYearId').lean(),
+  ]);
+  return (
+    chooseSubjectPeriod({
+      subjectId: subject._id,
+      batchId: student.batchId,
+      mappings,
+      offerings,
+      years,
+      semesters,
+    }) || {
+      academicYearId: student.currentAcademicYearId || null,
+      semesterId: student.currentSemesterId || null,
+      subjectOfferingId: null,
+    }
+  );
+}
+
 async function buildImportLookup(importDoc, parsedRows) {
   const registrations = [
     ...new Set(
@@ -128,20 +166,28 @@ async function buildImportLookup(importDoc, parsedRows) {
   ]);
   const studentByRegistration = new Map(students.map((student) => [student.registrationNumber, student]));
   const subjectByCode = new Map(subjects.map((subject) => [subject.code, subject]));
-  const offerings = subjects.length
-    ? await SubjectOffering.find({
-        departmentId: importDoc.departmentId,
-        subjectId: { $in: subjects.map((subject) => subject._id) },
-      })
-        .select('subjectId batchId academicYearId semesterId')
-        .lean()
-    : [];
-  const offeringByKey = new Map(
-    offerings.map((offering) => [
-      [offering.subjectId, offering.batchId, offering.academicYearId, offering.semesterId].map(String).join('|'),
-      offering,
-    ]),
-  );
+  const subjectIds = subjects.map((subject) => subject._id);
+  const [offerings, mappings, years, semesters] = await Promise.all([
+    subjectIds.length
+      ? SubjectOffering.find({
+          departmentId: importDoc.departmentId,
+          subjectId: { $in: subjectIds },
+        })
+          .select('subjectId batchId academicYearId semesterId')
+          .lean()
+      : [],
+    subjectIds.length
+      ? CurriculumMapping.find({
+          departmentId: importDoc.departmentId,
+          subjectId: { $in: subjectIds },
+          status: 'ACTIVE',
+        })
+          .select('subjectId academicYearId semesterId')
+          .lean()
+      : [],
+    AcademicYear.find({ departmentId: importDoc.departmentId }).select('name sequence').lean(),
+    Semester.find({ departmentId: importDoc.departmentId }).select('name sequence academicYearId').lean(),
+  ]);
   const resultByIdentity = new Map(
     existingResults.map((result) => [`${result.registrationNumber}|${result.subjectCode}`, result]),
   );
@@ -152,14 +198,24 @@ async function buildImportLookup(importDoc, parsedRows) {
     subject(subjectCode) {
       return subjectByCode.get(subjectCode) || null;
     },
-    offering(subject, student) {
+    period(subject, student) {
       if (!subject || !student) {
         return null;
       }
-      const key = [subject._id, student.batchId, student.currentAcademicYearId, student.currentSemesterId]
-        .map(String)
-        .join('|');
-      return offeringByKey.get(key) || null;
+      return (
+        chooseSubjectPeriod({
+          subjectId: subject._id,
+          batchId: student.batchId,
+          mappings,
+          offerings,
+          years,
+          semesters,
+        }) || {
+          academicYearId: student.currentAcademicYearId || null,
+          semesterId: student.currentSemesterId || null,
+          subjectOfferingId: null,
+        }
+      );
     },
     existing(registrationNumber, subjectCode) {
       return resultByIdentity.get(`${registrationNumber}|${subjectCode}`) || null;
@@ -182,6 +238,8 @@ async function classifyRow({ importDoc, parsed, seen, lookup }) {
   let matchedStudentUserId = null;
   let subjectId = null;
   let subjectOfferingId = null;
+  let academicYearId = null;
+  let semesterId = null;
   let officialResultCode = resultCode;
   let rawResultCode = resultCode;
   let gradeCapApplied = false;
@@ -253,16 +311,12 @@ async function classifyRow({ importDoc, parsed, seen, lookup }) {
     } else {
       subjectId = subject._id;
       if (student) {
-        const offering = lookup
-          ? lookup.offering(subject, student)
-          : await SubjectOffering.findOne({
-              departmentId: importDoc.departmentId,
-              subjectId: subject._id,
-              batchId: student.batchId,
-              academicYearId: student.currentAcademicYearId,
-              semesterId: student.currentSemesterId,
-            });
-        subjectOfferingId = offering?._id || null;
+        const period = lookup
+          ? lookup.period(subject, student)
+          : await periodForSubject(importDoc.departmentId, subject, student);
+        subjectOfferingId = period?.subjectOfferingId || null;
+        academicYearId = period?.academicYearId || student.currentAcademicYearId || null;
+        semesterId = period?.semesterId || student.currentSemesterId || null;
       }
     }
   }
@@ -328,6 +382,8 @@ async function classifyRow({ importDoc, parsed, seen, lookup }) {
     matchedStudentUserId,
     subjectId,
     subjectOfferingId,
+    academicYearId,
+    semesterId,
     matchStatus,
     rowStatus,
     validationErrors: errors,
@@ -448,13 +504,18 @@ export async function processResultParse({ importId, infrastructure }) {
     const lookup = await buildImportLookup(claimed, parsed.rows);
     const classified = [];
     for (let index = 0; index < parsed.rows.length; index += 1) {
-      if (index % 25 === 0) {
+      classified.push(await classifyRow({ importDoc: claimed, parsed: parsed.rows[index], seen, lookup }));
+      if (index % 25 === 0 || index === parsed.rows.length - 1) {
         await ResultImport.updateOne(
           { _id: claimed._id, processingStatus: 'PROCESSING' },
-          { $set: { parseStartedAt: new Date() } },
+          {
+            $set: {
+              parseStartedAt: new Date(),
+              operationProgress: { completed: index + 1, total: parsed.rows.length },
+            },
+          },
         );
       }
-      classified.push(await classifyRow({ importDoc: claimed, parsed: parsed.rows[index], seen, lookup }));
     }
     finalized = blockConflictingIdentities(classified);
     if (finalized.length) {
@@ -814,6 +875,17 @@ export async function commitResultImport(principal, importId, { infrastructure }
     rowStatus: 'VALID',
     committedAt: { $exists: false },
   });
+  const alreadyCommitted = await ResultImportRow.countDocuments({
+    importId: locked._id,
+    proposedAction: { $in: ['NEW', 'UPDATE', 'REVIEW', 'UNCHANGED'] },
+    rowStatus: 'VALID',
+    committedAt: { $exists: true },
+  });
+  const progressTotal = alreadyCommitted + rows.length;
+  await ResultImport.updateOne(
+    { _id: locked._id, processingStatus: 'COMMITTING', commitToken },
+    { $set: { operationProgress: { completed: alreadyCommitted, total: progressTotal } } },
+  );
   if (!rows.length) {
     const wroteRows = await ResultImportRow.exists({ importId: locked._id, committedAt: { $ne: null } });
     if (wroteRows) {
@@ -841,7 +913,12 @@ export async function commitResultImport(principal, importId, { infrastructure }
     if (index % 5 === 0) {
       const heartbeat = await ResultImport.updateOne(
         { _id: locked._id, processingStatus: 'COMMITTING', commitToken },
-        { $set: { committingStartedAt: new Date() } },
+        {
+          $set: {
+            committingStartedAt: new Date(),
+            operationProgress: { completed: alreadyCommitted + writtenRows, total: progressTotal },
+          },
+        },
       );
       if (!heartbeat.matchedCount) {
         throw new ConflictError('Import commit was interrupted');
@@ -895,8 +972,8 @@ export async function commitResultImport(principal, importId, { infrastructure }
         subjectId: subject._id,
         subjectCode: row.subjectCode,
         subjectOfferingId: row.subjectOfferingId,
-        studentAcademicYearId: student.currentAcademicYearId,
-        studentSemesterId: student.currentSemesterId,
+        studentAcademicYearId: row.academicYearId || student.currentAcademicYearId,
+        studentSemesterId: row.semesterId || student.currentSemesterId,
         sourceImportId: locked._id,
         sourceBatchId: student.batchId,
         resultCode: storedCode,
