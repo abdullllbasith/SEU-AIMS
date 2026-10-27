@@ -1,3 +1,4 @@
+import { AcademicResult } from '../../results/models/academic-result.model.js';
 import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { CaApplication } from '../models/ca-application.model.js';
 import { CaApplicationSubject } from '../models/ca-application-subject.model.js';
@@ -55,6 +56,43 @@ export async function syncIncompleteCaFromResult(result) {
     await maybeResolveApplication(existing);
   }
   return existing;
+}
+
+/** Point stored E(CA) conditions at the official result period, not the student's current semester. */
+export async function realignIncompleteCaPeriods() {
+  const conditions = await IncompleteCa.find();
+  const results = await AcademicResult.find({ _id: { $in: conditions.map((row) => row.academicResultId) } })
+    .select('studentAcademicYearId studentSemesterId')
+    .lean();
+  const resultById = new Map(results.map((result) => [String(result._id), result]));
+  let moved = 0;
+  let alreadyAligned = 0;
+  let missingResult = 0;
+  for (const condition of conditions) {
+    const result = resultById.get(String(condition.academicResultId));
+    if (!result?.studentAcademicYearId || !result?.studentSemesterId) {
+      missingResult += 1;
+      continue;
+    }
+    if (
+      String(condition.academicYearId) === String(result.studentAcademicYearId) &&
+      String(condition.semesterId) === String(result.studentSemesterId)
+    ) {
+      alreadyAligned += 1;
+      continue;
+    }
+    condition.academicYearId = result.studentAcademicYearId;
+    condition.semesterId = result.studentSemesterId;
+    try {
+      await condition.save();
+      moved += 1;
+    } catch (error) {
+      if (error?.code !== 11000) {
+        throw error;
+      }
+    }
+  }
+  return { scanned: conditions.length, moved, alreadyAligned, missingResult };
 }
 
 async function maybeResolveApplication(incomplete) {

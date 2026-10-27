@@ -20,6 +20,8 @@ export async function emitCaNotification({
   scheduledAt,
   infrastructure,
   departmentId,
+  vars,
+  channels,
 }) {
   await fanoutNotification({
     recipientUserId,
@@ -31,5 +33,7 @@ export async function emitCaNotification({
     actionPath: '/ca',
     departmentId,
     infrastructure,
+    vars,
+    channels,
   });
 }

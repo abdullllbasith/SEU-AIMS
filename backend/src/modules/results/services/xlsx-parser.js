@@ -24,14 +24,7 @@ function headerKey(text) {
   return cellText(text).trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-export async function parseXlsxResults(buffer) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
-  const sheet = workbook.worksheets[0];
-  if (!sheet) {
-    return { rows: [], warnings: ['Workbook has no worksheets'] };
-  }
-
+function parseWorksheet(sheet) {
   const matrix = [];
   sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
     const values = [];
@@ -111,5 +104,15 @@ export async function parseXlsxResults(buffer) {
     });
   }
 
-  return { rows: extracted, warnings: extracted.length ? [] : ['No result rows were identified'] };
+  return extracted;
+}
+
+export async function parseXlsxResults(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  if (!workbook.worksheets.length) {
+    return { rows: [], warnings: ['Workbook has no worksheets'] };
+  }
+  const rows = workbook.worksheets.flatMap((sheet) => parseWorksheet(sheet));
+  return { rows, warnings: rows.length ? [] : ['No result rows were identified'] };
 }

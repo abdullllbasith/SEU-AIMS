@@ -61,6 +61,6 @@ export async function loadAuthorizedProfileImage({ principal, fileId, infrastruc
   if (!infrastructure.storage?.getObject) {
     throw new ValidationError('File storage is not configured');
   }
-  const object = await infrastructure.storage.getObject({ key: file.storageKey });
+  const object = await infrastructure.storage.getObject(file.storageKey);
   return { file, body: object?.body || Buffer.from('') };
 }

@@ -98,8 +98,155 @@ export async function listConversations(principal) {
     participantUserIds: principal.userId,
     status: 'ACTIVE',
   }).sort({ lastMessageAt: -1, updatedAt: -1 });
+  const peerIds = privateChats
+    .map((chat) => chat.participantUserIds.find((id) => String(id) !== String(principal.userId)))
+    .filter(Boolean);
+  const [users, contexts, recentMessages] = await Promise.all([
+    peerIds.length ? User.find({ _id: { $in: peerIds } }).select('displayName') : [],
+    peerIds.length
+      ? StudentAcademicContext.find({ userId: { $in: peerIds }, status: 'ACTIVE' }).select('userId registrationNumber')
+      : [],
+    privateChats.length
+      ? Message.find({
+          conversationId: { $in: privateChats.map((chat) => chat._id) },
+          deletedAt: null,
+        })
+          .sort({ sentAt: -1 })
+          .select('conversationId senderUserId encryptedPayload sentAt')
+      : [],
+  ]);
+  const unreadCounts = await countUnreadByConversation(
+    principal.userId,
+    privateChats.map((chat) => chat._id),
+  );
+  const names = new Map(users.map((user) => [String(user._id), user.displayName || '']));
+  const registrations = new Map(contexts.map((row) => [String(row.userId), row.registrationNumber || '']));
+  const latestByConversation = new Map();
+  for (const message of recentMessages) {
+    const key = String(message.conversationId);
+    if (!latestByConversation.has(key)) {
+      latestByConversation.set(key, message);
+    }
+  }
   return {
-    items: [common, ...privateChats].filter(Boolean).map((item) => mapConversation(item)),
+    items: [
+      common ? mapConversation(common) : null,
+      ...privateChats.map((chat) => {
+        const peerId = chat.participantUserIds.find((id) => String(id) !== String(principal.userId));
+        const latest = latestByConversation.get(String(chat._id));
+        return mapConversation(chat, {
+          peer: peerId
+            ? {
+                id: String(peerId),
+                displayName: names.get(String(peerId)) || 'Classmate',
+                registrationNumber: registrations.get(String(peerId)) || '',
+              }
+            : null,
+          lastMessage: latest
+            ? {
+                id: String(latest._id),
+                senderUserId: String(latest.senderUserId),
+                encryptedPayload: latest.encryptedPayload,
+                sentAt: latest.sentAt,
+              }
+            : null,
+          unreadCount: unreadCounts.get(String(chat._id)) || 0,
+        });
+      }),
+    ].filter(Boolean),
+  };
+}
+
+const RESOURCE_ATTENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function countUnreadByConversation(userId, conversationIds) {
+  const counts = new Map(conversationIds.map((id) => [String(id), 0]));
+  if (!conversationIds.length) {
+    return counts;
+  }
+  const receipts = await MessageReceipt.find({
+    userId,
+    conversationId: { $in: conversationIds },
+  }).select('conversationId lastReadMessageId');
+  const anchorIds = receipts.map((row) => row.lastReadMessageId).filter(Boolean);
+  const anchors = anchorIds.length ? await Message.find({ _id: { $in: anchorIds } }).select('sentAt') : [];
+  const anchorById = new Map(anchors.map((row) => [String(row._id), row]));
+  const receiptByConversation = new Map(receipts.map((row) => [String(row.conversationId), row]));
+  await Promise.all(
+    conversationIds.map(async (id) => {
+      const receipt = receiptByConversation.get(String(id));
+      const anchor = receipt?.lastReadMessageId ? anchorById.get(String(receipt.lastReadMessageId)) : null;
+      counts.set(String(id), await Message.countDocuments(unreadFilter(id, userId, anchor)));
+    }),
+  );
+  return counts;
+}
+
+function unreadFilter(conversationId, userId, anchor) {
+  const filter = {
+    conversationId,
+    senderUserId: { $ne: userId },
+    deletedAt: null,
+  };
+  if (anchor?.sentAt) {
+    filter.$or = [
+      { sentAt: { $gt: anchor.sentAt } },
+      { sentAt: anchor.sentAt, _id: { $gt: anchor._id } },
+    ];
+  }
+  return filter;
+}
+
+export async function attentionCounts(principal, query = {}) {
+  const { context } = await requireStudentScope(principal);
+  const conversations = await Conversation.find({
+    $or: [
+      { type: 'BATCH', batchId: context.batchId, departmentId: context.departmentId },
+      { type: 'PRIVATE', participantUserIds: principal.userId, status: 'ACTIVE' },
+    ],
+  }).select('type');
+  const receipts = conversations.length
+    ? await MessageReceipt.find({
+        userId: principal.userId,
+        conversationId: { $in: conversations.map((row) => row._id) },
+      }).select('conversationId lastReadMessageId')
+    : [];
+  const anchorIds = receipts.map((row) => row.lastReadMessageId).filter(Boolean);
+  const anchors = anchorIds.length ? await Message.find({ _id: { $in: anchorIds } }).select('sentAt') : [];
+  const anchorById = new Map(anchors.map((row) => [String(row._id), row]));
+  const receiptByConversation = new Map(receipts.map((row) => [String(row.conversationId), row]));
+  let common = 0;
+  let privateCount = 0;
+  await Promise.all(
+    conversations.map(async (conversation) => {
+      const receipt = receiptByConversation.get(String(conversation._id));
+      const anchor = receipt?.lastReadMessageId
+        ? anchorById.get(String(receipt.lastReadMessageId))
+        : null;
+      const count = await Message.countDocuments(unreadFilter(conversation._id, principal.userId, anchor));
+      if (conversation.type === 'BATCH') {
+        common += count;
+      } else {
+        privateCount += count;
+      }
+    }),
+  );
+  const seenRaw = String(query.resourcesSeenAt || '').trim();
+  const seen = seenRaw ? new Date(seenRaw) : null;
+  const seenAt = seen && !Number.isNaN(seen.getTime()) ? seen : new Date(Date.now() - RESOURCE_ATTENTION_WINDOW_MS);
+  const resources = await SharedResource.countDocuments({
+    departmentId: context.departmentId,
+    batchId: context.batchId,
+    moderationState: 'AVAILABLE',
+    createdByUserId: { $ne: principal.userId },
+    deletedAt: null,
+    updatedAt: { $gt: seenAt },
+  });
+  return {
+    common,
+    private: privateCount,
+    resources,
+    total: common + privateCount + resources,
   };
 }
 
@@ -143,8 +290,10 @@ export async function createPrivateConversation(principal, body, { config }) {
     return mapConversation(conversation);
   } catch (error) {
     if (error?.code === 11000) {
-      const existing = await Conversation.findOne({ participantKey: key });
-      return mapConversation(existing);
+      const existing = await Conversation.findOne({ type: 'PRIVATE', participantKey: key });
+      if (existing) {
+        return mapConversation(existing);
+      }
     }
     throw error;
   }
@@ -158,6 +307,7 @@ export async function getConversation(principal, conversationId) {
     keyVersion: conversation.currentKeyVersion,
   }).select('recipientUserId');
   const have = new Set(envelopes.map((row) => String(row.recipientUserId)));
+  let batchMemberUserIds = [];
   let membersMissingEnvelopes = [];
   if (conversation.type === 'BATCH') {
     const members = await StudentAcademicContext.find({
@@ -165,28 +315,51 @@ export async function getConversation(principal, conversationId) {
       departmentId: conversation.departmentId,
       status: 'ACTIVE',
     }).select('userId');
-    membersMissingEnvelopes = members
-      .map((row) => String(row.userId))
-      .filter((id) => !have.has(id));
+    batchMemberUserIds = members.map((row) => String(row.userId));
+    membersMissingEnvelopes = batchMemberUserIds.filter((id) => !have.has(id));
   }
   const myEnvelope = await ConversationKeyEnvelope.findOne({
     conversationId: conversation._id,
     recipientUserId: principal.userId,
     keyVersion: conversation.currentKeyVersion,
   });
+  const oldestEnvelope = await ConversationKeyEnvelope.findOne({
+    conversationId: conversation._id,
+    keyVersion: conversation.currentKeyVersion,
+  }).sort({ createdAt: 1, _id: 1 });
+  const keyOwnerUserId = oldestEnvelope ? String(oldestEnvelope.recipientUserId) : null;
+  const allEnvelopes =
+    conversation.type === 'BATCH'
+      ? await ConversationKeyEnvelope.find({
+          conversationId: conversation._id,
+          keyVersion: conversation.currentKeyVersion,
+        }).select('recipientUserId wrappedByUserId wrappedKey nonce previousWraps')
+      : [];
   return {
     conversation: mapConversation(conversation, {
       membersMissingEnvelopes,
+      batchMemberUserIds,
       hasEnvelope: Boolean(myEnvelope),
+      keyOwnerUserId,
+      keyAuthorityUserId: keyOwnerUserId,
     }),
-    myEnvelope: myEnvelope
-      ? {
-          wrappedKey: myEnvelope.wrappedKey,
-          nonce: myEnvelope.nonce,
-          wrappedByUserId: String(myEnvelope.wrappedByUserId),
-          keyVersion: myEnvelope.keyVersion,
-        }
-      : null,
+    myEnvelope: myEnvelope ? mapEnvelope(myEnvelope) : null,
+    batchEnvelopes: allEnvelopes.map(mapEnvelope),
+  };
+}
+
+function mapEnvelope(envelope) {
+  return {
+    recipientUserId: String(envelope.recipientUserId),
+    wrappedKey: envelope.wrappedKey,
+    nonce: envelope.nonce,
+    wrappedByUserId: String(envelope.wrappedByUserId),
+    keyVersion: envelope.keyVersion,
+    previousWraps: (envelope.previousWraps || []).map((item) => ({
+      wrappedKey: item.wrappedKey,
+      nonce: item.nonce,
+      wrappedByUserId: String(item.wrappedByUserId),
+    })),
   };
 }
 
@@ -198,6 +371,16 @@ export async function putKeyEnvelopes(principal, conversationId, body) {
     throw new ValidationError('envelopes are required');
   }
   const keyVersion = String(body.keyVersion || conversation.currentKeyVersion).slice(0, 32);
+  const sync = body?.sync === true;
+  if (sync && conversation.type === 'BATCH') {
+    const oldestEnvelope = await ConversationKeyEnvelope.findOne({
+      conversationId: conversation._id,
+      keyVersion,
+    }).sort({ createdAt: 1, _id: 1 });
+    if (!oldestEnvelope || String(oldestEnvelope.recipientUserId) !== String(principal.userId)) {
+      throw new ForbiddenError('Only the chat key owner can sync the batch key');
+    }
+  }
   const stored = [];
   for (const item of envelopes) {
     requireObjectId(item.recipientUserId, 'recipient');
@@ -220,23 +403,45 @@ export async function putKeyEnvelopes(principal, conversationId, body) {
         continue;
       }
     }
-    const doc = await ConversationKeyEnvelope.findOneAndUpdate(
-      {
-        conversationId: conversation._id,
-        recipientUserId: item.recipientUserId,
-        keyVersion,
-      },
-      {
+    const existing = await ConversationKeyEnvelope.findOne({
+      conversationId: conversation._id,
+      recipientUserId: item.recipientUserId,
+      keyVersion,
+    });
+    if (existing) {
+      const sameWrap =
+        existing.wrappedKey === String(item.wrappedKey) && existing.nonce === String(item.nonce);
+      if (!sync || sameWrap || String(existing.recipientUserId) === String(principal.userId)) {
+        continue;
+      }
+      existing.previousWraps = existing.previousWraps || [];
+      existing.previousWraps.push({
+        wrappedKey: existing.wrappedKey,
+        nonce: existing.nonce,
+        wrappedByUserId: existing.wrappedByUserId,
+      });
+      existing.wrappedKey = String(item.wrappedKey);
+      existing.nonce = String(item.nonce);
+      existing.wrappedByUserId = principal.userId;
+      await existing.save();
+      stored.push(String(existing.recipientUserId));
+      continue;
+    }
+    try {
+      const doc = await ConversationKeyEnvelope.create({
         conversationId: conversation._id,
         recipientUserId: item.recipientUserId,
         wrappedByUserId: principal.userId,
         keyVersion,
         wrappedKey: String(item.wrappedKey),
         nonce: String(item.nonce),
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
-    stored.push(String(doc.recipientUserId));
+      });
+      stored.push(String(doc.recipientUserId));
+    } catch (error) {
+      if (error?.code !== 11000) {
+        throw error;
+      }
+    }
   }
   return { stored };
 }
@@ -257,10 +462,58 @@ export async function listMessages(principal, conversationId, query, { config })
     }
   }
   const items = await Message.find(filter).sort({ sentAt: -1, _id: -1 }).limit(limit);
+  const names = await senderNames(items.map((item) => item.senderUserId));
+  let readAnchor = null;
+  if (conversation.type === 'PRIVATE') {
+    const peerId = (conversation.participantUserIds || []).find(
+      (id) => String(id) !== String(principal.userId),
+    );
+    if (peerId) {
+      const receipt = await MessageReceipt.findOne({
+        conversationId: conversation._id,
+        userId: peerId,
+      }).select('lastReadMessageId');
+      if (receipt?.lastReadMessageId) {
+        readAnchor = await Message.findById(receipt.lastReadMessageId).select('sentAt _id');
+      }
+    }
+  }
   return {
-    items: items.map(mapMessage).reverse(),
+    items: items
+      .map((item) =>
+        mapMessage(item, {
+          senderDisplayName: names.get(String(item.senderUserId)) || null,
+          readByPeer:
+            String(item.senderUserId) === String(principal.userId) && messageReadAtOrBefore(item, readAnchor),
+        }),
+      )
+      .reverse(),
     nextCursor: items.length === limit ? String(items[items.length - 1]._id) : null,
   };
+}
+
+function messageReadAtOrBefore(message, anchor) {
+  if (!anchor) {
+    return false;
+  }
+  const sentAt = new Date(message.sentAt).getTime();
+  const anchorAt = new Date(anchor.sentAt).getTime();
+  if (sentAt < anchorAt) {
+    return true;
+  }
+  if (sentAt > anchorAt) {
+    return false;
+  }
+  return String(message._id) <= String(anchor._id);
+}
+
+async function senderNames(userIds) {
+  const ids = [...new Set(userIds.map((id) => String(id)).filter(Boolean))];
+  if (!ids.length) {
+    return new Map();
+  }
+  const users = await User.find({ _id: { $in: ids } }).select('displayName');
+  return new Map(users.map((user) => [String(user._id), user.displayName || '']));
 }
 
 export async function sendMessage(principal, conversationId, body, { config }) {
@@ -302,7 +555,15 @@ export async function sendMessage(principal, conversationId, body, { config }) {
     conversation.lastMessageAt = message.sentAt;
     await conversation.save();
     await notifyNewMessage(conversation, message, principal.userId);
-    return { message: mapMessage(message), duplicate: false };
+    const names = await senderNames([principal.userId]);
+    const mapped = mapMessage(message, {
+      senderDisplayName: names.get(String(principal.userId)) || null,
+    });
+    return {
+      message: mapped,
+      duplicate: false,
+      delivery: deliveryMeta(conversation, message.sentAt),
+    };
   } catch (error) {
     if (error?.code === 11000) {
       const existing = await Message.findOne({
@@ -310,10 +571,23 @@ export async function sendMessage(principal, conversationId, body, { config }) {
         senderUserId: principal.userId,
         clientMessageId: body.clientMessageId,
       });
-      return { message: mapMessage(existing), duplicate: true };
+      return {
+        message: mapMessage(existing),
+        duplicate: true,
+        delivery: deliveryMeta(conversation, existing?.sentAt),
+      };
     }
     throw error;
   }
+}
+
+function deliveryMeta(conversation, sentAt) {
+  return {
+    conversationId: String(conversation._id),
+    participantUserIds:
+      conversation.type === 'PRIVATE' ? (conversation.participantUserIds || []).map((id) => String(id)) : [],
+    lastMessageAt: sentAt || null,
+  };
 }
 
 async function notifyNewMessage(conversation, message, senderUserId) {
@@ -336,6 +610,17 @@ async function notifyNewMessage(conversation, message, senderUserId) {
   if (!recipientIds.length) {
     return;
   }
+  const sender = await User.findById(senderUserId).select('displayName');
+  const senderName = sender?.displayName || 'A classmate';
+  const conversationId = String(conversation._id);
+  const isPrivate = conversation.type === 'PRIVATE';
+  const title = isPrivate ? senderName : 'Common batch chat';
+  const body = isPrivate
+    ? `New private message from ${senderName}`
+    : `${senderName} sent a message in your batch chat`;
+  const actionPath = isPrivate
+    ? `/study-room?tab=private&conversation=${conversationId}`
+    : '/study-room?tab=common';
   const docs = recipientIds.map((id) => ({
     recipientUserId: id,
     type: 'STUDY_ROOM_NEW_MESSAGE',
@@ -343,6 +628,10 @@ async function notifyNewMessage(conversation, message, senderUserId) {
     sourceId: String(message._id),
     channel: 'IN_APP',
     status: 'PENDING',
+    title,
+    body,
+    actionPath,
+    category: 'system',
     idempotencyKey: `study-room:msg:${message._id}:${id}`,
   }));
   try {
@@ -410,6 +699,37 @@ export async function editMessage(principal, conversationId, messageId, body, { 
 
 export function socketRoomName(conversationId) {
   return `study-room:${conversationId}`;
+}
+
+export function userRoomName(userId) {
+  return `study-room:user:${userId}`;
+}
+
+export function publishChatMessage(io, result) {
+  if (!io || !result?.message) {
+    return;
+  }
+  const conversationId = result.message.conversationId;
+  io.to(socketRoomName(conversationId)).emit('study-room:message:new', result.message);
+  for (const userId of result.delivery?.participantUserIds || []) {
+    io.to(userRoomName(userId)).emit('study-room:inbox', {
+      conversationId,
+      lastMessageAt: result.delivery.lastMessageAt,
+      message: result.message,
+    });
+  }
+}
+
+export function publishChatRead(io, conversationId, userId, receipt) {
+  if (!io || !receipt?.lastReadMessageId) {
+    return;
+  }
+  io.to(socketRoomName(conversationId)).emit('study-room:read', {
+    conversationId: String(conversationId),
+    userId: String(userId),
+    lastReadMessageId: receipt.lastReadMessageId,
+    lastReadAt: receipt.lastReadAt,
+  });
 }
 
 export { loadAuthorizedConversation };

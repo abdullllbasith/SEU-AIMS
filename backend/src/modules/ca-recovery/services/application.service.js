@@ -4,6 +4,8 @@ import { CaApplicationEvent } from '../models/ca-application-event.model.js';
 import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { CaApplicationWindow } from '../models/ca-application-window.model.js';
 import {
+  AcademicYear,
+  Semester,
   findStudentContextByUserId,
   Subject,
   SubjectOffering,
@@ -21,7 +23,15 @@ import { assertApplicationTransition } from './transitions.js';
 import { JOB_NAMES } from '../../../infrastructure/queue/job-names.js';
 import { isAtOrBeforeDeadline, parsePagination, requireObjectId, windowLifecycle } from '../utils/http.js';
 import { emitCaNotification, recordCaAudit } from './notify.js';
+import QRCode from 'qrcode';
 import { generateApplicationPdf } from './pdf.service.js';
+import {
+  composeExamForm,
+  composeExamFormForApplication,
+  hasSavedExamForm,
+  normalizeExamForm,
+  serializeExamForm,
+} from './exam-form.service.js';
 
 function assertStudent(principal) {
   if (!principal || principal.role !== ROLES.STUDENT) {
@@ -65,6 +75,7 @@ export function mapApplication(doc, subjects = []) {
     reopenReason: doc.reopenReason || '',
     resubmissionCount: doc.resubmissionCount,
     subjects,
+    form: serializeExamForm(doc.form),
   };
 }
 
@@ -74,19 +85,24 @@ export async function listEligibleConditions(principal, query = {}) {
   if (!context) {
     return { items: [], window: null };
   }
-  const academicYearId = query.academicYearId || context.currentAcademicYearId;
-  const semesterId = query.semesterId || context.currentSemesterId;
-  const items = await IncompleteCa.find({
+  const explicitPeriod = Boolean(query.academicYearId && query.semesterId);
+  const conditions = await IncompleteCa.find({
     studentUserId: principal.userId,
-    academicYearId,
-    semesterId,
+    ...(explicitPeriod
+      ? { academicYearId: query.academicYearId, semesterId: query.semesterId }
+      : {}),
     status: { $in: ['OPEN', 'IN_APPLICATION'] },
   }).sort({ subjectCode: 1 });
-  const window = await CaApplicationWindow.findOne({
-    departmentId: context.departmentId,
-    academicYearId,
-    semesterId,
-  });
+  const windows = await CaApplicationWindow.find({ departmentId: context.departmentId });
+  const openWindowFor = (academicYearId, semesterId) =>
+    windows.find(
+      (item) =>
+        String(item.academicYearId) === String(academicYearId) &&
+        String(item.semesterId) === String(semesterId) &&
+        windowLifecycle(item) === 'OPEN',
+    );
+  const items = conditions.filter((item) => openWindowFor(item.academicYearId, item.semesterId));
+  const window = items.length ? openWindowFor(items[0].academicYearId, items[0].semesterId) : null;
   return {
     items: items.map((item) => ({
       id: String(item._id),
@@ -99,12 +115,53 @@ export async function listEligibleConditions(principal, query = {}) {
     window: window
       ? {
           id: String(window._id),
-          lifecycle: windowLifecycle(window),
+          lifecycle: 'OPEN',
           opensAt: window.opensAt,
           closesAt: window.closesAt,
         }
       : null,
   };
+}
+
+export async function previewApplicationForm(principal, query = {}) {
+  assertStudent(principal);
+  const ids = String(query.incompleteCaIds || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!ids.length) {
+    throw new ValidationError('Select at least one subject');
+  }
+  const context = await findStudentContextByUserId(principal.userId);
+  if (!context) {
+    throw new NotFoundError('Student academic context not found');
+  }
+  const conditions = [];
+  for (const id of ids) {
+    requireObjectId(id, 'incomplete CA');
+    const condition = await IncompleteCa.findById(id);
+    if (!condition || String(condition.studentUserId) !== String(principal.userId) || condition.status === 'RESOLVED') {
+      throw new ForbiddenError('One or more subjects are not eligible');
+    }
+    conditions.push(condition);
+  }
+  const academicYearId = String(conditions[0].academicYearId);
+  const semesterId = String(conditions[0].semesterId);
+  if (
+    conditions.some(
+      (item) => String(item.academicYearId) !== academicYearId || String(item.semesterId) !== semesterId,
+    )
+  ) {
+    throw new ValidationError('Use a separate form for each year and semester of examination');
+  }
+  const form = await composeExamForm({
+    userId: principal.userId,
+    context,
+    examYearId: academicYearId,
+    examSemesterId: semesterId,
+    subjectRefs: conditions.map((item) => ({ subjectId: item.subjectId, subjectCode: item.subjectCode })),
+  });
+  return { form, academicYearId, semesterId };
 }
 
 async function loadOwnedApplication(principal, applicationId) {
@@ -172,10 +229,39 @@ export async function createDraft(principal, body) {
   }
 
   const student = await User.findById(principal.userId);
+  const composed = await composeExamForm({
+    userId: principal.userId,
+    context,
+    examYearId: body.academicYearId,
+    examSemesterId: body.semesterId,
+    subjectRefs: conditions.map((item) => ({ subjectId: item.subjectId, subjectCode: item.subjectCode })),
+  });
+  const form = normalizeExamForm(body.form, composed);
+  const [examYear, examSemester] = await Promise.all([
+    AcademicYear.findById(body.academicYearId),
+    Semester.findById(body.semesterId),
+  ]);
+  let applicationId = '';
+  for (let copy = 1; copy <= 9; copy += 1) {
+    const candidate = createPublicApplicationId({
+      registrationNumber: context.registrationNumber,
+      yearSequence: examYear?.sequence,
+      semesterSequence: examSemester?.sequence,
+      copy,
+    });
+    const taken = await CaApplication.exists({ applicationId: candidate });
+    if (!taken) {
+      applicationId = candidate;
+      break;
+    }
+  }
+  if (!applicationId) {
+    applicationId = createPublicApplicationId();
+  }
   let application;
   try {
     application = await CaApplication.create({
-      applicationId: createPublicApplicationId(),
+      applicationId,
       departmentId: context.departmentId,
       studentUserId: principal.userId,
       registrationNumber: context.registrationNumber,
@@ -185,6 +271,7 @@ export async function createDraft(principal, body) {
       windowOpensAt: window.opensAt,
       windowClosesAt: window.closesAt,
       workflowStatus: 'DRAFT',
+      form,
     });
   } catch (error) {
     if (error?.code === 11000) {
@@ -233,14 +320,25 @@ export async function listOwnApplications(principal) {
   return { items: mapped };
 }
 
-export async function getApplication(principal, applicationId) {
+export async function getApplication(principal, applicationId, { config } = {}) {
   if (principal.role === ROLES.LECTURER) {
     throw new ForbiddenError('Forbidden');
   }
   const doc = await loadOwnedApplication(principal, applicationId);
   const events = await CaApplicationEvent.find({ applicationId: doc._id }).sort({ occurredAt: 1 });
+  const form = hasSavedExamForm(doc.form)
+    ? serializeExamForm(doc.form)
+    : serializeExamForm(await composeExamFormForApplication(doc));
+  let qrDataUrl = '';
+  if (doc.qrVerificationToken) {
+    const publicUrl = config?.api?.publicUrl || 'http://localhost:3001';
+    const verifyUrl = `${publicUrl}/api/ca/verify/${doc.qrVerificationToken}`;
+    qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 180 });
+  }
   return {
     ...mapApplication(doc, await subjectsFor(doc)),
+    form,
+    qrDataUrl,
     timeline: events.map((item) => ({
       type: item.type,
       fromStatus: item.fromStatus,
@@ -257,8 +355,14 @@ export async function updateDraft(principal, applicationId, body) {
   if (doc.workflowStatus !== 'DRAFT') {
     throw new ValidationError('Only draft applications can be edited');
   }
-  if (!isAtOrBeforeDeadline(new Date(), doc.windowClosesAt)) {
+  const returnedForCorrection = Boolean(doc.reopenedAt);
+  if (!returnedForCorrection && !isAtOrBeforeDeadline(new Date(), doc.windowClosesAt)) {
     throw new ValidationError('The application deadline has passed');
+  }
+  if (body.form && typeof body.form === 'object') {
+    const base = hasSavedExamForm(doc.form) ? serializeExamForm(doc.form) : await composeExamFormForApplication(doc);
+    doc.form = normalizeExamForm(body.form, base);
+    await doc.save();
   }
   if (body.workflowStatus || body.studentUserId || body.registrationNumber) {
     throw new ForbiddenError('Forbidden');
@@ -316,12 +420,15 @@ export async function submitApplication(principal, applicationId, { config, infr
     throw new ValidationError('Only a draft application can be submitted');
   }
   const now = new Date();
-  if (!isAtOrBeforeDeadline(now, doc.windowClosesAt)) {
+  const returnedForCorrection = Boolean(doc.reopenedAt);
+  if (!returnedForCorrection && !isAtOrBeforeDeadline(now, doc.windowClosesAt)) {
     throw new ValidationError('The application deadline has passed');
   }
-  const window = await CaApplicationWindow.findById(doc.windowId);
-  if (windowLifecycle(window, now) !== 'OPEN') {
-    throw new ValidationError('The CA application window is not open');
+  if (!returnedForCorrection) {
+    const window = await CaApplicationWindow.findById(doc.windowId);
+    if (windowLifecycle(window, now) !== 'OPEN') {
+      throw new ValidationError('The CA application window is not open');
+    }
   }
   const subjects = await CaApplicationSubject.find({ applicationId: doc._id });
   if (!subjects.length) {
@@ -396,6 +503,45 @@ export async function adminListApplications(principal, query = {}) {
   return { items: items.map((item) => mapApplication(item)), total, page, pageSize };
 }
 
+function receiptToken(receipt) {
+  const value = String(receipt || '').trim();
+  const marker = '/api/ca/verify/';
+  const index = value.indexOf(marker);
+  if (index === -1) {
+    return value;
+  }
+  const raw = value.slice(index + marker.length).split(/[?#/]/)[0];
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function receiptMatches(doc, receipt) {
+  const value = String(receipt || '').trim();
+  if (!value) {
+    return false;
+  }
+  if (value.toUpperCase() === String(doc.applicationId || '').toUpperCase()) {
+    return true;
+  }
+  const token = doc.qrVerificationToken;
+  return Boolean(token) && receiptToken(value) === token;
+}
+
+export async function confirmPhysicalReceipt(principal, applicationId, body = {}) {
+  assertAdmin(principal);
+  const doc = await loadOwnedApplication(principal, applicationId);
+  if (!['SUBMITTED', 'UNDER_VERIFICATION'].includes(doc.workflowStatus) || doc.physicalVerificationStatus === 'PHYSICALLY_VERIFIED') {
+    throw new ValidationError('This application is not waiting for a physical copy');
+  }
+  if (!receiptMatches(doc, body.receipt)) {
+    throw new ValidationError('This form id does not match the application on screen');
+  }
+  return { matched: true, applicationId: doc.applicationId };
+}
+
 export async function verifyPhysical(principal, applicationId, body) {
   assertAdmin(principal);
   const doc = await loadOwnedApplication(principal, applicationId);
@@ -403,6 +549,9 @@ export async function verifyPhysical(principal, applicationId, body) {
     throw new ValidationError('Application is not awaiting physical verification');
   }
   const outcome = String(body.outcome || 'verified');
+  if (outcome !== 'failed' && !receiptMatches(doc, body.receipt)) {
+    throw new ValidationError('Enter or scan the printed form for this application before marking it physically verified');
+  }
   const fromStatus = doc.workflowStatus;
   if (outcome === 'failed') {
     assertApplicationTransition(fromStatus, 'REJECTED');
@@ -534,9 +683,15 @@ export async function reopenApplication(principal, applicationId, body, { infras
   await emitCaNotification({
     recipientUserId: doc.studentUserId,
     type: 'CA_APPLICATION_REOPENED',
-    sourceId: doc.applicationId,
+    sourceId: `${doc.applicationId}:${doc.resubmissionCount}`,
     departmentId: doc.departmentId,
     infrastructure,
+    vars: {
+      applicationId: doc.applicationId,
+      reason,
+      bodyTemplate:
+        '{{applicationId}} was sent back so you can check and correct the form, then submit it again. Reason: {{reason}}',
+    },
   });
   return mapApplication(doc, await subjectsFor(doc));
 }

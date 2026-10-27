@@ -18,6 +18,7 @@ export function createRouter() {
 
   router.get('/me', requireRole(ROLES.STUDENT), controller.myResults);
 
+  router.get('/imports/template', requireDepartmentAdmin(), controller.downloadTemplate);
   router.get('/imports', requireDepartmentAdmin(), controller.listImports);
   router.get('/imports/:importId', requireDepartmentAdmin(), controller.getImport);
   router.get('/imports/:importId/preview', requireDepartmentAdmin(), controller.previewImport);

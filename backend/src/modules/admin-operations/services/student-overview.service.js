@@ -11,7 +11,7 @@ import { IncompleteCa } from '../../ca-recovery/index.js';
 import { getStudentGpaSummary } from '../../gpa-cgpa/index.js';
 import { ROLES } from '../../../shared/constants/roles.js';
 import { NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
-import { departmentObjectId, parseObjectId, parsePage, prefixRegex, sanitizeSearch } from './scope.js';
+import { containsRegex, departmentObjectId, parseObjectId, parsePage, sanitizeSearch } from './scope.js';
 
 function mapId(value) {
   return value ? String(value) : null;
@@ -35,10 +35,6 @@ export async function listStudents(principal, query = {}) {
   if (semesterId) {
     contextFilter.currentSemesterId = semesterId;
   }
-  if (q && q.includes('/')) {
-    contextFilter.registrationNumber = prefixRegex(q.toUpperCase());
-  }
-
   if (query.accountStatus) {
     const allowed = ['PENDING', 'ACTIVE', 'SUSPENDED', 'DEACTIVATED'];
     if (!allowed.includes(query.accountStatus)) {
@@ -51,21 +47,38 @@ export async function listStudents(principal, query = {}) {
     userFilter.accountStatus = query.accountStatus;
   }
 
-  if (q && q.includes('/')) {
-    const matchedContexts = await StudentAcademicContext.find(contextFilter)
+  if (q || batchId || academicYearId || semesterId) {
+    const registrationFilter = {
+      ...contextFilter,
+      ...(q ? { registrationNumber: containsRegex(q.toUpperCase()) } : {}),
+    };
+    const matchedContexts = await StudentAcademicContext.find(registrationFilter)
       .select('userId')
+      .limit(q ? 200 : 5000)
       .lean();
-    userFilter._id = { $in: matchedContexts.map((row) => row.userId) };
-  } else {
+    const ids = new Set(matchedContexts.map((row) => String(row.userId)));
     if (q) {
-      userFilter.displayName = prefixRegex(q);
-    }
-    if (batchId || academicYearId || semesterId) {
-      const matchedContexts = await StudentAcademicContext.find(contextFilter)
-        .select('userId')
+      const namedUsers = await User.find({
+        departmentId,
+        role: ROLES.STUDENT,
+        displayName: containsRegex(q),
+      })
+        .select('_id')
+        .limit(200)
         .lean();
-      userFilter._id = { $in: matchedContexts.map((row) => row.userId) };
+      if (namedUsers.length) {
+        const namedContexts = await StudentAcademicContext.find({
+          ...contextFilter,
+          userId: { $in: namedUsers.map((user) => user._id) },
+        })
+          .select('userId')
+          .lean();
+        for (const row of namedContexts) {
+          ids.add(String(row.userId));
+        }
+      }
     }
+    userFilter._id = { $in: [...ids] };
   }
 
   const [users, total] = await Promise.all([

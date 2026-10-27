@@ -1,4 +1,4 @@
-import { apiRequest } from '../../services/api-client.js';
+import { SESSION_EXPIRED_EVENT, apiRequest } from '../../services/api-client.js';
 
 const qs = (params = {}) => {
   const search = new URLSearchParams();
@@ -13,6 +13,28 @@ const qs = (params = {}) => {
 
 export const resultsApi = {
   imports: (params) => apiRequest(`/results/imports${qs(params)}`),
+  downloadTemplate: async () => {
+    const response = await fetch('/api/results/imports/template', {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error?.message || 'Template could not be downloaded.');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'SEU-AIMS-result-import-template.xlsx';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
   import: (id) => apiRequest(`/results/imports/${id}`),
   preview: (id, params) => apiRequest(`/results/imports/${id}/preview${qs(params)}`),
   createImport: (formData) => apiRequest('/results/imports', { method: 'POST', body: formData }),

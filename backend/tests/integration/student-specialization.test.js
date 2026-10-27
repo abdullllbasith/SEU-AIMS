@@ -288,6 +288,10 @@ test('student specialization isolates mixed-batch offerings without assigning ex
     .filter((item) => item.semesterId === String(semester2._id))
     .map((item) => item.subjectCode);
   assert.deepEqual(historyCodes, ['SWTONLY']);
+  assert.equal(
+    history.body.data.items.some((item) => item.semesterId === String(semester1._id)),
+    false,
+  );
 
   await LecturerAssignment.create({
     departmentId: department._id,

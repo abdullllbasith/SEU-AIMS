@@ -70,7 +70,7 @@ export function LecturerOfferingWorkspacePage() {
     <section className="record-page">
       <PageHeader
         title={offeringLabel(offering)}
-        purpose="Teaching workspace for one assigned offering. Official results are not edited here."
+        purpose="Workspace for this assigned offering."
         meta={`Status ${offering.status}`}
         actions={
           <Link className="text-action" to="/lecturer/offerings">

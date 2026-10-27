@@ -29,6 +29,8 @@ export async function startApiServer() {
 
   const app = createApp({ config, logger, infrastructure });
   const server = http.createServer(app);
+  // A department result sheet commits row by row. Keep the request open until that finishes.
+  server.requestTimeout = 15 * 60 * 1000;
   const io = await createRealtimeServer(server, {
     corsOrigin: config.api.corsOrigin,
     redis: infrastructure.redis,

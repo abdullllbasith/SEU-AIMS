@@ -12,6 +12,7 @@ import {
   resetPassword,
   createUserAsAdmin,
   setAccountStatus,
+  setPasswordAsAdmin,
   toPublicUser,
 } from '../services/auth.service.js';
 import { findStudentContextByUserId } from '../../academic-foundation/index.js';
@@ -142,6 +143,16 @@ export function createAuthController({ config, infrastructure }) {
         accountStatus: req.body?.accountStatus,
       });
       sendSuccess(res, { user });
+    }),
+
+    setPassword: asyncHandler(async (req, res) => {
+      const result = await setPasswordAsAdmin({
+        actor: req.principal,
+        userId: req.params.userId,
+        password: req.body?.password,
+        config,
+      });
+      sendSuccess(res, result);
     }),
   };
 }

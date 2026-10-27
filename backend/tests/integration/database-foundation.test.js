@@ -275,7 +275,7 @@ dbTest('CA application IDs are unique public identifiers, not sequential counter
   const first = createPublicApplicationId();
   const second = createPublicApplicationId();
   assert.notEqual(first, second);
-  assert.match(first, /^CA-[a-f0-9]{32}$/);
+  assert.match(first, /^CA-[A-F0-9]{6}$/);
 
   await CaApplication.create({
     applicationId: first,

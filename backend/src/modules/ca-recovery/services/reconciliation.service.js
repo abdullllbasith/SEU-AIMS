@@ -1,3 +1,4 @@
+import { AcademicYear, Semester } from '../../academic-foundation/index.js';
 import { AcademicResult } from '../../results/models/academic-result.model.js';
 import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { CaSchedule } from '../models/ca-schedule.model.js';
@@ -90,6 +91,50 @@ export async function reconcileCaConditions(principal) {
   }
 
   return { issues, issueCount: issues.length };
+}
+
+export async function listUnresolvedEcaConditions(principal) {
+  assertAdmin(principal);
+  const filter = { departmentId: principal.departmentId, status: 'OPEN' };
+  const [rows, total] = await Promise.all([
+    IncompleteCa.find(filter).sort({ detectedAt: -1, createdAt: -1 }).limit(100).lean(),
+    IncompleteCa.countDocuments(filter),
+  ]);
+  const results = await AcademicResult.find({ _id: { $in: rows.map((row) => row.academicResultId) } })
+    .select('studentAcademicYearId studentSemesterId')
+    .lean();
+  const resultById = new Map(results.map((result) => [String(result._id), result]));
+  const yearIds = results.map((result) => result.studentAcademicYearId).filter(Boolean);
+  const semesterIds = results.map((result) => result.studentSemesterId).filter(Boolean);
+  const [years, semesters] = await Promise.all([
+    yearIds.length ? AcademicYear.find({ _id: { $in: yearIds } }).select('name sequence').lean() : [],
+    semesterIds.length ? Semester.find({ _id: { $in: semesterIds } }).select('name sequence').lean() : [],
+  ]);
+  const yearById = new Map(years.map((year) => [String(year._id), year]));
+  const semesterById = new Map(semesters.map((semester) => [String(semester._id), semester]));
+  return {
+    total,
+    items: rows.map((row) => {
+      const result = resultById.get(String(row.academicResultId));
+      const subjectYear = result?.studentAcademicYearId ? yearById.get(String(result.studentAcademicYearId)) : null;
+      const subjectSemester = result?.studentSemesterId ? semesterById.get(String(result.studentSemesterId)) : null;
+      return {
+        id: String(row._id),
+        registrationNumber: row.registrationNumber,
+        subjectCode: row.subjectCode,
+        academicYearId: row.academicYearId ? String(row.academicYearId) : '',
+        semesterId: row.semesterId ? String(row.semesterId) : '',
+        subjectAcademicYearId: result?.studentAcademicYearId ? String(result.studentAcademicYearId) : '',
+        subjectSemesterId: result?.studentSemesterId ? String(result.studentSemesterId) : '',
+        subjectAcademicYearName: subjectYear?.name || '',
+        subjectAcademicYearSequence: subjectYear?.sequence ?? null,
+        subjectSemesterName: subjectSemester?.name || '',
+        subjectSemesterSequence: subjectSemester?.sequence ?? null,
+        status: row.status,
+        detectedAt: row.detectedAt || null,
+      };
+    }),
+  };
 }
 
 export async function backfillMissingCaConditions(principal) {

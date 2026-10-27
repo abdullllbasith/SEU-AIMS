@@ -23,7 +23,7 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
   'security',
 ]);
 
-export const TEMPLATE_ALLOWED_VARS = Object.freeze(['title', 'applicationId', 'eventTitle', 'when']);
+export const TEMPLATE_ALLOWED_VARS = Object.freeze(['title', 'applicationId', 'eventTitle', 'when', 'reason']);
 
 /** Configurable mandatory types. Users cannot disable these channels via preferences. */
 export const MANDATORY_NOTIFICATION_TYPES = Object.freeze([

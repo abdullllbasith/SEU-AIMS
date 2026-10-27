@@ -50,4 +50,4 @@ export const CA_APPLICATION_EVENT_TYPES = Object.freeze([
 
 export const CA_REMINDER_OFFSETS_DAYS = Object.freeze([7, 3, 1]);
 
-export const CA_PDF_TEMPLATE_VERSION = 'ca-application-v1';
+export const CA_PDF_TEMPLATE_VERSION = 'ca-application-v10';

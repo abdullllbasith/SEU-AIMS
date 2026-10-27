@@ -1,5 +1,8 @@
 export const RESULT_PARSER_VERSION = 'results-parser-1';
 
+/** A commit still updating this timestamp is in progress. Older locks can be resumed. */
+export const RESULT_COMMIT_LOCK_MS = 90_000;
+
 export const RESULT_IMPORT_STATUSES = Object.freeze([
   'UPLOADED',
   'PROCESSING',

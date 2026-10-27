@@ -29,6 +29,9 @@ export function createLearningController() {
     updateSection: asyncHandler(async (req, res) => {
       sendSuccess(res, await learningService.updateSection(req.principal, req.params.sectionId, req.body || {}));
     }),
+    deleteSection: asyncHandler(async (req, res) => {
+      sendSuccess(res, await learningService.deleteSection(req.principal, req.params.sectionId));
+    }),
     listResources: asyncHandler(async (req, res) => {
       sendSuccess(res, await learningService.listResources(req.principal, req.params.offeringId, req.query));
     }),

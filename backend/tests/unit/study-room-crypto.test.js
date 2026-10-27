@@ -9,6 +9,7 @@ import {
   publicJwk,
 } from '../helpers/chat-crypto.js';
 import { Message } from '../../src/modules/study-room/index.js';
+import { generateIdentityJwk } from '../../src/modules/study-room/services/identity-key.js';
 
 test('private-chat keys round-trip and reject the wrong key', async () => {
   const alice = await generateIdentity();
@@ -25,6 +26,22 @@ test('private-chat keys round-trip and reject the wrong key', async () => {
   const tampered = Buffer.from(payload.ciphertext, 'base64');
   tampered[0] ^= 0xff;
   await assert.rejects(() => decryptText(bobKey, { ...payload, ciphertext: tampered.toString('base64') }));
+});
+
+test('a server-issued identity key can derive bits with a browser P-256 key', async () => {
+  const created = generateIdentityJwk();
+  assert.equal(created.publicKeyJwk.d, undefined);
+  assert.equal(typeof created.privateKeyJwk.d, 'string');
+  const privateKey = await crypto.subtle.importKey(
+    'jwk',
+    { ...created.privateKeyJwk, key_ops: ['deriveBits'] },
+    { name: 'ECDH', namedCurve: 'P-256' },
+    true,
+    ['deriveBits'],
+  );
+  const peer = await generateIdentity();
+  const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: peer.publicKey }, privateKey, 256);
+  assert.equal(bits.byteLength, 32);
 });
 
 test('public JWK export never includes the private scalar', async () => {

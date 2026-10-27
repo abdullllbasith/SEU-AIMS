@@ -4,6 +4,7 @@ import { recordAudit as persistAudit } from '../../audit-security/services/recor
 import { ValidationError, NotFoundError } from '../../../shared/errors/app-error.js';
 import { requireModerator, getOrCreateSettings } from './access.service.js';
 import { canTransitionResource } from '../policies/study-room.policies.js';
+import { retryQuarantinedScans } from './resource.service.js';
 import { mapResource } from '../mappers/study-room.mappers.js';
 import { parsePagination, requireObjectId } from '../utils/http.js';
 import { MODERATION_MODES, REPORT_STATUSES } from '../constants.js';
@@ -55,8 +56,9 @@ export async function updateModerationSettings(principal, body) {
   };
 }
 
-export async function listModerationQueue(principal, query) {
+export async function listModerationQueue(principal, query, { infrastructure } = {}) {
   await requireModerator(principal);
+  await retryQuarantinedScans({ departmentId: principal.departmentId, infrastructure });
   const { skip, limit, page, pageSize } = parsePagination(query);
   const filter = {
     departmentId: principal.departmentId,

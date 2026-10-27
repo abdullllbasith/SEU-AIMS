@@ -1,5 +1,6 @@
 import { sendSuccess } from '../../../shared/http/api-response.js';
 import { asyncHandler } from '../../../shared/http/async-handler.js';
+import { ValidationError } from '../../../shared/errors/app-error.js';
 import * as noticeService from '../services/notice.service.js';
 import * as calendarService from '../services/calendar.service.js';
 import * as reconciliationService from '../services/communication-reconciliation.service.js';
@@ -24,6 +25,28 @@ export function createNoticeController() {
     }),
     update: asyncHandler(async (req, res) => {
       sendSuccess(res, await noticeService.updateNotice(req.principal, req.params.noticeId, req.body || {}));
+    }),
+    addImage: asyncHandler(async (req, res) => {
+      if (!req.file) {
+        throw new ValidationError('File is required');
+      }
+      sendSuccess(
+        res,
+        await noticeService.addNoticeImage(req.principal, req.params.noticeId, req.file, deps(req)),
+        { statusCode: 201 },
+      );
+    }),
+    image: asyncHandler(async (req, res) => {
+      const file = await noticeService.readNoticeImage(
+        req.principal,
+        req.params.noticeId,
+        req.params.imageId,
+        deps(req),
+      );
+      res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.send(file.body);
     }),
     publish: asyncHandler(async (req, res) => {
       sendSuccess(res, await noticeService.publishNotice(req.principal, req.params.noticeId, deps(req)));

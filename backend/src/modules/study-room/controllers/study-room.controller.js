@@ -22,6 +22,9 @@ export function createStudyRoomController() {
     conversations: asyncHandler(async (req, res) => {
       sendSuccess(res, await chatService.listConversations(req.principal));
     }),
+    attention: asyncHandler(async (req, res) => {
+      sendSuccess(res, await chatService.attentionCounts(req.principal, req.query || {}));
+    }),
     createConversation: asyncHandler(async (req, res) => {
       sendSuccess(res, await chatService.createPrivateConversation(req.principal, req.body || {}, deps(req)), {
         statusCode: 201,
@@ -37,12 +40,24 @@ export function createStudyRoomController() {
       sendSuccess(res, await chatService.listMessages(req.principal, req.params.conversationId, req.query, deps(req)));
     }),
     sendMessage: asyncHandler(async (req, res) => {
-      sendSuccess(res, await chatService.sendMessage(req.principal, req.params.conversationId, req.body || {}, deps(req)), {
-        statusCode: 201,
-      });
+      const result = await chatService.sendMessage(
+        req.principal,
+        req.params.conversationId,
+        req.body || {},
+        deps(req),
+      );
+      chatService.publishChatMessage(req.app.get('io'), result);
+      sendSuccess(res, result, { statusCode: 201 });
     }),
     markRead: asyncHandler(async (req, res) => {
-      sendSuccess(res, await chatService.markRead(req.principal, req.params.conversationId, req.body || {}));
+      const receipt = await chatService.markRead(req.principal, req.params.conversationId, req.body || {});
+      chatService.publishChatRead(
+        req.app.get('io'),
+        req.params.conversationId,
+        req.principal.userId,
+        receipt,
+      );
+      sendSuccess(res, receipt);
     }),
     deleteMessage: asyncHandler(async (req, res) => {
       sendSuccess(
@@ -51,22 +66,27 @@ export function createStudyRoomController() {
       );
     }),
     editMessage: asyncHandler(async (req, res) => {
-      sendSuccess(
-        res,
-        await chatService.editMessage(
-          req.principal,
-          req.params.conversationId,
-          req.params.messageId,
-          req.body || {},
-          deps(req),
-        ),
+      const message = await chatService.editMessage(
+        req.principal,
+        req.params.conversationId,
+        req.params.messageId,
+        req.body || {},
+        deps(req),
       );
+      const io = req.app.get('io');
+      if (io && message) {
+        io.to(chatService.socketRoomName(req.params.conversationId)).emit('study-room:message:new', message);
+      }
+      sendSuccess(res, message);
     }),
     upsertKey: asyncHandler(async (req, res) => {
       sendSuccess(res, await directoryService.upsertPublicKey(req.principal, req.body || {}, deps(req)));
     }),
     getPublicKey: asyncHandler(async (req, res) => {
       sendSuccess(res, await directoryService.getPublicKey(req.principal, req.params.userId, deps(req)));
+    }),
+    claimIdentity: asyncHandler(async (req, res) => {
+      sendSuccess(res, await directoryService.claimIdentity(req.principal));
     }),
     searchStudents: asyncHandler(async (req, res) => {
       sendSuccess(res, await directoryService.searchStudents(req.principal, req.query, deps(req)));
@@ -102,6 +122,12 @@ export function createStudyRoomController() {
     getResource: asyncHandler(async (req, res) => {
       sendSuccess(res, await resourceService.getResource(req.principal, req.params.resourceId));
     }),
+    renameResource: asyncHandler(async (req, res) => {
+      sendSuccess(res, await resourceService.renameResource(req.principal, req.params.resourceId, req.body || {}));
+    }),
+    deleteResource: asyncHandler(async (req, res) => {
+      sendSuccess(res, await resourceService.deleteResource(req.principal, req.params.resourceId));
+    }),
     downloadResource: asyncHandler(async (req, res) => {
       const file = await resourceService.downloadResource(req.principal, req.params.resourceId, deps(req));
       res.setHeader('Content-Type', file.mimeType);
@@ -125,7 +151,7 @@ export function createStudyRoomController() {
       sendSuccess(res, await moderationService.updateModerationSettings(req.principal, req.body || {}));
     }),
     moderationQueue: asyncHandler(async (req, res) => {
-      sendSuccess(res, await moderationService.listModerationQueue(req.principal, req.query));
+      sendSuccess(res, await moderationService.listModerationQueue(req.principal, req.query, deps(req)));
     }),
     approveResource: asyncHandler(async (req, res) => {
       sendSuccess(res, await moderationService.approveResource(req.principal, req.params.resourceId));

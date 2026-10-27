@@ -1,4 +1,5 @@
 import { CryptoPublicKey } from '../models/index.js';
+import { generateIdentityJwk } from './identity-key.js';
 import { User } from '../../authentication/models/user.model.js';
 import { StudentAcademicContext } from '../../academic-foundation/index.js';
 import { ValidationError, ForbiddenError } from '../../../shared/errors/app-error.js';
@@ -22,15 +23,39 @@ function isPublicKeyJwk(value) {
   );
 }
 
+async function ensureIdentityKey(userId) {
+  const existing = await CryptoPublicKey.findOne({ userId });
+  if (existing) {
+    return existing;
+  }
+  const created = generateIdentityJwk();
+  try {
+    return await CryptoPublicKey.create({
+      userId,
+      algorithm: 'ECDH-P256',
+      protocolVersion: CRYPTO_PROTOCOL,
+      publicKeyJwk: created.publicKeyJwk,
+      recoveryPrivateJwk: created.privateKeyJwk,
+      keyVersion: '1',
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return CryptoPublicKey.findOne({ userId });
+    }
+    throw error;
+  }
+}
+
 export async function upsertPublicKey(principal, body, { config }) {
   await requireStudentScope(principal);
   if (!isPublicKeyJwk(body?.publicKeyJwk)) {
     throw new ValidationError('A P-256 ECDH public JWK is required');
   }
   const keyVersion = String(body.keyVersion || '1').slice(0, 32);
-  const doc = await CryptoPublicKey.findOneAndUpdate(
-    { userId: principal.userId },
-    {
+  const existing = await CryptoPublicKey.findOne({ userId: principal.userId });
+  const sameKey = existing?.publicKeyJwk?.x === body.publicKeyJwk.x && existing?.publicKeyJwk?.y === body.publicKeyJwk.y;
+  const update = {
+    $set: {
       userId: principal.userId,
       algorithm: 'ECDH-P256',
       protocolVersion: CRYPTO_PROTOCOL,
@@ -42,6 +67,13 @@ export async function upsertPublicKey(principal, body, { config }) {
       },
       keyVersion,
     },
+  };
+  if (!sameKey) {
+    update.$unset = { recoveryPrivateJwk: '' };
+  }
+  const doc = await CryptoPublicKey.findOneAndUpdate(
+    { userId: principal.userId },
+    update,
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
   return {
@@ -71,15 +103,28 @@ export async function getPublicKey(principal, userId, { config }) {
   ) {
     throw new ForbiddenError('Forbidden');
   }
-  const doc = await CryptoPublicKey.findOne({ userId: target._id });
-  if (!doc) {
-    return { userId: String(target._id), publicKeyJwk: null };
-  }
+  const doc = await ensureIdentityKey(target._id);
   return {
     userId: String(doc.userId),
     publicKeyJwk: doc.publicKeyJwk,
     keyVersion: doc.keyVersion,
     protocolVersion: doc.protocolVersion,
+  };
+}
+
+/** The signed-in student can recover the key created so classmates could message them first. */
+export async function claimIdentity(principal) {
+  await requireStudentScope(principal);
+  const doc = await ensureIdentityKey(principal.userId);
+  const matches =
+    doc.recoveryPrivateJwk &&
+    doc.recoveryPrivateJwk.x === doc.publicKeyJwk?.x &&
+    doc.recoveryPrivateJwk.y === doc.publicKeyJwk?.y;
+  return {
+    userId: String(doc.userId),
+    publicKeyJwk: doc.publicKeyJwk,
+    privateKeyJwk: matches ? doc.recoveryPrivateJwk : null,
+    keyVersion: doc.keyVersion,
   };
 }
 

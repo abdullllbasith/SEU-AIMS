@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { caApi } from './ca-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -9,6 +10,7 @@ import {
   formatPdfStatus,
   formatWorkflowStatus,
 } from '../../ui/status-labels.js';
+import { CaExamForm } from './CaExamForm.jsx';
 
 export function StudentCaPage() {
   const [error, setError] = useState('');
@@ -17,8 +19,12 @@ export function StudentCaPage() {
   const [windowInfo, setWindowInfo] = useState(null);
   const [applications, setApplications] = useState([]);
   const [selected, setSelected] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
+  const busy = Boolean(pending);
   const [timeline, setTimeline] = useState(null);
+  const [drafts, setDrafts] = useState([]);
+  const [viewing, setViewing] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   async function reload() {
     const [cond, apps] = await Promise.all([caApi.conditions(), caApi.applications()]);
@@ -52,12 +58,33 @@ export function StudentCaPage() {
   const openConditions = conditions.filter(
     (item) => item.status === 'OPEN' || item.status === 'IN_APPLICATION',
   );
+  const returnedApplications = applications.filter(
+    (item) => item.workflowStatus === 'DRAFT' && item.reopenReason,
+  );
+
+  function resubmitCorrection() {
+    if (!editing?.form?.name?.trim()) {
+      setError('Enter the name with initials before submitting.');
+      return;
+    }
+    setPending('resubmit');
+    setError('');
+    caApi
+      .update(editing.applicationId, { form: editing.form })
+      .then(() => caApi.submit(editing.applicationId))
+      .then(() => {
+        setEditing(null);
+        return reload();
+      })
+      .catch((caught) => setError(caught.message || 'The application could not be submitted again.'))
+      .finally(() => setPending(''));
+  }
 
   return (
     <section className="record-page">
       <PageHeader
         title="CA recovery"
-        purpose="Apply for incomplete CA recovery when a window is open. Print the PDF, obtain the physical HOD signature, and submit the paper copy — the system does not replace that step."
+        purpose="Apply when a CA recovery window is open."
       />
 
       {error ? (
@@ -65,6 +92,12 @@ export function StudentCaPage() {
           {error}
         </p>
       ) : null}
+
+      {returnedApplications.map((item) => (
+        <p className="status-banner" role="status" key={item.applicationId}>
+          <strong>{item.applicationId}</strong> was sent back for correction, so it is not approved yet. Reason: {item.reopenReason}. Check the form, correct it, and submit it again.
+        </p>
+      ))}
 
       {!error && openConditions.length ? (
         <p className="status-banner" role="status">
@@ -113,36 +146,103 @@ export function StudentCaPage() {
           </ul>
         )}
         <div className="panel-actions">
-          <button
-            type="button"
+          <ActionButton
+            busy={pending === 'review'}
+            busyLabel="Preparing form…"
             disabled={busy || !selected.length}
             onClick={() => {
-              const first = openConditions[0];
-              if (!first) {
+              const chosen = openConditions.filter((item) => selected.includes(item.id));
+              if (!chosen.length) {
                 return;
               }
-              setBusy(true);
+              const groups = new Map();
+              for (const item of chosen) {
+                const key = `${item.academicYearId}|${item.semesterId}`;
+                if (!groups.has(key)) {
+                  groups.set(key, []);
+                }
+                groups.get(key).push(item);
+              }
+              setPending('review');
               setError('');
-              caApi
-                .create({
-                  academicYearId: first.academicYearId,
-                  semesterId: first.semesterId,
-                  incompleteCaIds: selected,
-                  studentUserId: 'ignored',
-                })
-                .then((created) => caApi.submit(created.data.applicationId))
-                .then(() => {
-                  setSelected([]);
-                  return reload();
+              Promise.all(
+                [...groups.values()].map((group) =>
+                  caApi
+                    .preview({ incompleteCaIds: group.map((item) => item.id).join(',') })
+                    .then((response) => ({
+                      academicYearId: group[0].academicYearId,
+                      semesterId: group[0].semesterId,
+                      incompleteCaIds: group.map((item) => item.id),
+                      form: response.data.form,
+                    })),
+                ),
+              )
+                .then((prepared) => {
+                  setViewing(null);
+                  setDrafts(prepared);
                 })
                 .catch((caught) => setError(caught.message))
-                .finally(() => setBusy(false));
+                .finally(() => setPending(''));
             }}
           >
-            {busy ? 'Submitting…' : 'Create and submit application'}
-          </button>
+            Review form
+          </ActionButton>
         </div>
       </Panel>
+
+      {drafts.length ? (
+        <Panel title="Review application" kicker="Check the form, edit any field, then submit">
+          {drafts.map((draft, index) => (
+            <CaExamForm
+              key={`${draft.academicYearId}-${draft.semesterId}`}
+              form={draft.form}
+              onChange={(form) =>
+                setDrafts((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, form } : item)))
+              }
+            />
+          ))}
+          <div className="panel-actions">
+            <ActionButton
+              busy={pending === 'apply'}
+              busyLabel="Submitting…"
+              disabled={busy}
+              onClick={() => {
+                const missingName = drafts.some((draft) => !draft.form?.name?.trim());
+                if (missingName) {
+                  setError('Enter the name with initials before submitting.');
+                  return;
+                }
+                setPending('apply');
+                setError('');
+                Promise.all(
+                  drafts.map((draft) =>
+                    caApi
+                      .create({
+                        academicYearId: draft.academicYearId,
+                        semesterId: draft.semesterId,
+                        incompleteCaIds: draft.incompleteCaIds,
+                        form: draft.form,
+                      })
+                      .then((created) => caApi.submit(created.data.applicationId)),
+                  ),
+                )
+                  .then(() => {
+                    setDrafts([]);
+                    setSelected([]);
+                    return reload();
+                  })
+                  .catch((caught) => setError(caught.message))
+                  .finally(() => setPending(''));
+              }}
+            >
+              Submit application
+            </ActionButton>
+            <ActionButton disabled={busy} onClick={() => setDrafts([])}>
+              Back
+            </ActionButton>
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel title="My applications" kicker={`${applications.length} total`}>
         {!error && applications.length === 0 ? (
@@ -157,27 +257,84 @@ export function StudentCaPage() {
                     <span className="stack-item__title">{item.applicationId}</span>
                     <span className="stack-item__meta">
                       {formatWorkflowStatus(item.workflowStatus)}
+                      {item.reopenReason && item.workflowStatus === 'DRAFT' ? ` · Sent back: ${item.reopenReason}` : ''}
                       {item.decisionReason ? ` · ${item.decisionReason}` : ''}
                       {` · ${formatPdfStatus(item.pdfStatus)}`}
                     </span>
                   </span>
                   <span className="stack-item__actions">
-                    <button
-                      type="button"
-                      onClick={() =>
+                    <ActionButton
+                      busy={pending === `timeline:${item.applicationId}`}
+                      busyLabel="Loading…"
+                      disabled={busy && pending !== `timeline:${item.applicationId}`}
+                      onClick={() => {
+                        setPending(`timeline:${item.applicationId}`);
                         caApi
                           .get(item.applicationId)
                           .then((response) => setTimeline(response.data))
                           .catch((caught) => setError(caught.message))
-                      }
+                          .finally(() => setPending(''));
+                      }}
                     >
                       Timeline
-                    </button>
-                    {item.pdfStatus === 'READY' ? (
-                      <a className="text-action" href={caApi.pdfUrl(item.applicationId)}>
-                        Download PDF
-                      </a>
-                    ) : null}
+                    </ActionButton>
+                    {item.workflowStatus === 'DRAFT' ? (
+                      <ActionButton
+                        busy={pending === `edit:${item.applicationId}`}
+                        busyLabel="Opening…"
+                        disabled={busy && pending !== `edit:${item.applicationId}`}
+                        onClick={() => {
+                          setPending(`edit:${item.applicationId}`);
+                          setError('');
+                          caApi
+                            .get(item.applicationId)
+                            .then((response) => {
+                              setDrafts([]);
+                              setViewing(null);
+                              setEditing(response.data);
+                            })
+                            .catch((caught) => setError(caught.message))
+                            .finally(() => setPending(''));
+                        }}
+                      >
+                        {item.reopenReason ? 'Correct form' : 'Continue application'}
+                      </ActionButton>
+                    ) : (
+                      <ActionButton
+                        busy={pending === `form:${item.applicationId}`}
+                        busyLabel="Opening…"
+                        disabled={busy && pending !== `form:${item.applicationId}`}
+                        onClick={() => {
+                          setPending(`form:${item.applicationId}`);
+                          caApi
+                            .get(item.applicationId)
+                            .then((response) => {
+                              setDrafts([]);
+                              setEditing(null);
+                              setViewing(response.data);
+                            })
+                            .catch((caught) => setError(caught.message))
+                            .finally(() => setPending(''));
+                        }}
+                      >
+                        View form
+                      </ActionButton>
+                    )}
+                    <ActionButton
+                      busy={pending === `pdf:${item.applicationId}`}
+                      busyLabel="Downloading…"
+                      disabled={busy && pending !== `pdf:${item.applicationId}`}
+                      onClick={() => {
+                        setPending(`pdf:${item.applicationId}`);
+                        setError('');
+                        caApi
+                          .download(item.applicationId)
+                          .catch((caught) => setError(caught.message || 'The form could not be downloaded.'))
+                          .finally(() => setPending(''));
+                      }}
+                    >
+                      Download form
+                    </ActionButton>
                   </span>
                 </div>
               </li>
@@ -185,6 +342,35 @@ export function StudentCaPage() {
           </ul>
         )}
       </Panel>
+
+      {editing?.form ? (
+        <Panel title="Correct and resubmit" kicker={editing.applicationId} tone="attention">
+          <p className="panel-lead">
+            {editing.reopenReason
+              ? `The department sent this application back. Reason: ${editing.reopenReason}. Update the form, then submit it again.`
+              : 'This application is still a draft. Update the form, then submit it.'}
+          </p>
+          <CaExamForm
+            form={editing.form}
+            applicationId={editing.applicationId}
+            onChange={(form) => setEditing((current) => (current ? { ...current, form } : current))}
+          />
+          <div className="panel-actions">
+            <ActionButton busy={pending === 'resubmit'} busyLabel="Submitting…" disabled={busy} onClick={resubmitCorrection}>
+              Submit again
+            </ActionButton>
+            <ActionButton disabled={busy} onClick={() => setEditing(null)}>
+              Back
+            </ActionButton>
+          </div>
+        </Panel>
+      ) : null}
+
+      {viewing?.form ? (
+        <Panel title="Submitted application" kicker={viewing.applicationId}>
+          <CaExamForm form={viewing.form} qrDataUrl={viewing.qrDataUrl} applicationId={viewing.applicationId} readOnly />
+        </Panel>
+      ) : null}
 
       {timeline?.timeline?.length ? (
         <Panel title="Status timeline" kicker={timeline.applicationId || 'Selected application'}>

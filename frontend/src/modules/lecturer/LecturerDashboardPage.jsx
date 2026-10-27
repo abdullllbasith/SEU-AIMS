@@ -8,6 +8,7 @@ import { AttentionList } from '../../ui/AttentionList.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { DeadlineList } from '../../ui/DeadlineList.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import { NotificationStackList } from '../communication/NotificationStackList.jsx';
 
 function SectionError({ message }) {
   if (!message) {
@@ -68,7 +69,7 @@ export function LecturerDashboardPage() {
     <section className="home-dashboard">
       <PageHeader
         title="Teaching workspace"
-        purpose="Scoped to your lecturer assignments — not the whole department. Study Room is student-only. Official results are not edited here."
+        purpose="Your assigned offerings and teaching tasks."
         meta={data.generatedAt ? `Updated ${new Date(data.generatedAt).toLocaleString()}` : null}
         actions={
           <button type="button" onClick={() => load(true)} disabled={state.loading}>
@@ -173,12 +174,12 @@ export function LecturerDashboardPage() {
         <Panel title="Upcoming events">
           <SectionError message={!sections.calendar?.ok ? sections.calendar?.error : ''} />
           {sections.calendar?.ok ? (
-            <>
+            <div className="agenda-grid">
               <DeadlineList title="Today" items={groups.today} />
               <DeadlineList title="Next few days" items={groups.nextFewDays} />
               <DeadlineList title="This week" items={groups.nextWeek} />
               <DeadlineList title="Later" items={groups.later} />
-            </>
+            </div>
           ) : null}
           <p className="panel-footnote">
             <Link to="/calendar">Open calendar</Link>
@@ -187,36 +188,65 @@ export function LecturerDashboardPage() {
       </div>
 
       <div className="dashboard-grid">
-        <Panel title="Official resources">
+        <Panel title="Official resources" kicker="Published materials">
           <SectionError message={!sections.resources?.ok ? sections.resources?.error : ''} />
-          <p className="figure-line">
-            {summary.publishedOfficialResources ?? 0}
-            <span className="figure-line__hint"> published</span>
-          </p>
-          <p className="stack-item__meta">
-            Unpublished: {summary.unpublishedOfficialResources ?? 0}. Upload and publish stay on the
-            learning pages.
-          </p>
+          <div className="student-insight">
+            <div className="student-insight__hero">
+              <div>
+                <p className="student-insight__label">Published resources</p>
+                <p className="student-insight__value">{summary.publishedOfficialResources ?? 0}</p>
+                <p className="student-insight__meta">
+                  {summary.unpublishedOfficialResources ?? 0} unpublished draft
+                  {(summary.unpublishedOfficialResources ?? 0) === 1 ? '' : 's'} · upload on
+                  offering pages
+                </p>
+              </div>
+              {(summary.unpublishedOfficialResources ?? 0) > 0 ? (
+                <span className="status-pill status-pill--pending">Drafts</span>
+              ) : (
+                <span className="status-pill status-pill--ok">Up to date</span>
+              )}
+            </div>
+          </div>
           <p className="panel-footnote">
             <Link to="/lecturer/learning">Manage resources</Link>
           </p>
         </Panel>
 
-        <Panel title="CA recovery">
+        <Panel title="CA recovery" kicker="Approved students">
           <SectionError message={!sections.ca?.ok ? sections.ca?.error : ''} />
-          <p className="panel-lead">
-            Approved awaiting schedule: <strong>{summary.approvedCaAwaitingSchedule ?? 0}</strong>
-            <span className="panel-footnote__sep">·</span>
-            Scheduled: <strong>{summary.scheduledCaAssessments ?? 0}</strong>
-          </p>
+          <div className="student-insight">
+            <div className="student-insight__hero">
+              <div>
+                <p className="student-insight__label">Awaiting schedule</p>
+                <p className="student-insight__value">{summary.approvedCaAwaitingSchedule ?? 0}</p>
+                <p className="student-insight__meta">
+                  {summary.scheduledCaAssessments ?? 0} scheduled assessment
+                  {(summary.scheduledCaAssessments ?? 0) === 1 ? '' : 's'} in your offerings
+                </p>
+              </div>
+              {(summary.approvedCaAwaitingSchedule ?? 0) > 0 ? (
+                <span className="status-pill status-pill--pending">Action</span>
+              ) : (
+                <span className="status-pill status-pill--ok">Clear</span>
+              )}
+            </div>
+          </div>
           {(data.caRecovery?.eligible || []).length === 0 ? (
-            <p className="deadline-empty">No approved CA students in your assigned offerings.</p>
+            <div className="student-card-highlight">
+              <p className="deadline-empty" style={{ margin: 0 }}>
+                No approved CA students waiting in your assigned offerings.
+              </p>
+              <span className="status-pill status-pill--muted">0</span>
+            </div>
           ) : (
             <ul className="stack-list">
-              {(data.caRecovery?.eligible || []).slice(0, 8).map((item) => (
+              {(data.caRecovery?.eligible || []).slice(0, 6).map((item) => (
                 <li key={`${item.applicationId}-${item.subjectOfferingId}`}>
-                  <span className="stack-item__title">{item.registrationNumber}</span>
-                  <span className="stack-item__meta">{item.workflowStatus}</span>
+                  <div className="stack-item">
+                    <span className="stack-item__title">{item.registrationNumber}</span>
+                    <span className="status-pill status-pill--info">{item.workflowStatus}</span>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -226,11 +256,17 @@ export function LecturerDashboardPage() {
           </p>
         </Panel>
 
-        <Panel title="Notices">
+        <Panel title="Notices" kicker="Department feed">
           <SectionError message={!sections.notices?.ok ? sections.notices?.error : ''} />
-          {(data.notices || []).length === 0 ? (
-            <p className="deadline-empty">No current notices.</p>
-          ) : (
+          {sections.notices?.ok && !(data.notices || []).length ? (
+            <div className="student-card-highlight">
+              <p className="deadline-empty" style={{ margin: 0 }}>
+                No current notices.
+              </p>
+              <span className="status-pill status-pill--muted">0</span>
+            </div>
+          ) : null}
+          {(data.notices || []).length ? (
             <ul className="stack-list">
               {(data.notices || []).map((item) => (
                 <li key={item.id}>
@@ -240,19 +276,30 @@ export function LecturerDashboardPage() {
                 </li>
               ))}
             </ul>
-          )}
+          ) : null}
           <p className="panel-footnote">
             <Link to="/notices">All notices</Link>
           </p>
         </Panel>
 
-        <Panel title="Notifications">
+        <Panel title="Notifications" kicker="Recent activity">
           <SectionError
             message={!sections.notifications?.ok ? sections.notifications?.error : ''}
           />
-          <p className="figure-line">
-            Unread {data.notifications?.unreadCount ?? 'unavailable'}
+          <p className="panel-lead">
+            {(data.notifications?.unreadCount ?? 0) > 0 ? (
+              <>
+                <strong>{data.notifications.unreadCount}</strong> unread
+                <span className="panel-footnote__sep"> · </span>
+              </>
+            ) : null}
+            Teaching and department activity in your inbox
           </p>
+          {(data.notifications?.recent || []).length ? (
+            <NotificationStackList items={(data.notifications.recent || []).slice(0, 5)} />
+          ) : (
+            <p className="deadline-empty">No recent notifications.</p>
+          )}
           <p className="panel-footnote">
             <Link to="/notifications">Open inbox</Link>
           </p>

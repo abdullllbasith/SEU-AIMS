@@ -61,7 +61,7 @@ export function StudentLearningPage() {
     <section className="record-page">
       <PageHeader
         title="Official learning resources"
-        purpose="Course materials for your current semester from the learning environment. Historical offerings stay available below. This is not the Student Study Room."
+        purpose="Official materials for your subjects."
       />
 
       <div className="filter-bar">

@@ -24,6 +24,7 @@ export function createRouter({ config, logger, infrastructure } = {}) {
   router.post('/change-password', requireAuthenticated, requireCsrf, controller.changePassword);
   router.post('/users', requireDepartmentAdmin(), requireCsrf, controller.createUser);
   router.patch('/users/:userId/status', requireDepartmentAdmin(), requireCsrf, controller.setStatus);
+  router.patch('/users/:userId/password', requireDepartmentAdmin(), requireCsrf, controller.setPassword);
 
   return router;
 }

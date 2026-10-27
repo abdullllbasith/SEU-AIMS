@@ -243,23 +243,6 @@ async function loadYearSemesterPair(departmentId, academicYearId, semesterId) {
   return { year, semester };
 }
 
-async function loadStartingAcademicContext(departmentId) {
-  const year = await AcademicYear.findOne({ departmentId, sequence: 1, status: 'ACTIVE' });
-  if (!year) {
-    throw new ValidationError('Create active Year 1 before creating a batch. New batches start at Year 1, Semester 1.');
-  }
-  const semester = await Semester.findOne({
-    departmentId,
-    academicYearId: year._id,
-    sequence: 1,
-    status: 'ACTIVE',
-  });
-  if (!semester) {
-    throw new ValidationError('Create active Semester 1 of Year 1 before creating a batch.');
-  }
-  return { year, semester };
-}
-
 export async function createBatch(principal, body) {
   const departmentId = await requireAdminDepartment(principal);
   const department = await Department.findById(departmentId);
@@ -270,17 +253,13 @@ export async function createBatch(principal, body) {
     throw new ValidationError('Batch code and name are required');
   }
   if (body.currentAcademicYearId !== undefined || body.currentSemesterId !== undefined) {
-    throw new ValidationError('A new batch starts at Year 1, Semester 1. Do not send a different academic period.');
+    throw new ValidationError('A batch is only a code and name. Do not send an academic year or semester.');
   }
-  const { year, semester } = await loadStartingAcademicContext(departmentId);
   const batch = await Batch.create({
     departmentId,
     code,
     name,
     status: 'ACTIVE',
-    currentAcademicYearId: year._id,
-    currentSemesterId: semester._id,
-    academicContextVerifiedAt: new Date(),
   });
   await recordAudit({
     actorUserId: principal.userId,
@@ -420,6 +399,61 @@ export async function assignBatchAcademicContext(principal, batchId, body) {
     entityType: 'Batch',
     entityId: updated._id,
     metadata: { academicYearId: String(year._id), semesterId: String(semester._id) },
+  });
+  return presentBatch(updated);
+}
+
+const NO_VERIFIED_CONTEXT = 'Save a period for this batch before editing it.';
+
+export async function reviseBatchAcademicContext(principal, batchId, body) {
+  const departmentId = await requireAdminDepartment(principal);
+  const batch = await loadScoped(Batch, batchId, departmentId, 'Batch');
+  assertActive(batch, 'Batch');
+  if (!batch.academicContextVerifiedAt || !batch.currentAcademicYearId || !batch.currentSemesterId) {
+    throw new ConflictError(NO_VERIFIED_CONTEXT);
+  }
+  const { year, semester } = await loadYearSemesterPair(
+    departmentId,
+    body.currentAcademicYearId,
+    body.currentSemesterId,
+  );
+  if (
+    String(batch.currentAcademicYearId) === String(year._id) &&
+    String(batch.currentSemesterId) === String(semester._id)
+  ) {
+    return presentBatch(batch);
+  }
+  const updated = await Batch.findOneAndUpdate(
+    {
+      _id: batch._id,
+      departmentId: batch.departmentId,
+      status: 'ACTIVE',
+      academicContextVerifiedAt: { $ne: null },
+    },
+    {
+      $set: {
+        currentAcademicYearId: year._id,
+        currentSemesterId: semester._id,
+      },
+    },
+    { new: true },
+  );
+  if (!updated) {
+    const current = await loadScoped(Batch, batchId, departmentId, 'Batch');
+    assertActive(current, 'Batch');
+    throw new ConflictError(NO_VERIFIED_CONTEXT);
+  }
+  await recordAudit({
+    actorUserId: principal.userId,
+    action: 'academic.batch.revise-context',
+    entityType: 'Batch',
+    entityId: updated._id,
+    metadata: {
+      fromAcademicYearId: String(batch.currentAcademicYearId),
+      fromSemesterId: String(batch.currentSemesterId),
+      academicYearId: String(year._id),
+      semesterId: String(semester._id),
+    },
   });
   return presentBatch(updated);
 }
@@ -1334,9 +1368,7 @@ export async function previewBatchOfferings(principal, batchId) {
   };
 }
 
-export async function generateBatchOfferings(principal, batchId) {
-  const { departmentId, batch, year, semester } = await resolveBatchGenerationTarget(principal, batchId);
-  const { ready, skipped } = await activeCurriculumForPeriod(departmentId, year, semester, batch);
+async function insertPeriodOfferings({ departmentId, batch, year, semester, ready }) {
   const created = [];
   const alreadyExisted = [];
   for (const { subject } of ready) {
@@ -1383,6 +1415,57 @@ export async function generateBatchOfferings(principal, batchId) {
       });
     }
   }
+  return { created, alreadyExisted };
+}
+
+export async function assignPeriodOfferings(principal, body) {
+  const departmentId = await requireAdminDepartment(principal);
+  const batch = await loadScoped(Batch, body.batchId, departmentId, 'Batch');
+  assertActive(batch, 'Batch');
+  const { year, semester } = await loadYearSemesterPair(departmentId, body.academicYearId, body.semesterId);
+  const { ready, skipped } = await activeCurriculumForPeriod(departmentId, year, semester, batch);
+  const { created, alreadyExisted } = await insertPeriodOfferings({
+    departmentId,
+    batch,
+    year,
+    semester,
+    ready,
+  });
+  await recordAudit({
+    actorUserId: principal.userId,
+    action: 'academic.offering.assign-period',
+    entityType: 'Batch',
+    entityId: batch._id,
+    metadata: {
+      academicYearId: String(year._id),
+      semesterId: String(semester._id),
+      created: created.length,
+      alreadyExisted: alreadyExisted.length,
+      skipped: skipped.length,
+    },
+  });
+  return {
+    ...generationTarget(batch, year, semester),
+    created: created.length,
+    alreadyExisted: alreadyExisted.length,
+    skipped: skipped.length,
+    curriculumSubjects: ready.length,
+    createdSubjects: created,
+    existingSubjects: alreadyExisted,
+    skippedSubjects: skipped,
+  };
+}
+
+export async function generateBatchOfferings(principal, batchId) {
+  const { departmentId, batch, year, semester } = await resolveBatchGenerationTarget(principal, batchId);
+  const { ready, skipped } = await activeCurriculumForPeriod(departmentId, year, semester, batch);
+  const { created, alreadyExisted } = await insertPeriodOfferings({
+    departmentId,
+    batch,
+    year,
+    semester,
+    ready,
+  });
   await recordAudit({
     actorUserId: principal.userId,
     action: 'academic.offering.generate',
@@ -1806,14 +1889,50 @@ export async function listStudentContexts(principal, query) {
     requireObjectId(query.batchId, 'batch');
     filter.batchId = query.batchId;
   }
-  if (query.q) {
-    Object.assign(filter, textFilter(query, ['registrationNumber']));
+  if (query.currentAcademicYearId) {
+    requireObjectId(query.currentAcademicYearId, 'academic year');
+    filter.currentAcademicYearId = query.currentAcademicYearId;
+  }
+  if (query.currentSemesterId) {
+    requireObjectId(query.currentSemesterId, 'semester');
+    filter.currentSemesterId = query.currentSemesterId;
+  }
+  const q = typeof query.q === 'string' ? query.q.trim() : '';
+  if (q) {
+    const pattern = new RegExp(escapeRegex(q), 'i');
+    const namedUsers = await User.find({
+      departmentId,
+      role: ROLES.STUDENT,
+      $or: [{ displayName: pattern }, { email: pattern }],
+    })
+      .select('_id')
+      .limit(200);
+    filter.$or = [
+      { registrationNumber: pattern },
+      { userId: { $in: namedUsers.map((user) => user._id) } },
+    ];
   }
   const [items, total] = await Promise.all([
     StudentAcademicContext.find(filter).sort({ registrationNumber: 1 }).skip(skip).limit(limit),
     StudentAcademicContext.countDocuments(filter),
   ]);
-  return paginatedResult({ items: items.map(mapStudentContext), total, page, pageSize });
+  const users = await User.find({ _id: { $in: items.map((item) => item.userId) } }).select(
+    'displayName email',
+  );
+  const userById = new Map(users.map((user) => [String(user._id), user]));
+  return paginatedResult({
+    items: items.map((item) => {
+      const user = userById.get(String(item.userId));
+      return {
+        ...mapStudentContext(item),
+        displayName: user?.displayName || '',
+        email: user?.email || '',
+      };
+    }),
+    total,
+    page,
+    pageSize,
+  });
 }
 
 async function assertStudentSpecialization(departmentId, year, value) {
@@ -2164,7 +2283,6 @@ export async function reconcileAcademicFoundation(principal) {
   const issues = [];
   const contexts = await StudentAcademicContext.find({ departmentId })
     .select('userId currentAcademicYearId currentSemesterId')
-    .limit(200)
     .lean();
   const contextUserIds = contexts.map((row) => row.userId);
   const studentsWithoutContext = await User.find({
@@ -2173,7 +2291,6 @@ export async function reconcileAcademicFoundation(principal) {
     _id: { $nin: contextUserIds },
   })
     .select('_id')
-    .limit(200)
     .lean();
   for (const student of studentsWithoutContext) {
     issues.push({
@@ -2201,7 +2318,6 @@ export async function reconcileAcademicFoundation(principal) {
   }
   const assignments = await LecturerAssignment.find({ departmentId, isActive: true })
     .select('lecturerUserId')
-    .limit(200)
     .lean();
   const lecturers = await User.find({ _id: { $in: assignments.map((row) => row.lecturerUserId) } })
     .select('accountStatus lecturerStatus')
@@ -2220,7 +2336,6 @@ export async function reconcileAcademicFoundation(principal) {
   }
   const offerings = await SubjectOffering.find({ departmentId })
     .select('academicYearId semesterId')
-    .limit(200)
     .lean();
   const semesterIds = [
     ...contexts.map((row) => row.currentSemesterId),

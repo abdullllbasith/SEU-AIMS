@@ -4,8 +4,10 @@ import { experienceApi } from '../student-experience/experience-api.js';
 import { useAuth } from '../../state/AuthProvider.jsx';
 import { ROLES } from '../../constants/roles.js';
 import { academicApi } from '../admin/academic-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
+import { StatCard } from '../../ui/StatCard.jsx';
 import { DeadlineList } from '../../ui/DeadlineList.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
@@ -77,7 +79,7 @@ export function CalendarPage() {
     <section className="record-page">
       <PageHeader
         title="Academic calendar"
-        purpose="Agenda list of dated events for your role. There is no external calendar sync."
+        purpose="Dated events for your role."
       />
 
       {error ? (
@@ -86,18 +88,28 @@ export function CalendarPage() {
         </p>
       ) : null}
 
+      <div className="stat-row">
+        <StatCard label="Upcoming events" value={upcoming.length} icon="semesters" />
+        <StatCard label="Total in range" value={items.length} icon="years" />
+        <StatCard
+          label="Active events"
+          value={items.filter((item) => !item.cancelledAt).length}
+          icon="academic"
+        />
+      </div>
+
       <div className="dashboard-grid dashboard-grid--primary">
         <Panel title="Upcoming" kicker="Next windows">
           {groups ? (
             emptyGroups ? (
               <p className="deadline-empty">No upcoming events in the next windows.</p>
             ) : (
-              <>
+              <div className="agenda-grid">
                 <DeadlineList title="Today" items={groups.today || []} />
                 <DeadlineList title="Next few days" items={groups.nextFewDays || []} />
                 <DeadlineList title="This week" items={groups.nextWeek || []} />
                 <DeadlineList title="Later" items={groups.later || []} />
-              </>
+              </div>
             )
           ) : upcoming.length === 0 ? (
             <p className="deadline-empty">No upcoming events.</p>
@@ -155,9 +167,9 @@ export function CalendarPage() {
                   required
                 />
               </label>
-              <button type="submit" disabled={busy}>
-                {busy ? 'Creating…' : 'Create event'}
-              </button>
+              <ActionButton type="submit" busy={busy} busyLabel="Creating…" disabled={busy}>
+                Create event
+              </ActionButton>
             </form>
           </Panel>
         ) : null}
@@ -216,9 +228,9 @@ export function CalendarPage() {
                   required
                 />
               </label>
-              <button type="submit" disabled={busy}>
-                {busy ? 'Creating…' : 'Create deadline'}
-              </button>
+              <ActionButton type="submit" busy={busy} busyLabel="Creating…" disabled={busy}>
+                Create deadline
+              </ActionButton>
             </form>
           </Panel>
         ) : null}

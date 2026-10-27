@@ -282,3 +282,55 @@ dbTest('replacing a published file keeps the resource, stores the old version, a
   assert.equal(checks.status, 200);
   assert.equal(checks.body.data.issueCount, 0);
 });
+
+dbTest('lecturer can rename and delete an official folder, and students see that folder', async () => {
+  const { offering } = await seedDepartment();
+  const lecturer = await login('lecturer@example.test');
+  const student = await login('student@example.test');
+  const section = await lecturer.agent
+    .post(`/api/learning/offerings/${offering._id}/sections`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .send({ name: 'Notes' });
+  assert.equal(section.status, 201);
+  const created = await lecturer.agent
+    .post(`/api/learning/offerings/${offering._id}/resources`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .field('title', 'Slide1')
+    .field('sectionId', section.body.data.id)
+    .field('category', 'LECTURE')
+    .attach('file', pdfBuffer, { filename: 'slide1.pdf', contentType: 'application/pdf' });
+  await lecturer.agent
+    .post(`/api/learning/resources/${created.body.data.id}/publish`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .send({});
+
+  const studentPage = await student.agent.get(`/api/learning/offerings/${offering._id}`);
+  assert.equal(studentPage.body.data.sections[0].name, 'Notes');
+  const visible = await student.agent.get(`/api/learning/offerings/${offering._id}/resources`);
+  assert.equal(visible.body.data.items[0].title, 'Slide1');
+
+  const renamedFolder = await lecturer.agent
+    .patch(`/api/learning/sections/${section.body.data.id}`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .send({ name: 'Week 1' });
+  assert.equal(renamedFolder.status, 200);
+  const renamedFile = await lecturer.agent
+    .patch(`/api/learning/resources/${created.body.data.id}`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .send({ title: 'Slide 1' });
+  assert.equal(renamedFile.status, 200);
+
+  const studentDenied = await student.agent
+    .delete(`/api/learning/sections/${section.body.data.id}`)
+    .set('X-CSRF-Token', student.csrfToken);
+  assert.equal(studentDenied.status, 403);
+
+  const removed = await lecturer.agent
+    .delete(`/api/learning/sections/${section.body.data.id}`)
+    .set('X-CSRF-Token', lecturer.csrfToken);
+  assert.equal(removed.status, 200);
+  const after = await student.agent.get(`/api/learning/offerings/${offering._id}`);
+  assert.equal(after.body.data.sections.length, 0);
+  const hidden = await student.agent.get(`/api/learning/offerings/${offering._id}/resources`);
+  assert.equal(hidden.body.data.items.length, 0);
+});

@@ -22,6 +22,9 @@ export function createCaController() {
     windowsMe: asyncHandler(async (req, res) => {
       sendSuccess(res, await windowService.getOpenWindowForStudent(req.principal, req.query));
     }),
+    preview: asyncHandler(async (req, res) => {
+      sendSuccess(res, await applicationService.previewApplicationForm(req.principal, req.query));
+    }),
     createApplication: asyncHandler(async (req, res) => {
       sendSuccess(res, await applicationService.createDraft(req.principal, req.body || {}), { statusCode: 201 });
     }),
@@ -29,7 +32,7 @@ export function createCaController() {
       sendSuccess(res, await applicationService.listOwnApplications(req.principal));
     }),
     getMine: asyncHandler(async (req, res) => {
-      sendSuccess(res, await applicationService.getApplication(req.principal, req.params.applicationId));
+      sendSuccess(res, await applicationService.getApplication(req.principal, req.params.applicationId, deps(req)));
     }),
     patchMine: asyncHandler(async (req, res) => {
       sendSuccess(res, await applicationService.updateDraft(req.principal, req.params.applicationId, req.body || {}));
@@ -42,7 +45,7 @@ export function createCaController() {
       res.setHeader('Content-Type', file.mimeType);
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Cache-Control', 'private, no-store');
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.filename)}"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${file.filename.replace(/[^A-Za-z0-9._-]/g, '_')}"`);
       res.send(file.buffer);
     }),
     adminWindows: asyncHandler(async (req, res) => {
@@ -51,11 +54,17 @@ export function createCaController() {
     saveWindow: asyncHandler(async (req, res) => {
       sendSuccess(res, await windowService.createOrUpdateWindow(req.principal, req.body || {}, deps(req)), { statusCode: 201 });
     }),
+    deleteWindow: asyncHandler(async (req, res) => {
+      sendSuccess(res, await windowService.deleteWindow(req.principal, req.params.windowId));
+    }),
     adminList: asyncHandler(async (req, res) => {
       sendSuccess(res, await applicationService.adminListApplications(req.principal, req.query));
     }),
     adminGet: asyncHandler(async (req, res) => {
-      sendSuccess(res, await applicationService.getApplication(req.principal, req.params.applicationId));
+      sendSuccess(res, await applicationService.getApplication(req.principal, req.params.applicationId, deps(req)));
+    }),
+    confirmReceipt: asyncHandler(async (req, res) => {
+      sendSuccess(res, await applicationService.confirmPhysicalReceipt(req.principal, req.params.applicationId, req.body || {}));
     }),
     verifyPhysical: asyncHandler(async (req, res) => {
       sendSuccess(res, await applicationService.verifyPhysical(req.principal, req.params.applicationId, req.body || {}));
@@ -68,6 +77,9 @@ export function createCaController() {
     }),
     reconciliation: asyncHandler(async (req, res) => {
       sendSuccess(res, await reconciliationService.reconcileCaConditions(req.principal));
+    }),
+    unresolvedConditions: asyncHandler(async (req, res) => {
+      sendSuccess(res, await reconciliationService.listUnresolvedEcaConditions(req.principal));
     }),
     backfill: asyncHandler(async (req, res) => {
       sendSuccess(res, await reconciliationService.backfillMissingCaConditions(req.principal));

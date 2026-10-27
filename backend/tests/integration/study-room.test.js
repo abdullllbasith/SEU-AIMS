@@ -379,9 +379,20 @@ dbTest('unconfigured scanner cannot make a student file available', async () => 
     .set('X-CSRF-Token', meCsrf.body.data.csrfToken)
     .attach('file', pdfBuffer, { filename: 'notes.pdf', contentType: 'application/pdf' });
   assert.equal(uploaded.status, 201);
-  assert.notEqual(uploaded.body.data.moderationState, 'AVAILABLE');
+  assert.equal(uploaded.body.data.moderationState, 'QUARANTINED');
   const download = await agent.get(`/api/study-room/resources/${uploaded.body.data.id}/download`);
   assert.equal(download.status, 404);
+  const admin = await login('admin@example.test');
+  const queue = await admin.agent.get('/api/study-room/moderation/resources');
+  assert.equal(queue.status, 200);
+  const released = queue.body.data.items.find((item) => item.id === uploaded.body.data.id);
+  assert.equal(released?.moderationState, 'PENDING_REVIEW');
+  const approved = await admin.agent
+    .post(`/api/study-room/moderation/resources/${uploaded.body.data.id}/approve`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({});
+  assert.equal(approved.status, 200);
+  assert.equal(approved.body.data.moderationState, 'AVAILABLE');
 });
 
 dbTest('socket join is authorized and lecturers cannot connect to Study Room events', async () => {
@@ -556,4 +567,21 @@ dbTest('study room reconciliation reports an unsafe available file and does not 
   assert.equal(report.body.data.issues.some((item) => item.issue === 'AVAILABLE_WITHOUT_SAFE_FILE'), true);
   assert.equal(report.body.data.issues.some((item) => item.issue === 'OPEN_REPORT_FOR_REMOVED_RESOURCE'), true);
   assert.equal(JSON.stringify(report.body.data).includes('ciphertext'), false);
+});
+
+dbTest('a classmate without a published key still has one so a private chat can be encrypted', async () => {
+  const { studentB } = await seed();
+  const session = await login('a@example.test');
+  const lookedUp = await session.agent.get(`/api/study-room/crypto/public-keys/${studentB._id}`);
+  assert.equal(lookedUp.status, 200);
+  assert.equal(lookedUp.body.data.publicKeyJwk.kty, 'EC');
+  assert.equal(lookedUp.body.data.publicKeyJwk.d, undefined);
+  assert.equal(JSON.stringify(lookedUp.body.data).includes('"d"'), false);
+
+  const peer = await login('b@example.test');
+  const claimed = await peer.agent.get('/api/study-room/crypto/identity');
+  assert.equal(claimed.status, 200);
+  assert.equal(claimed.body.data.privateKeyJwk.d.length > 10, true);
+  assert.equal(claimed.body.data.privateKeyJwk.x, lookedUp.body.data.publicKeyJwk.x);
+  assert.equal(claimed.body.data.publicKeyJwk.d, undefined);
 });

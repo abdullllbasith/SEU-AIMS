@@ -59,7 +59,7 @@ export function AcademicHistoryPage() {
     <section className="record-page">
       <PageHeader
         title="Academic history"
-        purpose="Official results are read-only. Repeat updates keep the same registration number and subject code."
+        purpose="Read-only official results."
       />
 
       <div className="filter-bar">

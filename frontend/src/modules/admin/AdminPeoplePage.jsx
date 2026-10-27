@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminApi } from './admin-api.js';
+import { academicApi } from './academic-api.js';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -29,6 +30,8 @@ function PeoplePager({ page, pageSize, total, onPage }) {
 export function AdminPeoplePage() {
   const [tab, setTab] = useState('students');
   const [query, setQuery] = useState('');
+  const [batchId, setBatchId] = useState('');
+  const [batches, setBatches] = useState([]);
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -36,40 +39,65 @@ export function AdminPeoplePage() {
   const [lecturers, setLecturers] = useState(null);
 
   useEffect(() => {
-    setPage(1);
-  }, [tab, query]);
-
-  useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError('');
-    const params = { q: query, page, pageSize: 20 };
-    const load = tab === 'students' ? adminApi.students(params) : adminApi.lecturers(params);
-    load
+    academicApi
+      .batches({ status: 'ALL', pageSize: 50 })
       .then((response) => {
-        if (cancelled) {
-          return;
-        }
-        if (tab === 'students') {
-          setStudents(response.data);
-        } else {
-          setLecturers(response.data);
+        if (!cancelled) {
+          setBatches(response.data?.items || []);
         }
       })
-      .catch((caught) => {
+      .catch(() => {
         if (!cancelled) {
-          setError(caught.message || 'Unable to load directory');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
+          setBatches([]);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [tab, query, page]);
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [tab, query, batchId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      setLoading(true);
+      setError('');
+      const params = { q: query, page, pageSize: 20 };
+      if (tab === 'students' && batchId) {
+        params.batchId = batchId;
+      }
+      const load = tab === 'students' ? adminApi.students(params) : adminApi.lecturers(params);
+      load
+        .then((response) => {
+          if (cancelled) {
+            return;
+          }
+          if (tab === 'students') {
+            setStudents(response.data);
+          } else {
+            setLecturers(response.data);
+          }
+        })
+        .catch((caught) => {
+          if (!cancelled) {
+            setError(caught.message || 'Unable to load directory');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        });
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [tab, query, batchId, page]);
 
   const studentItems = students?.items || [];
   const lecturerItems = lecturers?.items || [];
@@ -79,7 +107,7 @@ export function AdminPeoplePage() {
     <section className="record-page">
       <PageHeader
         title="People"
-        purpose="Prefix search only. Pattern characters are rejected. Phone numbers are omitted from this directory."
+        purpose="Students and lecturers in this department."
       />
 
       <nav className="tab-nav" aria-label="People directory">
@@ -99,17 +127,30 @@ export function AdminPeoplePage() {
         </button>
       </nav>
 
-      <div className="filter-bar filter-bar--search">
+      <div className={tab === 'students' ? 'filter-bar filter-bar--people' : 'filter-bar filter-bar--search'}>
         <label>
           Search
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             maxLength={64}
-            placeholder={tab === 'students' ? 'Registration or display name' : 'Display name'}
+            placeholder={tab === 'students' ? 'Name or registration number' : 'Display name'}
             autoComplete="off"
           />
         </label>
+        {tab === 'students' ? (
+          <label>
+            Batch
+            <select value={batchId} onChange={(event) => setBatchId(event.target.value)}>
+              <option value="">All batches</option>
+              {batches.map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {batch.name && batch.name !== batch.code ? `${batch.code} — ${batch.name}` : batch.code}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       {error ? (
@@ -139,7 +180,7 @@ export function AdminPeoplePage() {
         <Panel title="Students" kicker={`${students?.total ?? 0} total`}>
           {studentItems.length === 0 ? (
             <EmptyState to="/admin/academic" action="Academic admin">
-              No students match this search.
+              {batchId ? 'No students in this batch.' : 'No students match this search.'}
             </EmptyState>
           ) : (
             <ul className="entity-list">
@@ -187,6 +228,8 @@ export function AdminPeoplePage() {
                       <span className="offering-card__name">{row.lecturerStatus}</span>
                     </p>
                     <p className="offering-card__meta">
+                      <span className="status-pill">{row.accountStatus}</span>
+                      <span className="panel-footnote__sep">·</span>
                       Active assignments {row.activeAssignmentCount}
                     </p>
                   </Link>

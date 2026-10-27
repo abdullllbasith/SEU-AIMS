@@ -17,6 +17,9 @@ export const learningApi = {
   sections: (offeringId) => apiRequest(`/learning/offerings/${offeringId}/sections`),
   createSection: (offeringId, body) =>
     apiRequest(`/learning/offerings/${offeringId}/sections`, { method: 'POST', body: JSON.stringify(body) }),
+  updateSection: (id, body) =>
+    apiRequest(`/learning/sections/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteSection: (id) => apiRequest(`/learning/sections/${id}`, { method: 'DELETE' }),
   resources: (offeringId, params) => apiRequest(`/learning/offerings/${offeringId}/resources${qs(params)}`),
   createResource: (offeringId, formData) =>
     apiRequest(`/learning/offerings/${offeringId}/resources`, { method: 'POST', body: formData }),

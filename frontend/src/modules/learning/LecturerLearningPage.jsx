@@ -54,7 +54,7 @@ export function LecturerLearningPage() {
     <section className="record-page">
       <PageHeader
         title="Official resources"
-        purpose="Manage materials only for subject offerings assigned to you. Upload and publish happen inside each offering."
+        purpose="Materials for your assigned offerings."
       />
 
       <Panel title="Assigned offerings" kicker={`${items.length} offering${items.length === 1 ? '' : 's'}`}>

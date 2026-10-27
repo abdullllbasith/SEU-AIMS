@@ -55,7 +55,7 @@ export function AdminOfferingHealthPage() {
     <section className="record-page">
       <PageHeader
         title="Subject offering health"
-        purpose="Unassigned and multiple-lecturer flags are counts, not correctness judgments. Manage structure on Academic admin."
+        purpose="Offering assignment coverage."
         actions={
           <Link className="text-action" to="/admin/academic">
             Academic structure

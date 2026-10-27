@@ -1,25 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { lecturerApi, offeringLabel } from '../lecturer/lecturer-api.js';
+import { lecturerApi } from '../lecturer/lecturer-api.js';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
+import { StatIcon } from '../../ui/stat-icons.jsx';
 import {
   formatBatchLabel,
-  formatSemesterLabel,
   formatSemesterShortName,
   formatYearLabel,
 } from '../../ui/academic-labels.js';
-
-function offeringPeriodMeta(item) {
-  const batch = formatBatchLabel({ code: item.batchCode, name: item.batchName }) || item.batchId;
-  const semester = formatSemesterLabel(
-    { name: item.semesterName, sequence: item.semesterSequence },
-    { name: item.academicYearName, sequence: item.academicYearSequence },
-  );
-  return [batch, semester].filter(Boolean);
-}
 
 function offeringYearLabel(item) {
   return (
@@ -70,6 +61,15 @@ export function LecturerOfferingsPage() {
     };
   }, []);
 
+  const counts = useMemo(
+    () => ({
+      all: items.length,
+      active: items.filter((item) => item.canManage).length,
+      readonly: items.filter((item) => !item.canManage).length,
+    }),
+    [items],
+  );
+
   const visible = useMemo(() => {
     if (filter === 'active') {
       return items.filter((item) => item.canManage);
@@ -99,19 +99,32 @@ export function LecturerOfferingsPage() {
     <section className="record-page">
       <PageHeader
         title="Assigned offerings"
-        purpose="Names come from Academic Foundation. Inactive assignments are listed as read-only and do not grant management."
+        purpose="Subject offerings assigned to you."
       />
 
-      <div className="filter-bar">
-        <label>
-          Show
-          <select value={filter} onChange={(event) => setFilter(event.target.value)}>
-            <option value="all">All assignments</option>
-            <option value="active">Active (can manage)</option>
-            <option value="readonly">Read-only / historical</option>
-          </select>
-        </label>
-      </div>
+      <nav className="tab-nav" aria-label="Assignment filter">
+        <button
+          type="button"
+          className={filter === 'all' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+          onClick={() => setFilter('all')}
+        >
+          All ({counts.all})
+        </button>
+        <button
+          type="button"
+          className={filter === 'active' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+          onClick={() => setFilter('active')}
+        >
+          Active ({counts.active})
+        </button>
+        <button
+          type="button"
+          className={filter === 'readonly' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+          onClick={() => setFilter('readonly')}
+        >
+          Read-only ({counts.readonly})
+        </button>
+      </nav>
 
       <Panel title="Assignments" kicker={`${visible.length} shown`}>
         {visible.length === 0 ? (
@@ -119,64 +132,48 @@ export function LecturerOfferingsPage() {
             You have no subject offering assignments in this filter.
           </EmptyState>
         ) : (
-          <>
-            <ul className="entity-list entity-list--compact">
-              {visible.map((item) => (
-                <li key={item.id}>
-                  <Link className="offering-card" to={item.workspacePath}>
-                    <p className="offering-card__code">{offeringLabel(item)}</p>
-                    <p className="offering-card__meta">
-                      {offeringPeriodMeta(item).map((part, index) => (
-                        <span key={`${item.id}-meta-${index}`}>
-                          {index > 0 ? <span className="panel-footnote__sep">·</span> : null}
-                          {part}
-                        </span>
-                      ))}
-                    </p>
-                    <p className="offering-card__meta">
-                      {item.canManage ? (
-                        <span className="status-pill status-pill--ok">Active</span>
-                      ) : (
-                        <span className="status-pill">Read-only</span>
-                      )}
-                    </p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Subject</th>
-                    <th>Batch</th>
-                    <th>Year</th>
-                    <th>Semester</th>
-                    <th>Management</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((item) => (
-                    <tr key={`row-${item.id}`}>
-                      <td>
-                        <Link to={item.workspacePath}>{offeringLabel(item)}</Link>
-                      </td>
-                      <td>
-                        {formatBatchLabel({ code: item.batchCode, name: item.batchName }) ||
-                          item.batchId ||
-                          '—'}
-                      </td>
-                      <td>{offeringYearLabel(item)}</td>
-                      <td>{offeringSemesterCell(item)}</td>
-                      <td>{item.canManage ? 'Active' : 'Read-only'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <ul className="assignment-rows">
+            {visible.map((item) => (
+              <li key={item.id}>
+                <Link className="assignment-row" to={item.workspacePath}>
+                  <span className="assignment-row__subject">
+                    <span className="assignment-row__code">{item.subjectCode}</span>
+                    <span className="assignment-row__name">{item.subjectName}</span>
+                  </span>
+                  <span className="assignment-row__cell assignment-row__cell--batch">
+                    <span className="assignment-row__cell-label">Batch</span>
+                    <span className="assignment-row__cell-value">
+                      {formatBatchLabel({ code: item.batchCode, name: item.batchName }) ||
+                        item.batchId ||
+                        '—'}
+                    </span>
+                  </span>
+                  <span className="assignment-row__cell assignment-row__cell--year">
+                    <span className="assignment-row__cell-label">Year</span>
+                    <span className="assignment-row__cell-value">{offeringYearLabel(item)}</span>
+                  </span>
+                  <span className="assignment-row__cell assignment-row__cell--sem">
+                    <span className="assignment-row__cell-label">Semester</span>
+                    <span className="assignment-row__cell-value">{offeringSemesterCell(item)}</span>
+                  </span>
+                  <span className="assignment-row__status">
+                    {item.canManage ? (
+                      <span className="status-pill status-pill--ok">Active</span>
+                    ) : (
+                      <span className="status-pill status-pill--muted">Read-only</span>
+                    )}
+                  </span>
+                  <StatIcon name="chevron" className="assignment-row__chevron" />
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
+        <p className="panel-footnote">
+          <Link to="/lecturer/learning">Official resources hub</Link>
+          <span className="panel-footnote__sep">·</span>
+          <Link to="/lecturer/search">Search assigned content</Link>
+        </p>
       </Panel>
     </section>
   );

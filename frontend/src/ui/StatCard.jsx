@@ -15,8 +15,8 @@ function toneClass(tone, value) {
   return '';
 }
 
-export function StatCard({ label, value, hint, to, icon, tone }) {
-  const className = `stat-card${toneClass(tone, value)}`;
+export function StatCard({ label, value, hint, to, onClick, icon, tone }) {
+  const className = `stat-card${toneClass(tone, value)}${onClick || to ? ' stat-card--interactive' : ''}`;
   const body = (
     <>
       <div className="stat-card__head">
@@ -32,6 +32,24 @@ export function StatCard({ label, value, hint, to, icon, tone }) {
       <Link className={className} to={to}>
         {body}
       </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <article
+        className={className}
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onClick(event);
+          }
+        }}
+      >
+        {body}
+      </article>
     );
   }
   return <article className={className}>{body}</article>;

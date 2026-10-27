@@ -41,6 +41,12 @@ export function createAcademicController() {
         await academicService.assignBatchAcademicContext(req.principal, req.params.batchId, req.body || {}),
       );
     }),
+    reviseBatchAcademicContext: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await academicService.reviseBatchAcademicContext(req.principal, req.params.batchId, req.body || {}),
+      );
+    }),
     updateBatch: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.updateBatch(req.principal, req.params.batchId, req.body || {}));
     }),
@@ -97,6 +103,9 @@ export function createAcademicController() {
       sendSuccess(res, await academicService.createOffering(req.principal, req.body || {}), {
         statusCode: 201,
       });
+    }),
+    assignPeriodOfferings: asyncHandler(async (req, res) => {
+      sendSuccess(res, await academicService.assignPeriodOfferings(req.principal, req.body || {}));
     }),
     getOffering: asyncHandler(async (req, res) => {
       sendSuccess(res, await academicService.getOffering(req.principal, req.params.offeringId));

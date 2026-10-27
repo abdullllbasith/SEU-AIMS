@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { studyRoomApi } from '../study-room/study-room-api.js';
+import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
+import { StatCard } from '../../ui/StatCard.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
 
@@ -11,7 +13,8 @@ export function AdminStudyRoomModerationPage() {
   const [settings, setSettings] = useState(null);
   const [queue, setQueue] = useState([]);
   const [reports, setReports] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState('');
+  const busy = Boolean(pending);
 
   async function reload() {
     const [mode, items, reportItems] = await Promise.all([
@@ -42,14 +45,14 @@ export function AdminStudyRoomModerationPage() {
     };
   }, []);
 
-  function run(fn) {
-    setBusy(true);
+  function run(key, fn) {
+    setPending(key);
     setError('');
     Promise.resolve()
       .then(fn)
       .then(reload)
       .catch((caught) => setError(caught.message || 'Action failed'))
-      .finally(() => setBusy(false));
+      .finally(() => setPending(''));
   }
 
   if (loading) {
@@ -73,7 +76,7 @@ export function AdminStudyRoomModerationPage() {
     <section className="record-page">
       <PageHeader
         title="Study Room moderation"
-        purpose="Administrative review of student-shared files only. This page does not provide access to encrypted chat."
+        purpose="Review of student-shared files."
       />
 
       {error ? (
@@ -82,29 +85,67 @@ export function AdminStudyRoomModerationPage() {
         </p>
       ) : null}
 
-      <Panel title="Moderation mode" kicker={reviewMode ? 'Admin review' : 'Non-review'}>
-        <p className="panel-lead">
-          Current mode:{' '}
-          <strong>
-            {reviewMode ? 'Admin review required' : 'Non-review (malware scan still required)'}
-          </strong>
-        </p>
-        <div className="panel-actions">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              run(() =>
-                studyRoomApi.updateModerationSettings({
-                  moderationMode: reviewMode ? 'NON_REVIEW' : 'ADMIN_REVIEW',
-                }),
-              )
-            }
-          >
-            Switch moderation mode
-          </button>
-        </div>
-      </Panel>
+      <div className="stat-row">
+        <StatCard
+          label="Moderation mode"
+          value={reviewMode ? 'Admin review' : 'Non-review'}
+          icon="ops"
+        />
+        <StatCard
+          label="Pending student files"
+          value={queue.length}
+          icon="chat"
+          tone="watch"
+        />
+        <StatCard
+          label="Student reports"
+          value={reports.length}
+          icon="attention"
+          tone="alert"
+        />
+      </div>
+
+      <div className="dashboard-grid dashboard-grid--primary">
+        <Panel title="Moderation mode" kicker={reviewMode ? 'Admin review' : 'Non-review'}>
+          <p className="panel-lead">
+            Current mode:{' '}
+            <strong>
+              {reviewMode ? 'Admin review required' : 'Non-review (malware scan still required)'}
+            </strong>
+          </p>
+          <div className="panel-actions">
+            <ActionButton
+              busy={pending === 'mode'}
+              busyLabel="Saving…"
+              disabled={busy}
+              onClick={() =>
+                run('mode', () =>
+                  studyRoomApi.updateModerationSettings({
+                    moderationMode: reviewMode ? 'NON_REVIEW' : 'ADMIN_REVIEW',
+                  }),
+                )
+              }
+            >
+              Switch moderation mode
+            </ActionButton>
+          </div>
+        </Panel>
+
+        <Panel title="Reports" kicker={`${reports.length} total`}>
+          {reports.length === 0 ? (
+            <p className="deadline-empty">No reports submitted by students.</p>
+          ) : (
+            <ul className="stack-list">
+              {reports.map((item) => (
+                <li key={item.id}>
+                  <span className="stack-item__title">{item.category}</span>
+                  <span className="stack-item__meta">{item.status}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
 
       <Panel title="Pending student files" kicker={`${queue.length} waiting`}>
         {queue.length === 0 ? (
@@ -120,28 +161,23 @@ export function AdminStudyRoomModerationPage() {
                   <p className="resource-row__meta">{item.moderationState}</p>
                 </div>
                 <div className="resource-row__aside">
-                  <button type="button" disabled={busy} onClick={() => run(() => studyRoomApi.approve(item.id))}>
+                  <ActionButton
+                    busy={pending === `approve:${item.id}`}
+                    busyLabel="Approving…"
+                    disabled={busy}
+                    onClick={() => run(`approve:${item.id}`, () => studyRoomApi.approve(item.id))}
+                  >
                     Approve
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => run(() => studyRoomApi.reject(item.id))}>
+                  </ActionButton>
+                  <ActionButton
+                    busy={pending === `reject:${item.id}`}
+                    busyLabel="Rejecting…"
+                    disabled={busy}
+                    onClick={() => run(`reject:${item.id}`, () => studyRoomApi.reject(item.id))}
+                  >
                     Reject
-                  </button>
+                  </ActionButton>
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-
-      <Panel title="Reports" kicker={`${reports.length} total`}>
-        {reports.length === 0 ? (
-          <p className="deadline-empty">No reports.</p>
-        ) : (
-          <ul className="stack-list">
-            {reports.map((item) => (
-              <li key={item.id}>
-                <span className="stack-item__title">{item.category}</span>
-                <span className="stack-item__meta">{item.status}</span>
               </li>
             ))}
           </ul>

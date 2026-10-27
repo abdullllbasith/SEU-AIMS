@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { communicationApi } from './communication-api.js';
+import { NotificationStackList } from './NotificationStackList.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -72,23 +72,30 @@ export function NotificationsPage() {
       .catch((err) => setError(err.message));
   }
 
+  function handleOpen(item) {
+    if (!item.readAt) {
+      handleMarkRead(item.id);
+    }
+  }
+
   function handleSavePreferences(event) {
     event.preventDefault();
+    if (!prefs) {
+      return;
+    }
     setSaving(true);
     setError('');
     setSuccessMessage('');
     communicationApi
       .savePreferences({
-        locale: prefs.locale,
-        emailEnabled: prefs.emailEnabled,
-        whatsappEnabled: prefs.whatsappEnabled,
+        emailEnabled: Boolean(prefs.emailEnabled),
+        whatsappEnabled: Boolean(prefs.whatsappEnabled),
       })
       .then((body) => {
         setPrefs(body.data);
-        setSuccessMessage('Delivery preferences updated successfully.');
-        setTimeout(() => setSuccessMessage(''), 4000);
+        setSuccessMessage('Preferences saved.');
       })
-      .catch((caught) => setError(caught.message))
+      .catch((caught) => setError(caught.message || 'Unable to save preferences'))
       .finally(() => setSaving(false));
   }
 
@@ -102,7 +109,7 @@ export function NotificationsPage() {
     <section className="record-page notifications-layout">
       <PageHeader
         title="Notifications"
-        purpose="Review recent department updates, academic announcements, and channel alerts."
+        purpose="Department updates and in-app alerts."
         meta={
           unreadCount > 0
             ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
@@ -154,49 +161,29 @@ export function NotificationsPage() {
       ) : null}
 
       <div className="notifications-grid">
-        <Panel title="Activity feed" kicker={`${items.length} total`}>
+        <Panel title="Activity feed" kicker="Inbox">
+          <p className="panel-lead">
+            {unreadCount > 0 ? (
+              <>
+                <strong>{unreadCount}</strong> unread
+                <span className="panel-footnote__sep"> · </span>
+              </>
+            ) : null}
+            {items.length} notification{items.length === 1 ? '' : 's'} in your inbox
+          </p>
+
           {!error && items.length === 0 ? (
             <EmptyState to="/notices" action="Open notices">
               No notifications yet. You are up to date with the inbox.
             </EmptyState>
           ) : null}
-          {items.length === 0 ? null : (
-            <ul className="notification-list">
-              {items.map((item) => (
-                <li
-                  key={item.id}
-                  className={item.readAt ? 'notification-item' : 'notification-item is-unread'}
-                >
-                  <div className="notification-item__head">
-                    <p className="notification-item__title">
-                      {!item.readAt ? <span className="notification-item__dot" aria-hidden="true" /> : null}
-                      {item.title}
-                    </p>
-                    {item.category ? (
-                      <span className="status-pill">{item.category}</span>
-                    ) : null}
-                  </div>
-                  {item.body ? <p className="notification-item__body">{item.body}</p> : null}
-                  <div className="notification-item__foot">
-                    {item.actionPath ? (
-                      <Link className="text-action" to={item.actionPath}>
-                        Open record
-                      </Link>
-                    ) : (
-                      <span />
-                    )}
-                    {!item.readAt ? (
-                      <button type="button" onClick={() => handleMarkRead(item.id)}>
-                        Mark read
-                      </button>
-                    ) : (
-                      <span className="notification-item__read">Read</span>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+
+          <NotificationStackList
+            items={items}
+            onOpenItem={handleOpen}
+            allowMarkRead
+            onMarkRead={handleMarkRead}
+          />
         </Panel>
 
         {prefs ? (

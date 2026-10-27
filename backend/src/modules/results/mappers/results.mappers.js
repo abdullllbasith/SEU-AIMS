@@ -1,7 +1,40 @@
+import { RESULT_COMMIT_LOCK_MS } from '../constants.js';
+
+const LIVE_IMPORT_STATUSES = new Set(['UPLOADED', 'PROCESSING', 'COMMITTING']);
+
+function mapOperationProgress(doc) {
+  if (!LIVE_IMPORT_STATUSES.has(doc.processingStatus)) {
+    return null;
+  }
+  const completed = Math.max(0, Number(doc.operationProgress?.completed) || 0);
+  const total = Math.max(0, Number(doc.operationProgress?.total) || 0);
+  if (!total) {
+    return { completed: 0, total: 0, percent: null };
+  }
+  const percent = Math.min(99, Math.round((completed / total) * 100));
+  return { completed, total, percent };
+}
+
+function mapResultPeriod(period) {
+  return {
+    batchCode: period.batchCode || '',
+    batchName: period.batchName || '',
+    academicYearName: period.academicYearName || '',
+    academicYearSequence: period.academicYearSequence ?? null,
+    semesterName: period.semesterName || '',
+    semesterSequence: period.semesterSequence ?? null,
+  };
+}
+
 export function mapImport(doc) {
   if (!doc) {
     return null;
   }
+  const committingStartedAt = doc.committingStartedAt ? new Date(doc.committingStartedAt).getTime() : 0;
+  const commitStale =
+    doc.processingStatus === 'COMMITTING' &&
+    (!committingStartedAt || Date.now() - committingStartedAt >= RESULT_COMMIT_LOCK_MS);
+  const progress = mapOperationProgress(doc);
   return {
     id: String(doc._id),
     departmentId: String(doc.departmentId),
@@ -18,6 +51,9 @@ export function mapImport(doc) {
     sourceBatchId: doc.sourceBatchId ? String(doc.sourceBatchId) : null,
     sourceAcademicYearId: doc.sourceAcademicYearId ? String(doc.sourceAcademicYearId) : null,
     sourceSemesterId: doc.sourceSemesterId ? String(doc.sourceSemesterId) : null,
+    resultPeriods: Array.isArray(doc.resultPeriods) ? doc.resultPeriods.map(mapResultPeriod) : [],
+    commitStale,
+    progress,
     committedAt: doc.committedAt || null,
     createdAt: doc.createdAt,
     failureCode: doc.failureCode || null,

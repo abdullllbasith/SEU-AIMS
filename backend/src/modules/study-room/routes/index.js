@@ -20,10 +20,12 @@ export function createRouter() {
 
   router.get('/access', students, controller.access);
   router.put('/crypto/public-key', students, requireCsrf, controller.upsertKey);
+  router.get('/crypto/identity', students, controller.claimIdentity);
   router.get('/crypto/public-keys/:userId', students, controller.getPublicKey);
   router.get('/students/search', students, controller.searchStudents);
 
   router.get('/conversations', students, controller.conversations);
+  router.get('/attention', students, controller.attention);
   router.post('/conversations', students, requireCsrf, controller.createConversation);
   router.get('/conversations/:conversationId', students, controller.getConversation);
   router.put('/conversations/:conversationId/key-envelopes', students, requireCsrf, controller.putEnvelopes);
@@ -45,6 +47,8 @@ export function createRouter() {
   }, controller.uploadResource);
 
   router.get('/resources/:resourceId', students, controller.getResource);
+  router.patch('/resources/:resourceId', students, requireCsrf, controller.renameResource);
+  router.delete('/resources/:resourceId', students, requireCsrf, controller.deleteResource);
   router.get('/resources/:resourceId/download', students, controller.downloadResource);
   router.post('/resources/:resourceId/report', students, requireCsrf, controller.reportResource);
 

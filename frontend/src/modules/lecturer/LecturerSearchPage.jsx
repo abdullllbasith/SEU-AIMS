@@ -42,7 +42,7 @@ export function LecturerSearchPage() {
     <section className="record-page">
       <PageHeader
         title="Search assigned teaching content"
-        purpose="Searches your assigned subject offerings, official resources, offering calendar events, and CA registration numbers you may schedule. Study Room and GPA are excluded."
+        purpose="Search your offerings, resources, and calendar."
       />
 
       <div className="filter-bar filter-bar--search">

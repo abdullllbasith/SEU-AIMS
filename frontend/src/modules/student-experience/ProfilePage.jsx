@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { experienceApi } from './experience-api.js';
+import { ProfilePhotoCrop } from './ProfilePhotoCrop.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
@@ -14,6 +15,7 @@ export function ProfilePage() {
   const [state, setState] = useState({ loading: true, error: '', data: null, saved: '' });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [cropFile, setCropFile] = useState(null);
 
   async function load() {
     setState((current) => ({ ...current, loading: true, error: '' }));
@@ -59,26 +61,34 @@ export function ProfilePage() {
     }
   }
 
-  async function onPhoto(event) {
+  function onPhoto(event) {
     const file = event.target.files?.[0];
-    if (uploading) {
+    event.target.value = '';
+    if (uploading || !file) {
       return;
     }
-    if (!file) {
+    if (!file.type.startsWith('image/')) {
+      setState((current) => ({ ...current, error: 'Choose a JPEG, PNG, or WebP photo.', saved: '' }));
       return;
     }
+    setCropFile(file);
+  }
+
+  async function uploadCropped(file) {
     setUploading(true);
+    setState((current) => ({ ...current, error: '', saved: '' }));
     try {
       const body = await experienceApi.uploadPhoto(file);
+      setCropFile(null);
       setState({ loading: false, error: '', data: body.data, saved: 'Photo updated.' });
     } catch (caught) {
       setState((current) => ({
         ...current,
         error: caught.message || 'Photo upload failed',
+        saved: '',
       }));
     } finally {
       setUploading(false);
-      event.target.value = '';
     }
   }
 
@@ -106,7 +116,7 @@ export function ProfilePage() {
     <section className="record-page">
       <PageHeader
         title="My profile"
-        purpose="Contact details you can edit. Registration number and role are academic identity and cannot be changed here."
+        purpose="Contact details you can edit."
       />
 
       {state.error ? (
@@ -120,23 +130,49 @@ export function ProfilePage() {
         </p>
       ) : null}
 
+      <article className="panel profile-banner">
+        <div className="profile-banner__main">
+          {state.data.hasProfileImage ? (
+            <img
+              className="profile-photo"
+              src={`/api/me/profile/photo?v=${state.data.profileRevision}`}
+              alt=""
+              width={88}
+              height={88}
+            />
+          ) : (
+            <div className="profile-photo profile-photo--placeholder" aria-hidden="true">
+              {(state.data.displayName || state.data.email || '?').slice(0, 1).toUpperCase()}
+            </div>
+          )}
+          <div className="profile-banner__copy">
+            <h2 className="profile-banner__name">{state.data.displayName || state.data.email}</h2>
+            <p className="profile-banner__email">{state.data.email}</p>
+            <div className="profile-banner__badges">
+              {state.data.department?.name ? (
+                <span className="status-pill status-pill--info">{state.data.department.name}</span>
+              ) : null}
+              {identity?.registrationNumber ? (
+                <span className="status-pill">{identity.registrationNumber}</span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <label className="profile-upload-btn">
+          <span>{uploading ? 'Uploading…' : 'Change photo'}</span>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={onPhoto}
+            disabled={uploading}
+          />
+        </label>
+      </article>
+
       <div className="dashboard-grid dashboard-grid--primary">
         <Panel title="Academic identity" kicker="Read-only">
           <div className="profile-identity">
-            {state.data.hasProfileImage ? (
-              <img
-                className="profile-photo"
-                src="/api/me/profile/photo"
-                alt=""
-                width={96}
-                height={96}
-              />
-            ) : (
-              <div className="profile-photo profile-photo--placeholder" aria-hidden="true">
-                {(state.data.displayName || state.data.email || '?').slice(0, 1).toUpperCase()}
-              </div>
-            )}
-            <dl className="record-dl">
+            <dl className="record-dl record-dl--inline">
               <div>
                 <dt>Email</dt>
                 <dd>{state.data.email}</dd>
@@ -182,25 +218,27 @@ export function ProfilePage() {
               Phone / WhatsApp
               <input name="phone" defaultValue={state.data.phone} autoComplete="tel" />
             </label>
-            <button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Save contact details'}
-            </button>
+            <div className="panel-actions">
+              <button type="submit" disabled={saving}>
+                {saving ? 'Saving…' : 'Save contact details'}
+              </button>
+            </div>
           </form>
-
-          <div className="panel-subsection">
-            <h3>Profile photo</h3>
-            <label className="file-label">
-              {uploading ? 'Uploading…' : 'Upload image'}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={onPhoto}
-                disabled={uploading}
-              />
-            </label>
-          </div>
         </Panel>
       </div>
+
+      {cropFile ? (
+        <ProfilePhotoCrop
+          file={cropFile}
+          busy={uploading}
+          onCancel={() => {
+            if (!uploading) {
+              setCropFile(null);
+            }
+          }}
+          onConfirm={uploadCropped}
+        />
+      ) : null}
 
       <p className="panel-footnote">
         Notification preferences stay in the <Link to="/notifications">notifications</Link> area.

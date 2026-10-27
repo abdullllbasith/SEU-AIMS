@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../state/AuthProvider.jsx';
 import { NotificationBell } from '../modules/communication/NotificationBell.jsx';
+import { refreshStudyRoomAttention, subscribeStudyRoomAttention } from '../modules/study-room/study-room-attention.js';
+import { ROLES } from '../constants/roles.js';
 import { navForRole, roleLabel } from '../ui/role-nav.js';
 import { StatIcon } from '../ui/stat-icons.jsx';
+import { UpdateBadge } from '../ui/UpdateBadge.jsx';
 
 const RAIL_COLLAPSE_KEY = 'seu-aims-rail-collapsed';
 
@@ -56,7 +59,7 @@ function SearchIcon() {
   );
 }
 
-function NavItems({ items, onNavigate, collapsed }) {
+function NavItems({ items, onNavigate, collapsed, badges = {} }) {
   return items.map((item) => (
     <NavLink
       key={item.to}
@@ -68,6 +71,7 @@ function NavItems({ items, onNavigate, collapsed }) {
     >
       <StatIcon name={item.icon || 'home'} className="nav-item__icon" />
       <span className="nav-item__label">{item.label}</span>
+      <UpdateBadge count={badges[item.to]} label="updates" />
     </NavLink>
   ));
 }
@@ -92,6 +96,7 @@ export function AppShell({ children }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(readCollapsedPreference);
+  const [studyRoomUpdates, setStudyRoomUpdates] = useState(0);
   const authenticated = status === 'authenticated' && user;
   const nav = authenticated ? navForRole(user.role) : { primary: [], more: [], searchTo: '', searchLabel: '' };
 
@@ -107,6 +112,30 @@ export function AppShell({ children }) {
     }
   }, [railCollapsed]);
 
+  useEffect(() => {
+    if (user?.role !== ROLES.STUDENT) {
+      setStudyRoomUpdates(0);
+      return undefined;
+    }
+    const userId = user.id || user.userId;
+    const unsubscribe = subscribeStudyRoomAttention((next) => setStudyRoomUpdates(next.total || 0));
+    const pull = () => {
+      refreshStudyRoomAttention(userId).catch(() => {});
+    };
+    pull();
+    const timer = window.setInterval(pull, 20000);
+    window.addEventListener('focus', pull);
+    return () => {
+      unsubscribe();
+      window.clearInterval(timer);
+      window.removeEventListener('focus', pull);
+    };
+  }, [user]);
+
+  if (!authenticated && status === 'unauthenticated' && location.pathname === '/') {
+    return <>{children}</>;
+  }
+
   if (!authenticated) {
     return (
       <div className="app-shell app-shell--guest">
@@ -114,16 +143,59 @@ export function AppShell({ children }) {
           Skip to content
         </a>
         <aside className="guest-brand">
-          <BrandMark size="guest" />
-          <p className="guest-brand__line">
-            South Eastern University of Sri Lanka · Department Academic &amp; Examination Management
-            Workspace
-          </p>
-          <ul className="guest-brand__features">
-            <li>Official Continuous Assessment &amp; Recovery</li>
-            <li>GPA / CGPA Recalculation &amp; Transcripts</li>
-            <li>End-to-End Encrypted Study Room</li>
-          </ul>
+          <span className="guest-brand__glow" aria-hidden="true" />
+          <div className="guest-brand__top">
+            <BrandMark size="guest" />
+          </div>
+          <div className="guest-brand__body">
+            <p className="guest-brand__eyebrow">South Eastern University of Sri Lanka</p>
+            <h2 className="guest-brand__headline">
+              Your department’s <span>academic workspace</span>, in one place.
+            </h2>
+            <p className="guest-brand__line">
+              Coursework, continuous assessment, results and study groups for students, lecturers and
+              department administrators.
+            </p>
+            <ul className="guest-brand__features">
+              <li>
+                <span className="guest-brand__icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                </span>
+                <span className="guest-brand__feature-copy">
+                  <strong>Continuous Assessment &amp; Recovery</strong>
+                  <small>Official CA records and recovery tracking</small>
+                </span>
+              </li>
+              <li>
+                <span className="guest-brand__icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 3v18h18" />
+                    <path d="M7 15l4-4 3 3 5-6" />
+                  </svg>
+                </span>
+                <span className="guest-brand__feature-copy">
+                  <strong>GPA / CGPA &amp; Transcripts</strong>
+                  <small>Automatic recalculation from official results</small>
+                </span>
+              </li>
+              <li>
+                <span className="guest-brand__icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="11" width="16" height="10" rx="2" />
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                  </svg>
+                </span>
+                <span className="guest-brand__feature-copy">
+                  <strong>Encrypted Study Room</strong>
+                  <small>Private, student-only collaboration</small>
+                </span>
+              </li>
+            </ul>
+          </div>
+          <p className="guest-brand__foot">Department Academic &amp; Examination Management</p>
         </aside>
         <main id="main-content" className="guest-main" tabIndex={-1}>
           {children}
@@ -146,14 +218,6 @@ export function AppShell({ children }) {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      {menuOpen ? (
-        <button
-          type="button"
-          className="nav-backdrop"
-          aria-label="Close menu"
-          onClick={() => setMenuOpen(false)}
-        />
-      ) : null}
       <aside className="app-rail" id="app-rail">
         <div className="app-rail__brand">
           <BrandMark size="rail" />
@@ -163,7 +227,13 @@ export function AppShell({ children }) {
             aria-pressed={railCollapsed}
             aria-label={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            onClick={() => setRailCollapsed((value) => !value)}
+            onClick={() => {
+              if (window.matchMedia('(max-width: 900px)').matches) {
+                setMenuOpen(false);
+                return;
+              }
+              setRailCollapsed((value) => !value);
+            }}
           >
             <StatIcon name="panel" className="rail-collapse__icon" />
           </button>
@@ -173,6 +243,7 @@ export function AppShell({ children }) {
           <NavItems
             items={nav.primary}
             collapsed={railCollapsed}
+            badges={{ '/study-room': studyRoomUpdates }}
             onNavigate={() => setMenuOpen(false)}
           />
         </nav>

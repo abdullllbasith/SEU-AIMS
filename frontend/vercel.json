@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://seu-aims-api.vercel.app/api/:path*"
+    },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

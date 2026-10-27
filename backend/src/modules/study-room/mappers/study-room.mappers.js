@@ -11,11 +11,12 @@ export function mapConversation(conversation, extras = {}) {
   };
 }
 
-export function mapMessage(message) {
+export function mapMessage(message, extras = {}) {
   return {
     id: String(message._id),
     conversationId: String(message.conversationId),
     senderUserId: String(message.senderUserId),
+    senderDisplayName: extras.senderDisplayName || null,
     clientMessageId: message.clientMessageId,
     encryptedPayload: {
       ciphertext: message.encryptedPayload.ciphertext,
@@ -27,6 +28,8 @@ export function mapMessage(message) {
     deletedAt: message.deletedAt || null,
     editedAt: message.editedAt || null,
     sentAt: message.sentAt,
+    createdAt: message.sentAt,
+    readByPeer: extras.readByPeer === true,
   };
 }
 

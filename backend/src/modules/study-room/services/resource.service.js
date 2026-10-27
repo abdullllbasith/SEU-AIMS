@@ -9,14 +9,11 @@ import {
   sanitizeDisplayFilename,
 } from '../../files/index.js';
 import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
-import {
-  PayloadTooLargeError,
-  ValidationError,
-  ForbiddenError,
-} from '../../../shared/errors/app-error.js';
+import { PayloadTooLargeError, ValidationError } from '../../../shared/errors/app-error.js';
+import { User } from '../../authentication/models/user.model.js';
 import { requireStudentScope, conceal, getOrCreateSettings } from './access.service.js';
 import {
-  canRenameFolder,
+  canManageSharedItem,
   canTransitionResource,
   isStudentDownloadable,
   studentStatusLabel,
@@ -24,6 +21,29 @@ import {
 import { mapFolder, mapResource } from '../mappers/study-room.mappers.js';
 import { escapeRegex, parsePagination, requireObjectId } from '../utils/http.js';
 import { REPORT_CATEGORIES } from '../constants.js';
+
+async function attachCreators(items) {
+  const ids = [...new Set(items.map((item) => item.createdByUserId).filter(Boolean))];
+  const users = ids.length ? await User.find({ _id: { $in: ids } }).select('displayName') : [];
+  const names = new Map(users.map((user) => [String(user._id), user.displayName || 'Classmate']));
+  return items.map((item) => ({
+    ...item,
+    createdByDisplayName: names.get(String(item.createdByUserId)) || 'Classmate',
+  }));
+}
+
+async function presentFolder(folder) {
+  const [item] = await attachCreators([mapFolder(folder)]);
+  return item;
+}
+
+function presentResource(resource, file) {
+  return {
+    ...mapResource(resource, { file, includeOperational: false }),
+    studentStatusLabel: studentStatusLabel(resource.moderationState),
+    downloadable: isStudentDownloadable(resource, file),
+  };
+}
 
 async function recordAudit({ actorUserId, action, entityId, entityType, metadata }) {
   await persistAudit({
@@ -65,7 +85,7 @@ export async function listFolders(principal, query) {
     SharedFolder.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
     SharedFolder.countDocuments(filter),
   ]);
-  return { items: items.map(mapFolder), total, page, pageSize };
+  return { items: await attachCreators(items.map(mapFolder)), total, page, pageSize };
 }
 
 export async function createFolder(principal, body) {
@@ -89,20 +109,20 @@ export async function createFolder(principal, body) {
     entityId: folder._id,
     metadata: { batchId: String(context.batchId) },
   });
-  return mapFolder(folder);
+  return presentFolder(folder);
 }
 
 export async function getFolder(principal, folderId) {
   const { context } = await requireStudentScope(principal);
   const folder = await loadFolderForStudent(principal, folderId, context);
-  return mapFolder(folder);
+  return presentFolder(folder);
 }
 
 export async function updateFolder(principal, folderId, body) {
   const { context } = await requireStudentScope(principal);
   const folder = await loadFolderForStudent(principal, folderId, context);
-  if (!canRenameFolder(folder, principal.userId)) {
-    throw new ForbiddenError('Forbidden');
+  if (!canManageSharedItem(folder)) {
+    throw conceal('Folder');
   }
   if (body.name !== undefined) {
     const name = String(body.name).trim();
@@ -115,14 +135,14 @@ export async function updateFolder(principal, folderId, body) {
     folder.description = String(body.description).trim();
   }
   await folder.save();
-  return mapFolder(folder);
+  return presentFolder(folder);
 }
 
 export async function archiveFolder(principal, folderId) {
   const { context } = await requireStudentScope(principal);
   const folder = await loadFolderForStudent(principal, folderId, context);
-  if (!canRenameFolder(folder, principal.userId)) {
-    throw new ForbiddenError('Forbidden');
+  if (!canManageSharedItem(folder)) {
+    throw conceal('Folder');
   }
   folder.deletedAt = new Date();
   folder.status = 'ARCHIVED';
@@ -152,12 +172,9 @@ export async function listResources(principal, folderId, query) {
   const fileById = new Map(files.map((file) => [String(file._id), file]));
   const mapped = items.map((item) => {
     const file = fileById.get(String(item.fileId));
-    const dto = mapResource(item, { file, includeOperational: String(item.createdByUserId) === String(principal.userId) });
-    dto.studentStatusLabel = studentStatusLabel(item.moderationState);
-    dto.downloadable = isStudentDownloadable(item, file);
-    return dto;
+    return presentResource(item, file);
   });
-  return { items: mapped, total, page, pageSize };
+  return { items: await attachCreators(mapped), total, page, pageSize };
 }
 
 async function storeStudyRoomFile({ buffer, originalname, mimetype, principal, folder, config, infrastructure }) {
@@ -252,10 +269,9 @@ export async function uploadResource(principal, folderId, body, file, { config, 
   });
   const fresh = await SharedResource.findById(resource._id);
   const freshFile = await StoredFile.findById(stored._id);
+  const [presented] = await attachCreators([presentResource(fresh, freshFile)]);
   return {
-    ...mapResource(fresh, { file: freshFile, includeOperational: true }),
-    studentStatusLabel: studentStatusLabel(fresh.moderationState),
-    downloadable: isStudentDownloadable(fresh, freshFile),
+    ...presented,
     duplicateOfResourceId: duplicateOfResourceId ? String(duplicateOfResourceId) : null,
   };
 }
@@ -300,6 +316,32 @@ export async function applyScanToResource(resource, file, settings) {
   return resource;
 }
 
+export async function retryQuarantinedScans({ departmentId, infrastructure } = {}) {
+  const scanner = infrastructure?.malwareScanner;
+  if (!departmentId || !scanner?.scan || scanner.configured === false) {
+    return 0;
+  }
+  const resources = await SharedResource.find({
+    departmentId,
+    moderationState: 'QUARANTINED',
+    deletedAt: { $exists: false },
+  }).select('fileId');
+  let released = 0;
+  for (const resource of resources) {
+    const scanned = await processMalwareScan({
+      fileId: resource.fileId,
+      scanner,
+      logger: infrastructure.logger,
+    });
+    if (!scanned || scanned.scanStatus === 'QUARANTINED') {
+      break;
+    }
+    await syncSharedResourceAfterScan(resource.fileId);
+    released += 1;
+  }
+  return released;
+}
+
 export async function syncSharedResourceAfterScan(fileId) {
   const file = await StoredFile.findById(fileId);
   if (!file || file.owningDomain !== 'STUDY_ROOM_RESOURCE') {
@@ -325,12 +367,76 @@ export async function getResource(principal, resourceId) {
     throw conceal('Resource');
   }
   const file = await StoredFile.findById(resource.fileId);
-  const operational = String(resource.createdByUserId) === String(principal.userId);
-  return {
-    ...mapResource(resource, { file, includeOperational: operational }),
-    studentStatusLabel: studentStatusLabel(resource.moderationState),
-    downloadable: isStudentDownloadable(resource, file),
-  };
+  const [presented] = await attachCreators([presentResource(resource, file)]);
+  return presented;
+}
+
+async function loadResourceForStudent(principal, resourceId, context) {
+  requireObjectId(resourceId, 'resource');
+  const resource = await SharedResource.findById(resourceId);
+  if (
+    !resource ||
+    resource.deletedAt ||
+    String(resource.batchId) !== String(context.batchId) ||
+    String(resource.departmentId) !== String(context.departmentId)
+  ) {
+    throw conceal('Resource');
+  }
+  return resource;
+}
+
+export async function renameResource(principal, resourceId, body) {
+  const { context } = await requireStudentScope(principal);
+  const resource = await loadResourceForStudent(principal, resourceId, context);
+  if (!canManageSharedItem(resource)) {
+    throw conceal('Resource');
+  }
+  const requested = sanitizeDisplayFilename(body?.name);
+  if (!requested) {
+    throw new ValidationError('File name is required');
+  }
+  const file = await StoredFile.findById(resource.fileId);
+  let next = requested;
+  const currentName = file?.displayFilename || resource.title || '';
+  if (!/\.[a-z0-9]{1,8}$/i.test(next)) {
+    const extension = String(currentName).match(/(\.[a-z0-9]{1,8})$/i);
+    if (extension) {
+      next = `${next}${extension[1]}`;
+    }
+  }
+  resource.title = next;
+  if (file) {
+    file.displayFilename = next;
+    await file.save();
+  }
+  await resource.save();
+  const [presented] = await attachCreators([presentResource(resource, file)]);
+  return presented;
+}
+
+export async function deleteResource(principal, resourceId) {
+  const { context } = await requireStudentScope(principal);
+  const resource = await loadResourceForStudent(principal, resourceId, context);
+  if (!canManageSharedItem(resource)) {
+    throw conceal('Resource');
+  }
+  const file = await StoredFile.findById(resource.fileId);
+  if (canTransitionResource(resource.moderationState, 'REMOVED')) {
+    resource.moderationState = 'REMOVED';
+  }
+  resource.deletedAt = new Date();
+  if (file) {
+    file.availability = 'UNAVAILABLE';
+    await file.save();
+  }
+  await resource.save();
+  await recordAudit({
+    actorUserId: principal.userId,
+    action: 'study-room.resource.delete',
+    entityType: 'SharedResource',
+    entityId: resource._id,
+  });
+  return { deleted: true };
 }
 
 export async function downloadResource(principal, resourceId, { infrastructure }) {

@@ -6,7 +6,7 @@ import { createApp } from '../../src/app/create-app.js';
 import { loadConfig } from '../../src/config/index.js';
 import { createLogger } from '../../src/infrastructure/logging/logger.js';
 import { User } from '../../src/modules/authentication/models/user.model.js';
-import { hashPassword } from '../../src/modules/authentication/security/passwords.js';
+import { hashPassword, verifyPassword } from '../../src/modules/authentication/security/passwords.js';
 import { PasswordResetToken } from '../../src/modules/authentication/models/password-reset-token.model.js';
 import { hashSecret } from '../../src/modules/authentication/security/tokens.js';
 import { createOpaqueToken } from '../../src/modules/authentication/security/tokens.js';
@@ -245,4 +245,36 @@ dbTest('administrators cannot change account status outside their department', a
   assert.equal(response.status, 404);
   const unchanged = await User.findById(outsider._id);
   assert.equal(unchanged.accountStatus, 'ACTIVE');
+});
+
+dbTest('administrators can set a new password for a student in their department', async () => {
+  const department = await Department.create({ code: 'ICT', name: 'Department of ICT' });
+  await createUser({
+    role: ROLES.DEPARTMENT_ADMINISTRATOR,
+    email: 'admin@example.test',
+    departmentId: department._id,
+  });
+  const student = await createUser({
+    role: ROLES.STUDENT,
+    email: 'student@example.test',
+    departmentId: department._id,
+  });
+  const { agent, csrfToken } = await csrfAgent();
+  const login = await agent
+    .post('/api/auth/login')
+    .set('X-CSRF-Token', csrfToken)
+    .send({ identifier: 'admin@example.test', password: 'correcthorse' });
+  const response = await agent
+    .patch(`/api/auth/users/${student._id}/password`)
+    .set('X-CSRF-Token', login.body.data.csrfToken)
+    .send({ password: 'freshhorseok' });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.passwordUpdated, true);
+  const updated = await User.findById(student._id).select('+passwordHash');
+  assert.equal(await verifyPassword(updated.passwordHash, 'freshhorseok'), true);
+  const short = await agent
+    .patch(`/api/auth/users/${student._id}/password`)
+    .set('X-CSRF-Token', login.body.data.csrfToken)
+    .send({ password: 'short' });
+  assert.equal(short.status, 400);
 });

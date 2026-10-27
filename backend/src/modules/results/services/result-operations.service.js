@@ -11,6 +11,10 @@ import { ROLES } from '../../../shared/constants/roles.js';
 
 const OPEN_PROCESSING = ['UPLOADED', 'PROCESSING', 'COMMITTING'];
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function assertAdmin(principal) {
   if (!principal || principal.role !== ROLES.DEPARTMENT_ADMINISTRATOR || !principal.departmentId) {
     throw new ForbiddenError('Forbidden');
@@ -27,10 +31,10 @@ export async function searchOfficialResults(principal, query = {}) {
   const { skip, limit, page, pageSize } = parsePagination(query);
   const filter = { departmentId: principal.departmentId };
   if (registrationNumber) {
-    filter.registrationNumber = registrationNumber;
+    filter.registrationNumber = new RegExp(`^${escapeRegex(registrationNumber)}`);
   }
   if (subjectCode) {
-    filter.subjectCode = subjectCode;
+    filter.subjectCode = new RegExp(`^${escapeRegex(subjectCode)}`);
   }
   if (query.academicYearId) {
     requireObjectId(query.academicYearId, 'academic year');

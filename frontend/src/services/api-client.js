@@ -51,12 +51,20 @@ export async function apiRequest(path, options = {}) {
   }
 
   const body = await parseBody(response);
+  const contentType = response.headers.get('content-type') || '';
   if (body?.data?.csrfToken) {
     setCsrfToken(body.data.csrfToken);
   }
 
   if (!response.ok) {
     const error = new Error(body?.error?.message || 'Request failed');
+    error.status = response.status;
+    error.body = body;
+    throw error;
+  }
+
+  if (!body || typeof body !== 'object' || !contentType.includes('application/json')) {
+    const error = new Error('Sign-in service is not available. The API is not running on this site.');
     error.status = response.status;
     error.body = body;
     throw error;

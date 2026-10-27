@@ -1,0 +1,386 @@
+/* Landing page — shares the blue theme with the guest sign-in panel. */
+
+.landing {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--color-bg);
+  color: var(--slate-900);
+  font-family: var(--font-sans);
+  scroll-behavior: smooth;
+}
+
+.landing__hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #ffffff;
+  padding: 0 clamp(1.25rem, 6vw, 5rem) clamp(3.5rem, 8vw, 6rem);
+  background:
+    radial-gradient(110% 70% at 0% 0%, rgba(66, 133, 244, 0.38) 0%, rgba(66, 133, 244, 0) 60%),
+    radial-gradient(80% 60% at 100% 100%, rgba(124, 172, 248, 0.22) 0%, rgba(124, 172, 248, 0) 65%),
+    linear-gradient(160deg, #0a2a6b 0%, var(--brand-900) 55%, #02122e 100%);
+}
+
+.landing__hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
+}
+
+.landing__glow {
+  position: absolute;
+  z-index: -1;
+  right: -8rem;
+  bottom: -8rem;
+  width: 28rem;
+  height: 28rem;
+  border-radius: var(--radius-full);
+  background: radial-gradient(circle, rgba(124, 172, 248, 0.28) 0%, rgba(124, 172, 248, 0) 70%);
+  pointer-events: none;
+}
+
+.landing__nav {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.5rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.landing__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.landing__brand-icon {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.landing__brand-copy {
+  display: grid;
+  line-height: 1.2;
+}
+
+.landing__brand-copy strong {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+
+.landing__brand-copy small {
+  font-size: 0.74rem;
+  color: var(--brand-300);
+}
+
+.landing__login {
+  display: inline-flex;
+  align-items: center;
+  height: 2.5rem;
+  padding: 0 1.4rem;
+  border-radius: var(--radius-full);
+  background: #ffffff;
+  color: var(--brand-800);
+  font-weight: var(--weight-strong);
+  font-size: 0.9rem;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(2, 18, 46, 0.3);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.landing__login:hover {
+  background: var(--brand-100);
+}
+
+.landing a:focus-visible {
+  outline: 3px solid var(--brand-300);
+  outline-offset: 3px;
+}
+
+.landing__hero-body {
+  max-width: 72rem;
+  margin: clamp(2.5rem, 7vw, 5rem) auto 0;
+  outline: none;
+}
+
+.landing__eyebrow,
+.landing__kicker {
+  margin: 0 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.76rem;
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-300);
+}
+
+.landing__eyebrow::before {
+  content: '';
+  width: 1.75rem;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--brand-400);
+}
+
+.landing__hero h1 {
+  margin: 0;
+  max-width: 44rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 5.2vw, 3.8rem);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.landing__hero h1 span {
+  background: linear-gradient(90deg, var(--brand-300), #ffffff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.landing__lead {
+  margin: 1.4rem 0 0;
+  max-width: 36rem;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.landing__cta {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.landing__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.9rem;
+  padding: 0 1.7rem;
+  border-radius: var(--radius-full);
+  font-weight: var(--weight-strong);
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.landing__btn--primary {
+  background: var(--brand-600);
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(26, 115, 232, 0.4);
+}
+
+.landing__btn--primary:hover {
+  background: var(--brand-500);
+}
+
+.landing__btn--ghost {
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.landing__btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.landing__stats {
+  list-style: none;
+  margin: clamp(2.5rem, 6vw, 3.75rem) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 3rem;
+}
+
+.landing__stats li {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.landing__stats strong {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+}
+
+.landing__stats span {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.landing__section {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: clamp(3rem, 7vw, 5rem) clamp(1.25rem, 6vw, 5rem);
+}
+
+.landing__section .landing__kicker {
+  color: var(--brand-700);
+}
+
+.landing__section h2,
+.landing__final h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3.2vw, 2.2rem);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--slate-900);
+}
+
+.landing__section-lead {
+  margin: 0.8rem 0 0;
+  max-width: 38rem;
+  color: var(--slate-600);
+  line-height: 1.65;
+}
+
+.landing__grid {
+  list-style: none;
+  margin: 2.25rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.1rem;
+}
+
+.landing__card {
+  padding: 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.landing__card:hover {
+  border-color: var(--brand-300);
+  box-shadow: var(--shadow-raised);
+}
+
+.landing__card-icon {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 12px;
+  color: var(--brand-700);
+  background: var(--brand-50);
+}
+
+.landing__card h3,
+.landing__roles h3 {
+  margin: 1rem 0 0.4rem;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  color: var(--slate-900);
+}
+
+.landing__card p,
+.landing__roles p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--slate-600);
+}
+
+.landing__section--alt {
+  max-width: none;
+  background: var(--color-surface);
+  border-block: 1px solid var(--color-border);
+}
+
+.landing__section--alt > * {
+  max-width: 62rem;
+  margin-inline: auto;
+}
+
+.landing__roles {
+  list-style: none;
+  margin: 2rem auto 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.1rem;
+}
+
+.landing__roles li {
+  padding: 1.4rem 1.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--brand-50);
+  border: 1px solid var(--brand-100);
+}
+
+.landing__roles h3 {
+  margin-top: 0;
+}
+
+.landing__final {
+  max-width: 72rem;
+  margin: clamp(2.5rem, 6vw, 4rem) auto;
+  padding: clamp(2.25rem, 5vw, 3.5rem) 1.5rem;
+  text-align: center;
+  border-radius: var(--radius-xl);
+  color: #ffffff;
+  background: linear-gradient(160deg, #0a2a6b 0%, var(--brand-900) 100%);
+  width: calc(100% - 2 * clamp(1.25rem, 6vw, 5rem));
+}
+
+.landing__final h2 {
+  color: #ffffff;
+}
+
+.landing__final p {
+  margin: 0.7rem 0 1.6rem;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.landing__footer {
+  padding: 1.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--slate-600);
+  border-top: 1px solid var(--color-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing {
+    scroll-behavior: auto;
+  }
+
+  .landing__login,
+  .landing__btn,
+  .landing__card {
+    transition: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .landing__login {
+    padding: 0 1.1rem;
+  }
+
+  .landing__btn {
+    flex: 1 1 100%;
+  }
+}

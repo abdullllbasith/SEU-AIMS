@@ -21,6 +21,7 @@ export function createRouter() {
   router.get('/conditions', requireRole(ROLES.STUDENT), controller.conditions);
   router.get('/windows/me', requireRole(ROLES.STUDENT), controller.windowsMe);
   router.get('/applications', requireRole(ROLES.STUDENT), controller.listMine);
+  router.get('/applications/preview', requireRole(ROLES.STUDENT), controller.preview);
   router.post('/applications', requireRole(ROLES.STUDENT), requireCsrf, controller.createApplication);
   router.get('/applications/:applicationId', requireRole(ROLES.STUDENT, ROLES.DEPARTMENT_ADMINISTRATOR), controller.getMine);
   router.patch('/applications/:applicationId', requireRole(ROLES.STUDENT), requireCsrf, controller.patchMine);
@@ -29,12 +30,15 @@ export function createRouter() {
 
   router.get('/admin/windows', requireDepartmentAdmin(), controller.adminWindows);
   router.post('/admin/windows', requireDepartmentAdmin(), requireCsrf, controller.saveWindow);
+  router.delete('/admin/windows/:windowId', requireDepartmentAdmin(), requireCsrf, controller.deleteWindow);
   router.get('/admin/applications', requireDepartmentAdmin(), controller.adminList);
+  router.post('/admin/applications/:applicationId/confirm-receipt', requireDepartmentAdmin(), requireCsrf, controller.confirmReceipt);
   router.post('/admin/applications/:applicationId/verify', requireDepartmentAdmin(), requireCsrf, controller.verifyPhysical);
   router.post('/admin/applications/:applicationId/approve', requireDepartmentAdmin(), requireCsrf, controller.approve);
   router.post('/admin/applications/:applicationId/reject', requireDepartmentAdmin(), requireCsrf, controller.reject);
   router.post('/admin/applications/:applicationId/reopen', requireDepartmentAdmin(), requireCsrf, controller.reopen);
   router.get('/admin/reconciliation', requireDepartmentAdmin(), controller.reconciliation);
+  router.get('/admin/conditions', requireDepartmentAdmin(), controller.unresolvedConditions);
   router.post('/admin/backfill', requireDepartmentAdmin(), requireCsrf, controller.backfill);
 
   router.get('/lecturer/eligible-students', requireRole(ROLES.LECTURER), controller.lecturerEligible);

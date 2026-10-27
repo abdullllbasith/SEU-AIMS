@@ -31,6 +31,7 @@ export function createRouter() {
 
   router.post('/offerings/:offeringId/sections', managers, requireCsrf, controller.createSection);
   router.patch('/sections/:sectionId', managers, requireCsrf, controller.updateSection);
+  router.delete('/sections/:sectionId', managers, requireCsrf, controller.deleteSection);
 
   router.post('/offerings/:offeringId/resources', managers, requireCsrf, (req, res, next) => {
     const upload = createUpload(req.app.get('config'));

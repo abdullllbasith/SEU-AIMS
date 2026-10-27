@@ -23,6 +23,8 @@ export const academicApi = {
   createBatch: (body) => apiRequest('/academic/batches', { method: 'POST', body: JSON.stringify(body) }),
   assignBatchContext: (id, body) =>
     apiRequest(`/academic/batches/${id}/academic-context`, { method: 'POST', body: JSON.stringify(body) }),
+  reviseBatchContext: (id, body) =>
+    apiRequest(`/academic/batches/${id}/academic-context`, { method: 'PATCH', body: JSON.stringify(body) }),
   updateBatch: (id, body) => apiRequest(`/academic/batches/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   years: (params) => apiRequest(`/academic/academic-years${qs(params)}`),
   createYear: (body) => apiRequest('/academic/academic-years', { method: 'POST', body: JSON.stringify(body) }),
@@ -52,6 +54,8 @@ export const academicApi = {
   offerings: (params) => apiRequest(`/academic/subject-offerings${qs(params)}`),
   createOffering: (body) =>
     apiRequest('/academic/subject-offerings', { method: 'POST', body: JSON.stringify(body) }),
+  assignPeriodOfferings: (body) =>
+    apiRequest('/academic/subject-offerings/from-curriculum', { method: 'POST', body: JSON.stringify(body) }),
   updateOffering: (id, body) =>
     apiRequest(`/academic/subject-offerings/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   offeringEnrollments: (offeringId, params) =>
