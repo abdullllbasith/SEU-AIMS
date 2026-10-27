@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminApi } from './admin-api.js';
+import { academicApi } from './academic-api.js';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { EmptyState } from '../../ui/EmptyState.jsx';
@@ -29,6 +30,8 @@ function PeoplePager({ page, pageSize, total, onPage }) {
 export function AdminPeoplePage() {
   const [tab, setTab] = useState('students');
   const [query, setQuery] = useState('');
+  const [batchId, setBatchId] = useState('');
+  const [batches, setBatches] = useState([]);
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -36,8 +39,27 @@ export function AdminPeoplePage() {
   const [lecturers, setLecturers] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
+    academicApi
+      .batches({ status: 'ALL', pageSize: 50 })
+      .then((response) => {
+        if (!cancelled) {
+          setBatches(response.data?.items || []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBatches([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     setPage(1);
-  }, [tab, query]);
+  }, [tab, query, batchId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +67,9 @@ export function AdminPeoplePage() {
       setLoading(true);
       setError('');
       const params = { q: query, page, pageSize: 20 };
+      if (tab === 'students' && batchId) {
+        params.batchId = batchId;
+      }
       const load = tab === 'students' ? adminApi.students(params) : adminApi.lecturers(params);
       load
         .then((response) => {
@@ -72,7 +97,7 @@ export function AdminPeoplePage() {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [tab, query, page]);
+  }, [tab, query, batchId, page]);
 
   const studentItems = students?.items || [];
   const lecturerItems = lecturers?.items || [];
@@ -102,7 +127,7 @@ export function AdminPeoplePage() {
         </button>
       </nav>
 
-      <div className="filter-bar filter-bar--search">
+      <div className={tab === 'students' ? 'filter-bar filter-bar--people' : 'filter-bar filter-bar--search'}>
         <label>
           Search
           <input
@@ -113,6 +138,19 @@ export function AdminPeoplePage() {
             autoComplete="off"
           />
         </label>
+        {tab === 'students' ? (
+          <label>
+            Batch
+            <select value={batchId} onChange={(event) => setBatchId(event.target.value)}>
+              <option value="">All batches</option>
+              {batches.map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {batch.name && batch.name !== batch.code ? `${batch.code} — ${batch.name}` : batch.code}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
 
       {error ? (
@@ -142,7 +180,7 @@ export function AdminPeoplePage() {
         <Panel title="Students" kicker={`${students?.total ?? 0} total`}>
           {studentItems.length === 0 ? (
             <EmptyState to="/admin/academic" action="Academic admin">
-              No students match this search.
+              {batchId ? 'No students in this batch.' : 'No students match this search.'}
             </EmptyState>
           ) : (
             <ul className="entity-list">

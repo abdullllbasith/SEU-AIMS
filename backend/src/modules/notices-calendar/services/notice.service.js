@@ -1,11 +1,19 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { Notice } from '../models/notice.model.js';
+import {
+  StoredFile,
+  detectProfileImageType,
+  enqueueMalwareScan,
+  processMalwareScan,
+  sanitizeDisplayFilename,
+} from '../../files/index.js';
 import { noticeVisibleToPrincipal, resolveNoticeRecipientIds } from './audience.service.js';
 import {
   findStudentContextByUserId,
   SubjectOffering,
 } from '../../academic-foundation/index.js';
 import { ROLES } from '../../../shared/constants/roles.js';
-import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
+import { ForbiddenError, NotFoundError, PayloadTooLargeError, ValidationError } from '../../../shared/errors/app-error.js';
 import { fanoutNotification } from '../../notifications/index.js';
 import { recordAudit as persistAudit } from '../../audit-security/services/record-audit.service.js';
 import { parsePagination, requireObjectId } from '../../notifications/utils/http.js';
@@ -16,7 +24,17 @@ function assertAdmin(principal) {
   }
 }
 
+const NOTICE_IMAGE_LIMIT = 8;
+const NOTICE_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+
 function mapNotice(doc) {
+  const images = [...(doc.images || [])]
+    .sort((left, right) => (left.sortOrder || 0) - (right.sortOrder || 0))
+    .map((image) => ({
+      id: String(image._id),
+      sortOrder: image.sortOrder || 0,
+      url: `/api/notices/${doc._id}/images/${image._id}`,
+    }));
   return {
     id: String(doc._id),
     title: doc.title,
@@ -26,6 +44,7 @@ function mapNotice(doc) {
     publishedAt: doc.publishedAt || null,
     expiresAt: doc.expiresAt || null,
     targeting: doc.targeting,
+    images,
   };
 }
 
@@ -122,6 +141,85 @@ export async function createNotice(principal, body) {
     occurredAt: new Date(),
   });
   return mapNotice(notice);
+}
+
+export async function addNoticeImage(principal, noticeId, file, { infrastructure }) {
+  assertAdmin(principal);
+  requireObjectId(noticeId, 'notice');
+  const notice = await Notice.findOne({ _id: noticeId, departmentId: principal.departmentId });
+  if (!notice) {
+    throw new NotFoundError('Notice not found');
+  }
+  if (notice.publicationState !== 'DRAFT') {
+    throw new ValidationError('Photos can be added before the notice is published');
+  }
+  if ((notice.images || []).length >= NOTICE_IMAGE_LIMIT) {
+    throw new ValidationError('A notice can include up to 8 photos');
+  }
+  const buffer = file?.buffer;
+  if (!buffer?.length) {
+    throw new ValidationError('File is required');
+  }
+  if (buffer.length > NOTICE_IMAGE_MAX_BYTES) {
+    throw new PayloadTooLargeError('Each notice photo must be 4 MB or smaller');
+  }
+  const detectedType = detectProfileImageType(buffer);
+  const displayFilename = sanitizeDisplayFilename(file.originalname || 'notice-photo');
+  if (!infrastructure?.storage?.putObject) {
+    throw new ValidationError('File storage is not configured');
+  }
+  const storageKey = `notices/${notice._id}/${randomUUID()}`;
+  await infrastructure.storage.putObject({ key: storageKey, body: buffer, contentType: detectedType });
+  const stored = await StoredFile.create({
+    storageKey,
+    originalFilename: displayFilename,
+    displayFilename,
+    mimeType: detectedType,
+    sizeBytes: buffer.length,
+    uploadedByUserId: principal.userId,
+    owningDomain: 'NOTICE_IMAGE',
+    owningContextId: notice._id,
+    scanStatus: 'SCANNING',
+    reviewStatus: 'NOT_REQUIRED',
+    availability: 'UNAVAILABLE',
+    checksumSha256: createHash('sha256').update(buffer).digest('hex'),
+  });
+  await enqueueMalwareScan({ queue: infrastructure.queue, fileId: stored._id });
+  if (infrastructure.malwareScanner) {
+    await processMalwareScan({
+      fileId: stored._id,
+      scanner: infrastructure.malwareScanner,
+      logger: infrastructure.logger,
+    });
+  }
+  const scanned = await StoredFile.findById(stored._id);
+  if (!scanned || scanned.scanStatus !== 'SAFE') {
+    throw new ValidationError('This photo could not be accepted');
+  }
+  scanned.availability = 'AVAILABLE';
+  await scanned.save();
+  notice.images.push({ fileId: scanned._id, sortOrder: notice.images.length });
+  await notice.save();
+  return mapNotice(notice);
+}
+
+export async function readNoticeImage(principal, noticeId, imageId, { infrastructure }) {
+  requireObjectId(imageId, 'image');
+  await getNotice(principal, noticeId);
+  const notice = await Notice.findById(noticeId);
+  const image = (notice?.images || []).find((item) => String(item._id) === String(imageId));
+  if (!image) {
+    throw new NotFoundError('Notice photo not found');
+  }
+  const file = await StoredFile.findById(image.fileId);
+  if (!file || file.owningDomain !== 'NOTICE_IMAGE' || file.scanStatus !== 'SAFE' || file.availability !== 'AVAILABLE') {
+    throw new NotFoundError('Notice photo not found');
+  }
+  if (!infrastructure?.storage?.getObject) {
+    throw new ValidationError('File storage is not configured');
+  }
+  const object = await infrastructure.storage.getObject(file.storageKey);
+  return { mimeType: file.mimeType, body: object?.body || Buffer.from('') };
 }
 
 export async function updateNotice(principal, noticeId, body) {

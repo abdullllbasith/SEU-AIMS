@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import { requireDepartmentAdmin, requireRole } from '../../../shared/auth/authorize.js';
 import { ROLES } from '../../../shared/constants/roles.js';
@@ -18,8 +19,19 @@ export function createNoticesRouter() {
   router.get('/', requireRole(ROLES.STUDENT, ROLES.LECTURER, ROLES.DEPARTMENT_ADMINISTRATOR), controller.list);
   router.post('/admin', requireDepartmentAdmin(), requireCsrf, writeLimiter, controller.create);
   router.patch('/admin/:noticeId', requireDepartmentAdmin(), requireCsrf, controller.update);
+  router.post('/admin/:noticeId/images', requireDepartmentAdmin(), requireCsrf, (req, res, next) => {
+    multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 4 * 1024 * 1024, files: 1 },
+    }).single('file')(req, res, next);
+  }, controller.addImage);
   router.post('/admin/:noticeId/publish', requireDepartmentAdmin(), requireCsrf, writeLimiter, controller.publish);
   router.post('/admin/:noticeId/archive', requireDepartmentAdmin(), requireCsrf, controller.archive);
+  router.get(
+    '/:noticeId/images/:imageId',
+    requireRole(ROLES.STUDENT, ROLES.LECTURER, ROLES.DEPARTMENT_ADMINISTRATOR),
+    controller.image,
+  );
   router.get('/:noticeId', requireRole(ROLES.STUDENT, ROLES.LECTURER, ROLES.DEPARTMENT_ADMINISTRATOR), controller.get);
   return router;
 }

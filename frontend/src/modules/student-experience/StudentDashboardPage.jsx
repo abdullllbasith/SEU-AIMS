@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { NoticeCarousel } from '../communication/NoticeCarousel.jsx';
 import { experienceApi, formatGpaDisplay } from './experience-api.js';
 import { GpaTrajectoryPanel } from './GpaTrajectoryPanel.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
@@ -289,9 +290,19 @@ export function StudentDashboardPage() {
             <ul className="stack-list">
               {data.notices.map((item) => (
                 <li key={item.id}>
-                  <Link to={`/notices/${item.id}`}>
-                    <span className="stack-item__title">{item.title}</span>
-                  </Link>
+                  {item.images?.length ? (
+                    <div className="notice-dashboard-card">
+                      <NoticeCarousel images={item.images} label={item.title} />
+                      <Link to={`/notices/${item.id}`}>
+                        <span className="stack-item__title">{item.title}</span>
+                      </Link>
+                      <p className="stack-item__meta">{item.body}</p>
+                    </div>
+                  ) : (
+                    <Link to={`/notices/${item.id}`}>
+                      <span className="stack-item__title">{item.title}</span>
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

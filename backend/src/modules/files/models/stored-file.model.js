@@ -7,6 +7,7 @@ export const FILE_OWNING_DOMAINS = Object.freeze([
   'RESULT_IMPORT',
   'CA_APPLICATION_PDF',
   'PROFILE_IMAGE',
+  'NOTICE_IMAGE',
 ]);
 
 const storedFileSchema = new mongoose.Schema(

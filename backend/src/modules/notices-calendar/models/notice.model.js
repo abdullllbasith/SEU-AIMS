@@ -15,6 +15,12 @@ const noticeSchema = new mongoose.Schema(
     expiresAt: Date,
     archivedAt: Date,
     retractedAt: Date,
+    images: [
+      {
+        fileId: { type: objectId, ref: 'StoredFile', required: true },
+        sortOrder: { type: Number, required: true, default: 0 },
+      },
+    ],
     targeting: {
       kind: { type: String, required: true, enum: NOTICE_TARGET_KINDS },
       batchId: { type: objectId, ref: 'Batch' },
