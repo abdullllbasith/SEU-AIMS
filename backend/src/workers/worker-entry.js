@@ -7,6 +7,8 @@ import { createInfrastructure } from '../infrastructure/create-infrastructure.js
 import { JOB_NAMES } from '../infrastructure/queue/job-names.js';
 import { registerJobProcessors } from './processors/index.js';
 import { processQueuedJobs } from './dispatch.js';
+import { releaseDueNotifications } from '../modules/notifications/index.js';
+import '../modules/ca-recovery/index.js';
 import { disconnectMongo } from '../infrastructure/database/mongo.js';
 import { disconnectRedis } from '../infrastructure/redis/client.js';
 
@@ -42,9 +44,29 @@ export async function startWorker() {
     }
   })();
 
+  // Releases due reminders and recovers stuck deliveries. Idempotent and safe with several workers.
+  const sweepIntervalMs = Math.max(1000, Number(config.notifications?.sweepIntervalMs) || 30_000);
+  const sweepLoop = (async () => {
+    while (running) {
+      try {
+        const summary = await releaseDueNotifications({ infrastructure });
+        if (summary.released || summary.cancelled || summary.retried || summary.recovered || summary.requeued) {
+          logger.info('Notification sweep', summary);
+        }
+      } catch (error) {
+        logger.error('Notification sweep failed', { message: error.message });
+      }
+      const until = Date.now() + sweepIntervalMs;
+      while (running && Date.now() < until) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+  })();
+
   async function shutdown() {
     running = false;
     await drainLoop.catch(() => {});
+    await sweepLoop.catch(() => {});
     logger.info('Worker shutting down');
     await infrastructure.queue.close();
     await disconnectRedis(infrastructure.redis, { logger });

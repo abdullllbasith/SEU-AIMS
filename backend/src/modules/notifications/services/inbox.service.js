@@ -2,6 +2,9 @@ import { Notification } from '../models/notification.model.js';
 import { ForbiddenError, NotFoundError } from '../../../shared/errors/app-error.js';
 import { parsePagination, requireObjectId } from '../utils/http.js';
 
+/** Future (not yet released) and cancelled/superseded notifications are not shown in the inbox. */
+const HIDDEN_FROM_INBOX = ['SCHEDULED', 'CANCELLED'];
+
 function mapInbox(doc) {
   return {
     id: String(doc._id),
@@ -20,7 +23,7 @@ function mapInbox(doc) {
 
 export async function listInbox(principal, query = {}) {
   const { skip, limit, page, pageSize } = parsePagination(query);
-  const filter = { recipientUserId: principal.userId, channel: 'IN_APP' };
+  const filter = { recipientUserId: principal.userId, channel: 'IN_APP', status: { $nin: HIDDEN_FROM_INBOX } };
   if (query.category) {
     filter.category = String(query.category);
   }
@@ -38,6 +41,7 @@ export async function unreadCount(principal) {
   const count = await Notification.countDocuments({
     recipientUserId: principal.userId,
     channel: 'IN_APP',
+    status: { $nin: HIDDEN_FROM_INBOX },
     readAt: null,
   });
   return { count };
@@ -61,7 +65,7 @@ export async function markRead(principal, notificationId) {
 
 export async function markAllRead(principal) {
   const result = await Notification.updateMany(
-    { recipientUserId: principal.userId, channel: 'IN_APP', readAt: null },
+    { recipientUserId: principal.userId, channel: 'IN_APP', status: { $nin: HIDDEN_FROM_INBOX }, readAt: null },
     { $set: { readAt: new Date() } },
   );
   return { updated: result.modifiedCount };

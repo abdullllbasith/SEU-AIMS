@@ -76,6 +76,13 @@ export function loadConfig() {
       provider: optional('EMAIL_PROVIDER', 'noop'),
       from: optional('EMAIL_FROM'),
       apiKey: optional('EMAIL_API_KEY'),
+      smtp: {
+        host: optional('SMTP_HOST'),
+        port: integer('SMTP_PORT', 587),
+        secure: optional('SMTP_SECURE', 'false') === 'true',
+        user: optional('SMTP_USER'),
+        pass: optional('SMTP_PASS'),
+      },
     },
     whatsapp: {
       baseUrl: optional('WHATSAPP_CLOUD_API_BASE_URL', 'https://graph.facebook.com'),
@@ -85,6 +92,14 @@ export function loadConfig() {
       webhookVerifyToken: optional('WHATSAPP_CLOUD_API_WEBHOOK_VERIFY_TOKEN'),
       appSecret: optional('WHATSAPP_CLOUD_API_APP_SECRET'),
       timeoutMs: integer('PROVIDER_TIMEOUT_MS', 10_000),
+      templateLanguage: optional('WHATSAPP_TEMPLATE_LANGUAGE', 'en'),
+      /** Approved Meta template names, keyed by notification type. Empty means not configured. */
+      templates: {
+        CA_EXAM_SCHEDULED: optional('WHATSAPP_TEMPLATE_CA_EXAM_SCHEDULED'),
+        CA_EXAM_RESCHEDULED: optional('WHATSAPP_TEMPLATE_CA_EXAM_RESCHEDULED'),
+        CA_EXAM_CANCELLED: optional('WHATSAPP_TEMPLATE_CA_EXAM_CANCELLED'),
+        CA_REMINDER: optional('WHATSAPP_TEMPLATE_CA_REMINDER'),
+      },
     },
     malwareScanner: {
       provider: optional('MALWARE_SCANNER_PROVIDER', 'noop'),
@@ -95,6 +110,8 @@ export function loadConfig() {
     notifications: {
       retryMax: integer('NOTIFICATION_RETRY_MAX', 5),
       defaultLocale: optional('NOTIFICATION_DEFAULT_LOCALE', 'en'),
+      sweepIntervalMs: integer('NOTIFICATION_SWEEP_INTERVAL_MS', 30_000),
+      leaseMs: integer('NOTIFICATION_LEASE_MS', 120_000),
     },
     files: {
       maxBytes: integer('FILE_MAX_BYTES', 20 * 1024 * 1024),

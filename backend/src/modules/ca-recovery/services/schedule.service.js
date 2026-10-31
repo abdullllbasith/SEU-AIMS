@@ -1,16 +1,16 @@
 import { CaApplication } from '../models/ca-application.model.js';
 import { CaApplicationSubject } from '../models/ca-application-subject.model.js';
+import { CaExamNotice } from '../models/ca-exam-notice.model.js';
 import { CaSchedule } from '../models/ca-schedule.model.js';
-import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { CalendarEvent } from '../../notices-calendar/index.js';
-import { findActiveAssignmentsForLecturer, SubjectOffering } from '../../academic-foundation/index.js';
+import { Notification } from '../../notifications/index.js';
+import { Subject, findActiveAssignmentsForLecturer, SubjectOffering } from '../../academic-foundation/index.js';
 import { ROLES } from '../../../shared/constants/roles.js';
-import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
 import { requireObjectId } from '../utils/http.js';
-import { emitCaNotification, recordCaAudit } from './notify.js';
-import { CaApplicationEvent } from '../models/ca-application-event.model.js';
-import { queueRemindersForSchedule } from './reminder.service.js';
-import { assertApplicationTransition } from './transitions.js';
+import { recordCaAudit } from './notify.js';
+import { syncApplicationStatusFromSubjects } from './application-status.service.js';
+import { attachLinksToExistingNotice, completeSubject, publishExamNotice } from './exam-notice.service.js';
 
 function assertLecturer(principal) {
   if (!principal || principal.role !== ROLES.LECTURER) {
@@ -18,163 +18,129 @@ function assertLecturer(principal) {
   }
 }
 
+/** Subject links on the lecturer's own active offerings that are approved (ready, scheduled or completed). */
 export async function listApprovedForLecturer(principal) {
   assertLecturer(principal);
   const assignments = await findActiveAssignmentsForLecturer(principal.userId);
-  const offeringIds = assignments.map((item) => item.subjectOfferingId);
-  const offerings = await SubjectOffering.find({ _id: { $in: offeringIds } });
+  const offerings = await SubjectOffering.find({
+    _id: { $in: assignments.map((item) => item.subjectOfferingId) },
+    status: 'ACTIVE',
+  });
   const offeringById = new Map(offerings.map((item) => [String(item._id), item]));
   const links = await CaApplicationSubject.find({
-    subjectOfferingId: { $in: offeringIds },
+    subjectOfferingId: { $in: offerings.map((item) => item._id) },
+    examStatus: { $in: ['READY_TO_SCHEDULE', 'SCHEDULED', 'COMPLETED'] },
   });
-  const applications = await CaApplication.find({
-    _id: { $in: links.map((item) => item.applicationId) },
-    workflowStatus: { $in: ['APPROVED', 'SCHEDULED', 'COMPLETED'] },
+  const applications = await CaApplication.find({ _id: { $in: links.map((item) => item.applicationId) } });
+  const applicationById = new Map(applications.map((item) => [String(item._id), item]));
+  const subjects = await Subject.find({ _id: { $in: links.map((item) => item.subjectId) } });
+  const subjectById = new Map(subjects.map((item) => [String(item._id), item]));
+  const notices = await CaExamNotice.find({
+    subjectOfferingId: { $in: offerings.map((item) => item._id) },
+    status: 'PUBLISHED',
   });
-  const byId = new Map(applications.map((item) => [String(item._id), item]));
+  const noticeByOffering = new Map(notices.map((item) => [String(item.subjectOfferingId), item]));
   const items = [];
   for (const link of links) {
-    const application = byId.get(String(link.applicationId));
-    if (!application) {
+    const application = applicationById.get(String(link.applicationId));
+    const offering = offeringById.get(String(link.subjectOfferingId));
+    if (!application || !offering) {
       continue;
     }
-    const offering = offeringById.get(String(link.subjectOfferingId));
+    const subject = subjectById.get(String(link.subjectId));
+    const notice = noticeByOffering.get(String(link.subjectOfferingId));
     items.push({
+      linkId: String(link._id),
       applicationId: application.applicationId,
       registrationNumber: application.registrationNumber,
       workflowStatus: application.workflowStatus,
+      examStatus: link.examStatus,
       subjectOfferingId: String(link.subjectOfferingId),
-      subjectId: offering ? String(offering.subjectId) : String(link.subjectId),
+      subjectId: String(offering.subjectId),
+      subjectCode: subject?.code || '',
+      subjectName: subject?.name || '',
       incompleteCaId: String(link.incompleteCaId),
+      examNotice: notice
+        ? { id: String(notice._id), scheduledAt: notice.scheduledAt, venue: notice.venue, generation: notice.generation }
+        : null,
     });
   }
   return { items };
 }
 
-export async function createSchedule(principal, body, { infrastructure }) {
+/**
+ * @deprecated Use publishExamNotice. This endpoint now delegates to the subject-level notice workflow so
+ * it can never schedule without the student notifications and reminders.
+ */
+export async function createSchedule(principal, body, { infrastructure } = {}) {
   assertLecturer(principal);
   requireObjectId(body.subjectOfferingId, 'subject offering');
-  const assignments = await findActiveAssignmentsForLecturer(principal.userId);
-  if (!assignments.some((item) => String(item.subjectOfferingId) === String(body.subjectOfferingId))) {
-    throw new ForbiddenError('Forbidden');
-  }
-  const offering = await SubjectOffering.findById(body.subjectOfferingId);
-  if (!offering) {
-    throw new NotFoundError('Subject offering not found');
-  }
+  requireObjectId(body.incompleteCaId, 'incomplete CA');
   const application = await CaApplication.findOne({ applicationId: String(body.applicationId || '').trim() });
   if (!application || !['APPROVED', 'SCHEDULED'].includes(application.workflowStatus)) {
     throw new NotFoundError('Approved application not found');
   }
-  requireObjectId(body.incompleteCaId, 'incomplete CA');
   const link = await CaApplicationSubject.findOne({
     applicationId: application._id,
     incompleteCaId: body.incompleteCaId,
-    subjectOfferingId: offering._id,
+    subjectOfferingId: body.subjectOfferingId,
   });
   if (!link) {
     throw new ForbiddenError('Forbidden');
   }
-  const scheduledAt = new Date(body.scheduledAt);
-  if (Number.isNaN(scheduledAt.getTime())) {
-    throw new ValidationError('A valid schedule time is required');
+  if (link.examStatus !== 'READY_TO_SCHEDULE') {
+    throw new ValidationError('A schedule already exists for this subject');
   }
-  const endsAt = body.endsAt ? new Date(body.endsAt) : undefined;
-  const venue = String(body.venue || '').trim();
-
-  let calendar;
-  try {
-    calendar = await CalendarEvent.create({
-      title: `CA recovery ${application.applicationId}`,
-      details: venue,
-      startsAt: scheduledAt,
-      endsAt,
-      timezone: 'Asia/Colombo',
-      createdByUserId: principal.userId,
-      departmentId: application.departmentId,
-      eventType: 'CA_SCHEDULE',
-      publicationState: 'PUBLISHED',
-      academicYearId: application.academicYearId,
-      semesterId: application.semesterId,
-      subjectOfferingId: offering._id,
-      sourceModule: 'ca-recovery',
-      sourceEntityId: String(application._id),
-      reminderEnabled: true,
-    });
-  } catch (error) {
-    throw new ValidationError('Calendar event could not be created');
+  const existing = await CaExamNotice.findOne({ subjectOfferingId: link.subjectOfferingId, status: 'PUBLISHED' });
+  if (existing) {
+    await attachLinksToExistingNotice(principal, existing, [link._id], { infrastructure });
+  } else {
+    await publishExamNotice(principal, { ...body, linkIds: [String(link._id)] }, { infrastructure });
   }
-
-  let schedule;
-  try {
-    schedule = await CaSchedule.create({
-      departmentId: application.departmentId,
-      applicationId: application._id,
-      incompleteCaId: link.incompleteCaId,
-      subjectOfferingId: offering._id,
-      lecturerUserId: principal.userId,
-      calendarEventId: calendar._id,
-      scheduledAt,
-      endsAt,
-      venue,
-    });
-  } catch (error) {
-    await CalendarEvent.deleteOne({ _id: calendar._id });
-    if (error?.code === 11000) {
-      throw new ValidationError('A schedule already exists for this subject');
-    }
-    throw error;
-  }
-
-  if (application.workflowStatus === 'APPROVED') {
-    assertApplicationTransition(application.workflowStatus, 'SCHEDULED');
-    application.workflowStatus = 'SCHEDULED';
-    await application.save();
-    await CaApplicationEvent.create({
-      applicationId: application._id,
-      type: 'SCHEDULED',
-      actorUserId: principal.userId,
-      fromStatus: 'APPROVED',
-      toStatus: 'SCHEDULED',
-      occurredAt: new Date(),
-    });
-  }
-  await emitCaNotification({
-    recipientUserId: application.studentUserId,
-    type: 'CA_SCHEDULED',
-    sourceId: String(schedule._id),
-    departmentId: application.departmentId,
-    infrastructure,
+  const schedule = await CaSchedule.findOne({
+    applicationId: application._id,
+    incompleteCaId: link.incompleteCaId,
+    status: 'ACTIVE',
   });
-  await queueRemindersForSchedule(schedule, application, infrastructure);
-  await recordCaAudit({
-    actorUserId: principal.userId,
-    action: 'ca.schedule.create',
-    entityType: 'CaSchedule',
-    entityId: schedule._id,
-    metadata: { applicationId: application.applicationId },
-  });
-  return mapSchedule(schedule);
+  if (!schedule) {
+    throw new ConflictError('The schedule could not be created');
+  }
+  return { ...mapSchedule(schedule), deprecated: true };
 }
 
 export async function listSchedules(principal) {
   assertLecturer(principal);
   const assignments = await findActiveAssignmentsForLecturer(principal.userId);
   const items = await CaSchedule.find({
-    lecturerUserId: principal.userId,
     subjectOfferingId: { $in: assignments.map((item) => item.subjectOfferingId) },
   }).sort({ scheduledAt: 1 });
   return { items: items.map(mapSchedule) };
 }
 
+/**
+ * @deprecated Cancel the exam notice instead. A schedule that belongs to a notice cannot be cancelled
+ * one student at a time. Only legacy rows created before notices existed are cancelled here, for that
+ * one subject only.
+ */
 export async function cancelSchedule(principal, scheduleId) {
   assertLecturer(principal);
   requireObjectId(scheduleId, 'schedule');
   const schedule = await CaSchedule.findById(scheduleId);
-  if (!schedule || String(schedule.lecturerUserId) !== String(principal.userId)) {
+  const assignments = await findActiveAssignmentsForLecturer(principal.userId);
+  if (
+    !schedule ||
+    !assignments.some((item) => String(item.subjectOfferingId) === String(schedule.subjectOfferingId))
+  ) {
     throw new NotFoundError('Schedule not found');
   }
+  if (schedule.examNoticeId) {
+    throw new ConflictError('This schedule belongs to an examination notice. Cancel the exam notice for this subject.');
+  }
+  if (schedule.status !== 'ACTIVE') {
+    throw new ValidationError('This schedule is no longer active');
+  }
   const cancelledAt = new Date();
+  schedule.status = 'CANCELLED';
   schedule.cancelledAt = cancelledAt;
   await schedule.save();
   await CalendarEvent.updateOne(
@@ -187,6 +153,22 @@ export async function cancelSchedule(principal, scheduleId) {
       },
     },
   );
+  await Notification.updateMany(
+    {
+      sourceModule: 'ca-recovery',
+      sourceId: String(schedule._id),
+      status: { $in: ['SCHEDULED', 'PENDING', 'RETRYING'] },
+    },
+    { $set: { status: 'CANCELLED', failureCode: 'exam_cancelled', errorCategory: 'cancelled', failedAt: cancelledAt } },
+  );
+  const link = await CaApplicationSubject.findOneAndUpdate(
+    { applicationId: schedule.applicationId, incompleteCaId: schedule.incompleteCaId, examStatus: 'SCHEDULED' },
+    { $set: { examStatus: 'READY_TO_SCHEDULE', statusChangedAt: cancelledAt }, $unset: { activeScheduleId: '' } },
+  );
+  await syncApplicationStatusFromSubjects(schedule.applicationId, {
+    actorUserId: principal.userId,
+    linkId: link ? String(link._id) : undefined,
+  });
   await recordCaAudit({
     actorUserId: principal.userId,
     action: 'ca.schedule.cancel',
@@ -197,44 +179,49 @@ export async function cancelSchedule(principal, scheduleId) {
   return mapSchedule(schedule);
 }
 
-export async function completeApplication(principal, applicationId) {
+/**
+ * @deprecated Use completeSubject. This completes exactly one subject (never the whole application):
+ * `incompleteCaId`/`linkId` selects it, or it defaults to the lecturer's only subject in this application.
+ */
+export async function completeApplication(principal, applicationId, body = {}) {
   assertLecturer(principal);
   const application = await CaApplication.findOne({ applicationId });
   if (!application) {
     throw new NotFoundError('Application not found');
   }
   const assignments = await findActiveAssignmentsForLecturer(principal.userId);
-  const link = await CaApplicationSubject.findOne({
+  const mine = await CaApplicationSubject.find({
     applicationId: application._id,
     subjectOfferingId: { $in: assignments.map((item) => item.subjectOfferingId) },
   });
+  if (!mine.length) {
+    throw new ForbiddenError('Forbidden');
+  }
+  let link;
+  if (body.linkId) {
+    link = mine.find((item) => String(item._id) === String(body.linkId));
+  } else if (body.incompleteCaId) {
+    link = mine.find((item) => String(item.incompleteCaId) === String(body.incompleteCaId));
+  } else if (mine.length === 1) {
+    link = mine[0];
+  } else {
+    throw new ValidationError('This application has several of your subjects. Choose which subject to complete.');
+  }
   if (!link) {
     throw new ForbiddenError('Forbidden');
   }
-  if (!['SCHEDULED', 'APPROVED'].includes(application.workflowStatus)) {
-    throw new ValidationError('Application is not ready to complete');
-  }
-  const fromStatus = application.workflowStatus;
-  assertApplicationTransition(fromStatus, 'COMPLETED');
-  application.workflowStatus = 'COMPLETED';
-  await application.save();
-  await CaApplicationEvent.create({
-    applicationId: application._id,
-    type: 'COMPLETED',
-    actorUserId: principal.userId,
-      fromStatus,
-    toStatus: 'COMPLETED',
-    occurredAt: new Date(),
-  });
-  return { applicationId: application.applicationId, workflowStatus: application.workflowStatus };
+  return completeSubject(principal, { linkId: String(link._id) });
 }
 
-function mapSchedule(doc) {
+export function mapSchedule(doc) {
   return {
     id: String(doc._id),
     applicationId: String(doc.applicationId),
     incompleteCaId: String(doc.incompleteCaId),
     subjectOfferingId: String(doc.subjectOfferingId),
+    examNoticeId: doc.examNoticeId ? String(doc.examNoticeId) : null,
+    generation: doc.generation || 1,
+    status: doc.status || (doc.cancelledAt ? 'CANCELLED' : 'ACTIVE'),
     scheduledAt: doc.scheduledAt,
     endsAt: doc.endsAt || null,
     venue: doc.venue || '',

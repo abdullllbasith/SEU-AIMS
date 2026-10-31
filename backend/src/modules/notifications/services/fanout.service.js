@@ -56,6 +56,8 @@ export async function fanoutNotification({
   departmentId,
   infrastructure,
   channels = ['IN_APP', 'EMAIL', 'WHATSAPP'],
+  templateParams,
+  guardRef,
 }) {
   const user = await User.findById(recipientUserId);
   if (!user || user.accountStatus !== 'ACTIVE') {
@@ -69,10 +71,13 @@ export async function fanoutNotification({
   let created = 0;
   for (const channel of allowed) {
     const idempotencyKey = reminderOffsetDays
-      ? `${type}:${sourceId}:${reminderOffsetDays}:${channel}`
+      ? `${type}:${sourceId}:${recipientUserId}:${reminderOffsetDays}:${reminderGeneration || 0}:${channel}`
       : reminderOffsetHours !== undefined && reminderOffsetHours !== null
         ? `${type}:${sourceId}:${recipientUserId}:${reminderOffsetHours}:${reminderGeneration || 0}:${channel}`
         : `${type}:${sourceId}:${recipientUserId}:${channel}`;
+    const future = Boolean(scheduledAt && scheduledAt > new Date());
+    // An in-app row is delivered the moment it exists; future ones wait for the dispatcher.
+    const status = future ? 'SCHEDULED' : channel === 'IN_APP' ? 'SENT' : 'PENDING';
     try {
       const doc = await Notification.create({
         recipientUserId,
@@ -80,7 +85,10 @@ export async function fanoutNotification({
         sourceModule,
         sourceId: String(sourceId),
         channel,
-        status: scheduledAt && scheduledAt > new Date() ? 'SCHEDULED' : 'PENDING',
+        status,
+        deliveredAt: status === 'SENT' ? new Date() : undefined,
+        templateParams,
+        guardRef,
         category: categoryFor(type),
         title,
         body,

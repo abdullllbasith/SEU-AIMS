@@ -329,7 +329,9 @@ dbTest('shared folder upload stays unavailable until scan+moderation allow it', 
     .field('title', 'Week notes')
     .attach('file', pdfBuffer, { filename: 'notes.pdf', contentType: 'application/pdf' });
   assert.equal(uploaded.status, 201);
-  assert.equal(uploaded.body.data.moderationState, 'PENDING_REVIEW');
+  // Students see only the student-facing status; the internal moderationState is operational data.
+  assert.equal(uploaded.body.data.studentStatus, 'PENDING_REVIEW');
+  assert.equal(uploaded.body.data.moderationState, undefined);
   const blocked = await student.agent.get(`/api/study-room/resources/${uploaded.body.data.id}/download`);
   assert.equal(blocked.status, 404);
   const approved = await admin.agent
@@ -379,7 +381,8 @@ dbTest('unconfigured scanner cannot make a student file available', async () => 
     .set('X-CSRF-Token', meCsrf.body.data.csrfToken)
     .attach('file', pdfBuffer, { filename: 'notes.pdf', contentType: 'application/pdf' });
   assert.equal(uploaded.status, 201);
-  assert.equal(uploaded.body.data.moderationState, 'QUARANTINED');
+  assert.equal(uploaded.body.data.studentStatus, 'QUARANTINED');
+  assert.equal(uploaded.body.data.moderationState, undefined);
   const download = await agent.get(`/api/study-room/resources/${uploaded.body.data.id}/download`);
   assert.equal(download.status, 404);
   const admin = await login('admin@example.test');

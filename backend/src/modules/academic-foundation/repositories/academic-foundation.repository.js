@@ -14,6 +14,10 @@ export function findActiveAssignmentsForLecturer(lecturerUserId) {
   return LecturerAssignment.find({ lecturerUserId, isActive: true });
 }
 
+export function findActiveAssignmentsForOfferings(subjectOfferingIds) {
+  return LecturerAssignment.find({ subjectOfferingId: { $in: subjectOfferingIds }, isActive: true });
+}
+
 export function findAssignment(lecturerUserId, subjectOfferingId) {
   return LecturerAssignment.findOne({ lecturerUserId, subjectOfferingId, isActive: true });
 }

@@ -12,6 +12,45 @@ import {
 } from '../../ui/status-labels.js';
 import { CaExamForm } from './CaExamForm.jsx';
 
+const EXAM_LABEL = {
+  READY_TO_SCHEDULE: 'Approved. Waiting for your lecturer to publish the examination date.',
+  COMPLETED: 'Completed',
+  RESOLVED: 'Resolved by your official result',
+};
+
+function formatColombo(value) {
+  return new Date(value).toLocaleString('en-GB', {
+    timeZone: 'Asia/Colombo',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+}
+
+/** Each subject on an application is scheduled by its own lecturer, so each shows its own exam details. */
+export function SubjectExams({ subjects = [] }) {
+  const visible = subjects.filter((subject) => subject.examStatus && subject.examStatus !== 'PENDING_APPROVAL');
+  if (!visible.length) {
+    return null;
+  }
+  return (
+    <ul className="stack-item__meta" aria-label="Subject examinations">
+      {visible.map((subject) => (
+        <li key={subject.incompleteCaId}>
+          <strong>{subject.subjectCode}</strong>{' '}
+          {subject.examStatus === 'SCHEDULED' && subject.exam
+            ? `${formatColombo(subject.exam.scheduledAt)} (Asia/Colombo) · ${subject.exam.venue}`
+            : EXAM_LABEL[subject.examStatus] || subject.examStatus}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function StudentCaPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -337,6 +376,7 @@ export function StudentCaPage() {
                     </ActionButton>
                   </span>
                 </div>
+                <SubjectExams subjects={item.subjects} />
               </li>
             ))}
           </ul>

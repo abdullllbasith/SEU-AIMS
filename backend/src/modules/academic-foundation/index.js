@@ -34,6 +34,7 @@ export {
   findStudentByRegistrationNumber,
   findStudentContextByUserId,
   findActiveAssignmentsForLecturer,
+  findActiveAssignmentsForOfferings,
   findAssignment,
   findOfferingsForBatchSemester,
 } from './repositories/academic-foundation.repository.js';

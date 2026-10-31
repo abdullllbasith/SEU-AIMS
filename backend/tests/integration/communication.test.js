@@ -420,9 +420,20 @@ test('email delivery is asynchronous, noop is not delivered, retries stay bounde
     },
   });
   assert.equal(first.status, 'RETRYING');
+  // A retryable failure waits for its backoff before the next attempt can be claimed.
+  const stillWaiting = await processNotificationDeliver({
+    notificationId: emailDoc._id,
+    infrastructure: {
+      email: { send: async () => ({ accepted: true, provider: 'test' }) },
+      queue: { enqueue: async () => ({ id: 'retry' }) },
+    },
+  });
+  assert.equal(stillWaiting.skipped, true);
+  assert.equal(stillWaiting.reason, 'NOT_CLAIMED');
   emailDoc.attemptCount = 5;
   await emailDoc.save();
   const exhausted = await processNotificationDeliver({
+    now: new Date(Date.now() + 60 * 60_000),
     notificationId: emailDoc._id,
     infrastructure: {
       email: { send: async () => ({ accepted: false, retryable: true, category: 'transient', provider: 'test' }) },

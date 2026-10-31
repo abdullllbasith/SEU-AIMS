@@ -150,8 +150,8 @@ export async function addNoticeImage(principal, noticeId, file, { infrastructure
   if (!notice) {
     throw new NotFoundError('Notice not found');
   }
-  if (notice.publicationState !== 'DRAFT') {
-    throw new ValidationError('Photos can be added before the notice is published');
+  if (notice.publicationState === 'ARCHIVED') {
+    throw new ValidationError('Photos cannot be changed after the notice is withdrawn');
   }
   if ((notice.images || []).length >= NOTICE_IMAGE_LIMIT) {
     throw new ValidationError('A notice can include up to 8 photos');
@@ -222,12 +222,68 @@ export async function readNoticeImage(principal, noticeId, imageId, { infrastruc
   return { mimeType: file.mimeType, body: object?.body || Buffer.from('') };
 }
 
+export async function removeNoticeImage(principal, noticeId, imageId) {
+  assertAdmin(principal);
+  requireObjectId(noticeId, 'notice');
+  requireObjectId(imageId, 'image');
+  const notice = await Notice.findOne({ _id: noticeId, departmentId: principal.departmentId });
+  if (!notice) {
+    throw new NotFoundError('Notice not found');
+  }
+  if (notice.publicationState === 'ARCHIVED') {
+    throw new ValidationError('Photos cannot be changed after the notice is withdrawn');
+  }
+  const image = (notice.images || []).find((item) => String(item._id) === String(imageId));
+  if (!image) {
+    throw new NotFoundError('Notice photo not found');
+  }
+  notice.images = notice.images.filter((item) => String(item._id) !== String(imageId));
+  notice.images.forEach((item, index) => {
+    item.sortOrder = index;
+  });
+  await notice.save();
+  const file = await StoredFile.findById(image.fileId);
+  if (file) {
+    file.availability = 'UNAVAILABLE';
+    await file.save();
+  }
+  return mapNotice(notice);
+}
+
+export async function reorderNoticeImages(principal, noticeId, imageIds) {
+  assertAdmin(principal);
+  requireObjectId(noticeId, 'notice');
+  const notice = await Notice.findOne({ _id: noticeId, departmentId: principal.departmentId });
+  if (!notice) {
+    throw new NotFoundError('Notice not found');
+  }
+  if (notice.publicationState === 'ARCHIVED') {
+    throw new ValidationError('Photos cannot be changed after the notice is withdrawn');
+  }
+  const current = (notice.images || []).map((item) => String(item._id));
+  const nextIds = Array.isArray(imageIds) ? imageIds.map(String) : [];
+  if (nextIds.length !== current.length || nextIds.some((id) => !current.includes(id))) {
+    throw new ValidationError('Photo order must include each current photo once');
+  }
+  const byId = new Map(notice.images.map((item) => [String(item._id), item]));
+  notice.images = nextIds.map((id, index) => {
+    const image = byId.get(id);
+    image.sortOrder = index;
+    return image;
+  });
+  await notice.save();
+  return mapNotice(notice);
+}
+
 export async function updateNotice(principal, noticeId, body) {
   assertAdmin(principal);
   requireObjectId(noticeId, 'notice');
   const notice = await Notice.findOne({ _id: noticeId, departmentId: principal.departmentId });
   if (!notice) {
     throw new NotFoundError('Notice not found');
+  }
+  if (notice.publicationState === 'ARCHIVED') {
+    throw new ValidationError('A withdrawn notice cannot be edited');
   }
   if (body.title) {
     notice.title = String(body.title).trim();

@@ -46,7 +46,20 @@ export const CA_APPLICATION_EVENT_TYPES = Object.freeze([
   'REJECTED',
   'SCHEDULED',
   'COMPLETED',
+  'SUBJECT_STATUS_DERIVED',
 ]);
+
+/** Per subject (CaApplicationSubject) exam state. The application status is derived from these. */
+export const CA_SUBJECT_EXAM_STATUSES = Object.freeze([
+  'PENDING_APPROVAL',
+  'READY_TO_SCHEDULE',
+  'SCHEDULED',
+  'COMPLETED',
+  'RESOLVED',
+]);
+
+export const CA_SCHEDULE_STATUSES = Object.freeze(['ACTIVE', 'SUPERSEDED', 'CANCELLED', 'COMPLETED']);
+export const CA_EXAM_NOTICE_STATUSES = Object.freeze(['PUBLISHED', 'CANCELLED']);
 
 export const CA_REMINDER_OFFSETS_DAYS = Object.freeze([7, 3, 1]);
 

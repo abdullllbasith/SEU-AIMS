@@ -63,7 +63,12 @@ export async function getDashboard(principal, { infrastructure, bypassCache = fa
       departmentId,
       workflowStatus: { $in: [...PENDING_CA_APPLICATION_STATUSES] },
     }),
-    CaSchedule.countDocuments({ departmentId, cancelledAt: null, scheduledAt: { $gte: now } }),
+    CaSchedule.countDocuments({
+      departmentId,
+      cancelledAt: null,
+      status: { $nin: ['CANCELLED', 'SUPERSEDED', 'COMPLETED'] },
+      scheduledAt: { $gte: now },
+    }),
     Notification.countDocuments({ departmentId, status: 'FAILED' }),
     AuditEvent.countDocuments({ departmentId, result: 'DENIED' }),
     queueSnapshot(infrastructure?.queue),

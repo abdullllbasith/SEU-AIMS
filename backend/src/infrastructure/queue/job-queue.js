@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { currentCorrelationId } from '../observability/request-context.js';
 import { JOB_NAMES } from './job-names.js';
 
@@ -37,6 +38,35 @@ export class JobQueue {
   async depth() {
     return { high: 0, normal: 0, low: 0, failed: 0 };
   }
+
+  async listFailed() {
+    return [];
+  }
+
+  async retryFailed() {
+    return null;
+  }
+}
+
+function failedRecord(job, error) {
+  return {
+    name: job?.name,
+    jobId: job?.jobId || randomUUID(),
+    payload: job?.payload || null,
+    priority: job?.priority,
+    failedAt: new Date().toISOString(),
+    category: error?.code || 'FAILED',
+  };
+}
+
+export function summarizeFailedJob(row) {
+  return {
+    name: row?.name || '',
+    jobId: row?.jobId || '',
+    failedAt: row?.failedAt || null,
+    category: row?.category || 'FAILED',
+    retryable: Boolean(row?.name && row?.jobId && row?.payload),
+  };
 }
 
 export class InMemoryJobQueue extends JobQueue {
@@ -82,15 +112,28 @@ export class InMemoryJobQueue extends JobQueue {
   }
 
   async markFailed(job, error) {
-    this.failed.push({
-      name: job?.name,
-      jobId: job?.jobId,
-      failedAt: new Date().toISOString(),
-      category: error?.code || 'FAILED',
-    });
+    this.failed.push(failedRecord(job, error));
     if (this.failed.length > 1000) {
       this.failed.splice(0, this.failed.length - 1000);
     }
+  }
+
+  async listFailed(limit = 20) {
+    return this.failed.slice(-Math.max(1, limit)).reverse().map(summarizeFailedJob);
+  }
+
+  async retryFailed(jobId) {
+    const index = this.failed.findIndex((row) => row.jobId === jobId);
+    if (index < 0) {
+      return null;
+    }
+    const [row] = this.failed.splice(index, 1);
+    if (!row?.name || !row.payload || !row.jobId) {
+      this.failed.splice(index, 0, row);
+      return null;
+    }
+    await this.enqueue({ name: row.name, payload: row.payload, jobId: row.jobId });
+    return { jobId: row.jobId, name: row.name };
   }
 
   async depth() {
@@ -151,14 +194,33 @@ export class RedisJobQueue extends JobQueue {
   }
 
   async markFailed(job, error) {
-    const row = JSON.stringify({
-      name: job?.name,
-      jobId: job?.jobId,
-      failedAt: new Date().toISOString(),
-      category: error?.code || 'FAILED',
-    });
-    await this.redis.lpush(this.keys.failed, row);
+    await this.redis.lpush(this.keys.failed, JSON.stringify(failedRecord(job, error)));
     await this.redis.ltrim(this.keys.failed, 0, 999);
+  }
+
+  async listFailed(limit = 20) {
+    const raw = await this.redis.lrange(this.keys.failed, 0, Math.max(1, limit) - 1);
+    return raw.map((entry) => summarizeFailedJob(typeof entry === 'string' ? JSON.parse(entry) : entry));
+  }
+
+  async retryFailed(jobId) {
+    const raw = await this.redis.lrange(this.keys.failed, 0, 999);
+    const rows = raw.map((entry) => (typeof entry === 'string' ? JSON.parse(entry) : entry));
+    const index = rows.findIndex((row) => row.jobId === jobId);
+    if (index < 0) {
+      return null;
+    }
+    const row = rows[index];
+    if (!row?.name || !row.payload || !row.jobId) {
+      return null;
+    }
+    const kept = rows.filter((item) => item.jobId !== jobId);
+    await this.redis.del(this.keys.failed);
+    for (const item of kept) {
+      await this.redis.rpush(this.keys.failed, JSON.stringify(item));
+    }
+    await this.enqueue({ name: row.name, payload: row.payload, jobId: row.jobId });
+    return { jobId: row.jobId, name: row.name };
   }
 
   async depth() {

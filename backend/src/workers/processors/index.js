@@ -3,7 +3,7 @@ import { processMalwareScan } from '../../modules/files/index.js';
 import { syncSharedResourceAfterScan } from '../../modules/study-room/index.js';
 import { processResultParse } from '../../modules/results/index.js';
 import { recalculateStudentGpa } from '../../modules/gpa-cgpa/index.js';
-import { generateApplicationPdf, evaluateReminder, processEcaDetectJob } from '../../modules/ca-recovery/index.js';
+import { generateApplicationPdf, processEcaDetectJob } from '../../modules/ca-recovery/index.js';
 import { processNotificationDeliver } from '../../modules/notifications/index.js';
 import { evaluateCalendarReminder } from '../../modules/notices-calendar/index.js';
 import { syncOfficialResourceAfterScan } from '../../modules/learning-environment/index.js';
@@ -55,11 +55,8 @@ export function registerJobProcessors({ logger, infrastructure }) {
         });
         return;
       }
-      await evaluateReminder({
-        scheduleId: job?.payload?.scheduleId,
-        offsetDays: job?.payload?.offsetDays,
-        infrastructure,
-      });
+      // CA reminders are stored as SCHEDULED notifications and released by the notification dispatcher
+      // sweep when due. Jobs queued by older versions are intentionally ignored.
     },
     [JOB_NAMES.FILE_MALWARE_SCAN]: async (job) => {
       await processMalwareScan({

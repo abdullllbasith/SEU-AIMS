@@ -17,11 +17,15 @@ export async function emitCaNotification({
   type,
   sourceId,
   reminderOffsetDays,
+  reminderGeneration,
   scheduledAt,
   infrastructure,
   departmentId,
   vars,
   channels,
+  actionPath = '/ca',
+  templateParams,
+  guardRef,
 }) {
   await fanoutNotification({
     recipientUserId,
@@ -29,11 +33,14 @@ export async function emitCaNotification({
     sourceModule: 'ca-recovery',
     sourceId,
     reminderOffsetDays,
+    reminderGeneration,
     scheduledAt,
-    actionPath: '/ca',
+    actionPath,
     departmentId,
     infrastructure,
     vars,
     channels,
+    templateParams,
+    guardRef,
   });
 }

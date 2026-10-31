@@ -59,6 +59,8 @@ async function caSummary(principal) {
     const schedule = await CaSchedule.findOne({
       applicationId: latest.id,
       cancelledAt: null,
+      status: { $nin: ['CANCELLED', 'SUPERSEDED', 'COMPLETED'] },
+      scheduledAt: { $gte: new Date() },
     }).sort({ scheduledAt: 1 });
     if (schedule) {
       upcomingSchedule = {

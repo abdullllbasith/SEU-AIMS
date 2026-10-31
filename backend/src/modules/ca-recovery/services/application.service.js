@@ -1,6 +1,7 @@
 import { CaApplication } from '../models/ca-application.model.js';
 import { CaApplicationSubject } from '../models/ca-application-subject.model.js';
 import { CaApplicationEvent } from '../models/ca-application-event.model.js';
+import { CaSchedule } from '../models/ca-schedule.model.js';
 import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { CaApplicationWindow } from '../models/ca-application-window.model.js';
 import {
@@ -23,6 +24,9 @@ import { assertApplicationTransition } from './transitions.js';
 import { JOB_NAMES } from '../../../infrastructure/queue/job-names.js';
 import { isAtOrBeforeDeadline, parsePagination, requireObjectId, windowLifecycle } from '../utils/http.js';
 import { emitCaNotification, recordCaAudit } from './notify.js';
+import { notifyLecturersOfApproval } from './lecturer-notify.service.js';
+import { syncApplicationStatusFromSubjects } from './application-status.service.js';
+import { attachApprovedLinksToPublishedNotices } from './exam-notice.service.js';
 import QRCode from 'qrcode';
 import { generateApplicationPdf } from './pdf.service.js';
 import {
@@ -71,6 +75,10 @@ export function mapApplication(doc, subjects = []) {
     windowOpensAt: doc.windowOpensAt,
     windowClosesAt: doc.windowClosesAt,
     submittedAt: doc.submittedAt || null,
+    physicallyVerifiedAt: doc.physicallyVerifiedAt || null,
+    physicalInspection: doc.physicalInspection?.confirmedAt
+      ? { confirmedAt: doc.physicalInspection.confirmedAt, method: doc.physicalInspection.method }
+      : null,
     decisionReason: doc.decisionReason || '',
     reopenReason: doc.reopenReason || '',
     resubmissionCount: doc.resubmissionCount,
@@ -183,11 +191,31 @@ async function loadOwnedApplication(principal, applicationId) {
 
 async function subjectsFor(application) {
   const rows = await CaApplicationSubject.find({ applicationId: application._id });
-  return rows.map((row) => ({
-    incompleteCaId: String(row.incompleteCaId),
-    subjectId: String(row.subjectId),
-    subjectOfferingId: row.subjectOfferingId ? String(row.subjectOfferingId) : null,
-  }));
+  const schedules = await CaSchedule.find({ _id: { $in: rows.map((row) => row.activeScheduleId).filter(Boolean) } });
+  const scheduleById = new Map(schedules.map((item) => [String(item._id), item]));
+  const subjects = await Subject.find({ _id: { $in: rows.map((row) => row.subjectId) } }).select('code name');
+  const subjectById = new Map(subjects.map((item) => [String(item._id), item]));
+  return rows.map((row) => {
+    const schedule = row.activeScheduleId ? scheduleById.get(String(row.activeScheduleId)) : null;
+    const subject = subjectById.get(String(row.subjectId));
+    return {
+      incompleteCaId: String(row.incompleteCaId),
+      subjectId: String(row.subjectId),
+      subjectOfferingId: row.subjectOfferingId ? String(row.subjectOfferingId) : null,
+      subjectCode: subject?.code || '',
+      subjectName: subject?.name || '',
+      examStatus: row.examStatus,
+      exam:
+        schedule && schedule.status === 'ACTIVE'
+          ? {
+              scheduledAt: schedule.scheduledAt,
+              endsAt: schedule.endsAt || null,
+              venue: schedule.venue || '',
+              generation: schedule.generation || 1,
+            }
+          : null,
+    };
+  });
 }
 
 export async function createDraft(principal, body) {
@@ -542,6 +570,46 @@ export async function confirmPhysicalReceipt(principal, applicationId, body = {}
   return { matched: true, applicationId: doc.applicationId };
 }
 
+/** QR_SCAN when the scanned value is the verify URL/token, MANUAL_ID when the Application ID was typed. */
+function inspectionMethod(doc, receipt) {
+  return String(receipt || '').trim().toUpperCase() === String(doc.applicationId || '').toUpperCase()
+    ? 'MANUAL_ID'
+    : 'QR_SCAN';
+}
+
+/**
+ * One-step physical verification from a QR scan or a typed Application ID.
+ * The admin must explicitly confirm they inspected the printed form and the physical HOD signature.
+ * This records PHYSICALLY_VERIFIED only; approval is a separate admin action.
+ */
+export async function scanVerify(principal, body = {}) {
+  assertAdmin(principal);
+  if (body.inspectionConfirmed !== true) {
+    throw new ValidationError('Confirm that you inspected the printed form and the physical HOD signature');
+  }
+  const receipt = String(body.receipt || '').trim();
+  if (!receipt) {
+    throw new ValidationError('Scan the QR code or enter the Application ID');
+  }
+  const token = receiptToken(receipt);
+  const doc = await CaApplication.findOne({
+    departmentId: principal.departmentId,
+    $or: [{ applicationId: receipt.toUpperCase() }, ...(token ? [{ qrVerificationToken: token }] : [])],
+  });
+  if (!doc) {
+    throw new NotFoundError('Application not found');
+  }
+  if (doc.physicalVerificationStatus === 'PHYSICALLY_VERIFIED' && doc.workflowStatus !== 'REJECTED') {
+    return { ...mapApplication(doc, await subjectsFor(doc)), alreadyVerified: true };
+  }
+  const verified = await verifyPhysical(principal, doc.applicationId, {
+    outcome: 'verified',
+    receipt,
+    inspectionConfirmed: true,
+  });
+  return { ...verified, alreadyVerified: false };
+}
+
 export async function verifyPhysical(principal, applicationId, body) {
   assertAdmin(principal);
   const doc = await loadOwnedApplication(principal, applicationId);
@@ -552,6 +620,9 @@ export async function verifyPhysical(principal, applicationId, body) {
   if (outcome !== 'failed' && !receiptMatches(doc, body.receipt)) {
     throw new ValidationError('Enter or scan the printed form for this application before marking it physically verified');
   }
+  if (outcome !== 'failed' && body.inspectionConfirmed !== true) {
+    throw new ValidationError('Confirm that you inspected the printed form and the physical HOD signature');
+  }
   const fromStatus = doc.workflowStatus;
   if (outcome === 'failed') {
     assertApplicationTransition(fromStatus, 'REJECTED');
@@ -561,9 +632,15 @@ export async function verifyPhysical(principal, applicationId, body) {
     doc.decidedAt = new Date();
     doc.decidedByUserId = principal.userId;
   } else {
+    const verifiedAt = new Date();
     doc.physicalVerificationStatus = 'PHYSICALLY_VERIFIED';
-    doc.physicallyVerifiedAt = new Date();
+    doc.physicallyVerifiedAt = verifiedAt;
     doc.verifiedByAdminUserId = principal.userId;
+    doc.physicalInspection = {
+      confirmedByUserId: principal.userId,
+      confirmedAt: verifiedAt,
+      method: inspectionMethod(doc, body.receipt),
+    };
     if (fromStatus !== 'UNDER_VERIFICATION') {
       assertApplicationTransition(fromStatus, 'UNDER_VERIFICATION');
     }
@@ -577,6 +654,21 @@ export async function verifyPhysical(principal, applicationId, body) {
     fromStatus,
     toStatus: doc.workflowStatus,
     reason: doc.decisionReason,
+  });
+  await recordCaAudit({
+    actorUserId: principal.userId,
+    action: outcome === 'failed' ? 'ca.application.verify-failed' : 'ca.application.verify',
+    entityType: 'CaApplication',
+    entityId: doc._id,
+    departmentId: doc.departmentId,
+    metadata:
+      outcome === 'failed'
+        ? { applicationId: doc.applicationId, reason: doc.decisionReason }
+        : {
+            applicationId: doc.applicationId,
+            method: doc.physicalInspection?.method,
+            inspectionConfirmed: true,
+          },
   });
   return mapApplication(doc, await subjectsFor(doc));
 }
@@ -614,7 +706,16 @@ export async function approveApplication(principal, applicationId, { infrastruct
     entityId: doc._id,
     metadata: { applicationId: doc.applicationId },
   });
-  return mapApplication(doc, await subjectsFor(doc));
+  // Each subject becomes schedulable on its own; the lecturers of those exact offerings are told.
+  await CaApplicationSubject.updateMany(
+    { applicationId: doc._id, examStatus: 'PENDING_APPROVAL' },
+    { $set: { examStatus: 'READY_TO_SCHEDULE', statusChangedAt: new Date() } },
+  );
+  const links = await CaApplicationSubject.find({ applicationId: doc._id });
+  await syncApplicationStatusFromSubjects(doc._id, { actorUserId: principal.userId, reason: 'Approved' });
+  await notifyLecturersOfApproval({ application: doc, links, infrastructure });
+  await attachApprovedLinksToPublishedNotices({ application: doc, links, infrastructure });
+  return mapApplication(await CaApplication.findById(doc._id), await subjectsFor(doc));
 }
 
 export async function rejectApplication(principal, applicationId, body, { infrastructure } = {}) {
@@ -648,6 +749,14 @@ export async function rejectApplication(principal, applicationId, body, { infras
     sourceId: doc.applicationId,
     departmentId: doc.departmentId,
     infrastructure,
+  });
+  await recordCaAudit({
+    actorUserId: principal.userId,
+    action: 'ca.application.reject',
+    entityType: 'CaApplication',
+    entityId: doc._id,
+    departmentId: doc.departmentId,
+    metadata: { applicationId: doc.applicationId, reason },
   });
   return mapApplication(doc, await subjectsFor(doc));
 }
@@ -692,6 +801,14 @@ export async function reopenApplication(principal, applicationId, body, { infras
       bodyTemplate:
         '{{applicationId}} was sent back so you can check and correct the form, then submit it again. Reason: {{reason}}',
     },
+  });
+  await recordCaAudit({
+    actorUserId: principal.userId,
+    action: 'ca.application.reopen',
+    entityType: 'CaApplication',
+    entityId: doc._id,
+    departmentId: doc.departmentId,
+    metadata: { applicationId: doc.applicationId, reason },
   });
   return mapApplication(doc, await subjectsFor(doc));
 }

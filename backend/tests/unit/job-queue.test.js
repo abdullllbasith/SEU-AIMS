@@ -44,6 +44,17 @@ class MemoryRedis {
   async llen(key) {
     return this.list(key).length;
   }
+
+  async lrange(key, start, stop) {
+    const list = this.list(key);
+    const end = stop < 0 ? list.length : stop + 1;
+    return list.slice(start, end);
+  }
+
+  async del(key) {
+    this.lists.delete(key);
+    return 1;
+  }
 }
 
 test('malware scan jobs take priority over reminders', () => {
@@ -71,6 +82,13 @@ test('redis queue round-trips jobs and retains a bounded failed list', async () 
   const depth = await queue.depth();
   assert.equal(depth.failed, 1);
   assert.equal(depth.high, 0);
+  const failed = await queue.listFailed(5);
+  assert.equal(failed[0].retryable, true);
+  const retried = await queue.retryFailed(failed[0].jobId);
+  assert.equal(retried.jobId, 'j1');
+  const again = await queue.takePending(5);
+  assert.equal(again[0].payload.id, 'a');
+  assert.equal((await queue.depth()).failed, 0);
 });
 
 test('createJobQueue uses memory without redis and redis when a client is provided', () => {

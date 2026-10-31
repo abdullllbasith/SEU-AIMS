@@ -23,6 +23,7 @@ export function createRouter() {
   router.get('/calendar/health', admin, controller.calendarHealth);
   router.get('/storage/health', admin, controller.storageHealth);
   router.get('/jobs', admin, controller.jobs);
+  router.post('/jobs/:jobId/retry', admin, requireCsrf, controller.retryJob);
   router.get('/audit', admin, controller.audit);
   router.get('/data-quality', admin, controller.dataQuality);
   router.get('/security', admin, controller.security);

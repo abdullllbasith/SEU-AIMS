@@ -13,6 +13,10 @@ export const communicationApi = {
   adminCreateNotice: (body) => apiRequest('/notices/admin', { method: 'POST', body: JSON.stringify(body) }),
   uploadNoticeImage: (id, formData) =>
     apiRequest(`/notices/admin/${id}/images`, { method: 'POST', body: formData }),
+  removeNoticeImage: (id, imageId) => apiRequest(`/notices/admin/${id}/images/${imageId}`, { method: 'DELETE' }),
+  reorderNoticeImages: (id, imageIds) =>
+    apiRequest(`/notices/admin/${id}/images`, { method: 'PATCH', body: JSON.stringify({ imageIds }) }),
+  updateNotice: (id, body) => apiRequest(`/notices/admin/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   publishNotice: (id) => apiRequest(`/notices/admin/${id}/publish`, { method: 'POST', body: JSON.stringify({}) }),
   archiveNotice: (id) => apiRequest(`/notices/admin/${id}/archive`, { method: 'POST', body: JSON.stringify({}) }),
   events: (params = '') => apiRequest(`/calendar/events${params}`),

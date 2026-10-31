@@ -41,6 +41,14 @@ const notificationSchema = new mongoose.Schema(
     reminderOffsetHours: { type: Number },
     reminderGeneration: { type: Number, default: 0 },
     idempotencyKey: { type: String, required: true, trim: true },
+    /** Ordered body parameters for an approved WhatsApp template message. */
+    templateParams: { type: [String], default: undefined },
+    /** Source-module context used by the pre-send guard (e.g. CA exam notice and generation). */
+    guardRef: { type: mongoose.Schema.Types.Mixed },
+    leaseOwner: { type: String, trim: true },
+    leaseExpiresAt: Date,
+    nextAttemptAt: Date,
+    lastAttemptAt: Date,
   },
   persistenceOptions,
 );
@@ -50,6 +58,9 @@ notificationSchema.index({ recipientUserId: 1, channel: 1, createdAt: -1 });
 notificationSchema.index({ recipientUserId: 1, channel: 1, readAt: 1, createdAt: -1 });
 notificationSchema.index({ recipientUserId: 1, category: 1, createdAt: -1 });
 notificationSchema.index({ channel: 1, status: 1, scheduledAt: 1 });
+notificationSchema.index({ status: 1, scheduledAt: 1 });
+notificationSchema.index({ status: 1, nextAttemptAt: 1 });
+notificationSchema.index({ sourceModule: 1, sourceId: 1 });
 notificationSchema.index({ departmentId: 1, status: 1 });
 notificationSchema.index({ providerMessageId: 1 }, { sparse: true });
 

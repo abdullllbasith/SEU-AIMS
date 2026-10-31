@@ -5,6 +5,7 @@ import { startIsolatedMongo, stopIsolatedMongo, clearIsolatedMongo } from '../he
 import { createApp } from '../../src/app/create-app.js';
 import { loadConfig } from '../../src/config/index.js';
 import { createLogger } from '../../src/infrastructure/logging/logger.js';
+import { InMemoryJobQueue } from '../../src/infrastructure/queue/job-queue.js';
 import { seedQaWorld, QA_IDS, QA_PASSWORD } from '../helpers/qa-fixtures.js';
 import { hashPassword } from '../../src/modules/authentication/security/passwords.js';
 import { User } from '../../src/modules/authentication/models/user.model.js';
@@ -30,6 +31,8 @@ before(async () => {
   app = createApp({
     config,
     logger: createLogger({ service: 'seu-aims-test', level: 'error' }),
+    // Job retry is only supported when the queue can re-enqueue a saved failed job.
+    infrastructure: { queue: new InMemoryJobQueue() },
   });
 });
 
@@ -230,7 +233,7 @@ test('notification, calendar, jobs, audit, data-quality, and export', async () =
 
   const jobs = await admin.agent.get('/api/admin/jobs');
   assert.equal(jobs.status, 200);
-  assert.equal(jobs.body.data.retry.supported, false);
+  assert.equal(jobs.body.data.retry.supported, true);
 
   const storage = await admin.agent.get('/api/admin/storage/health');
   assert.equal(storage.status, 200);

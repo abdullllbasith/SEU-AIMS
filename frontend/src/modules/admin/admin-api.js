@@ -35,6 +35,7 @@ export const adminApi = {
   notificationHealth: () => apiRequest('/admin/notifications/health'),
   calendarHealth: () => apiRequest('/admin/calendar/health'),
   jobs: () => apiRequest('/admin/jobs'),
+  retryJob: (jobId) => apiRequest(`/admin/jobs/${jobId}/retry`, { method: 'POST', body: JSON.stringify({}) }),
   security: () => apiRequest('/admin/security'),
   dataQuality: () => apiRequest('/admin/data-quality'),
 };

@@ -66,6 +66,13 @@ function setInput(input, value) {
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+/** Student search is a debounced (200 ms) type-ahead, so wait for it instead of clicking a button. */
+async function waitForSearch() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  });
+}
+
 function setSelect(select, value) {
   const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
   setter.call(select, value);
@@ -169,10 +176,7 @@ describe('OfferingEnrollmentRoster', () => {
     await act(async () => {
       setInput(registration, 'SEU/IS/22/ICT/001');
     });
-    const search = [...container.querySelectorAll('button')].find((item) => item.textContent === 'Find student');
-    await act(async () => {
-      search.click();
-    });
+    await waitForSearch();
     expect(academicApi.students).toHaveBeenCalledWith({
       q: 'SEU/IS/22/ICT/001',
       batchId: 'batch-1',
@@ -219,9 +223,7 @@ describe('OfferingEnrollmentRoster', () => {
     await act(async () => {
       setInput(container.querySelector('input[name="registrationNumber"]'), 'SEU/IS/22/ICT/001');
     });
-    await act(async () => {
-      [...container.querySelectorAll('button')].find((item) => item.textContent === 'Find student').click();
-    });
+    await waitForSearch();
     await act(async () => {
       [...container.querySelectorAll('button')].find((item) => item.textContent === 'Enroll student').click();
     });

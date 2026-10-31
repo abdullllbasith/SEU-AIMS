@@ -181,7 +181,7 @@ async function commitImport(admin, importId) {
 }
 
 test('E(ESA) and E(CA&ESA) repeat grades cap at C Pass and keep the original period', async () => {
-  const { year1, semester1, context } = await seed();
+  const { year1, semester1, year2, semester2, context } = await seed();
   const admin = await login('admin@example.test');
   for (const marker of ['E(ESA)', 'E(CA&ESA)']) {
     await AcademicResult.deleteMany({});
@@ -189,6 +189,10 @@ test('E(ESA) and E(CA&ESA) repeat grades cap at C Pass and keep the original per
     const first = await importResult(admin, marker, `${marker}-first.xlsx`);
     assert.equal(first.row.proposedAction, 'NEW');
     assert.equal((await commitImport(admin, first.created.body.data.id)).status, 200);
+    // A result belongs to the subject's own offering period (result-period.js), not the student's current one.
+    const original = await AcademicResult.findOne({ subjectCode: 'ICT1233' });
+    assert.equal(String(original.studentAcademicYearId), String(year2._id));
+    assert.equal(String(original.studentSemesterId), String(semester2._id));
     context.currentAcademicYearId = year1._id;
     context.currentSemesterId = semester1._id;
     await context.save();
@@ -204,8 +208,11 @@ test('E(ESA) and E(CA&ESA) repeat grades cap at C Pass and keep the original per
     assert.equal(official.rawResultCode, 'A+');
     assert.equal(official.gradeCapApplied, true);
     assert.equal(official.gradeCapReason, marker);
-    assert.equal(String(official.studentAcademicYearId), String(year1._id));
-    assert.equal(String(official.studentSemesterId), String(semester1._id));
+    // The repeat grade keeps the original period; it does not follow the student's current year and semester.
+    assert.equal(String(official.studentAcademicYearId), String(original.studentAcademicYearId));
+    assert.equal(String(official.studentSemesterId), String(original.studentSemesterId));
+    assert.equal(String(official.studentAcademicYearId), String(year2._id));
+    assert.equal(String(official.studentSemesterId), String(semester2._id));
     const revision = await ResultRevision.findOne({ academicResultId: official._id, newResultCode: 'C' });
     assert.equal(revision.previousResultCode, marker);
     assert.equal(revision.rawResultCode, 'A+');
@@ -264,7 +271,7 @@ test('E(ESA) cannot be replaced by another incomplete marker', async () => {
 });
 
 test('E(CA) recovery stays pending until an authorized reviewer approves the uncapped grade', async () => {
-  const { year1, semester1 } = await seed();
+  const { year2, semester2 } = await seed();
   const admin = await login('admin@example.test');
   const studentLogin = await login('student22@example.test');
   const outsider = await login('outsider@example.test');
@@ -279,8 +286,9 @@ test('E(CA) recovery stays pending until an authorized reviewer approves the unc
   assert.equal((await commitImport(admin, recovery.created.body.data.id)).status, 200);
   const held = await AcademicResult.findOne({ subjectCode: 'ICT1233' });
   assert.equal(held.resultCode, 'E(CA)');
-  assert.equal(String(held.studentAcademicYearId), String(year1._id));
-  assert.equal(String(held.studentSemesterId), String(semester1._id));
+  // The held E(CA) result stays in the subject's offering period while the recovery grade is pending review.
+  assert.equal(String(held.studentAcademicYearId), String(year2._id));
+  assert.equal(String(held.studentSemesterId), String(semester2._id));
   const reviews = await admin.agent.get('/api/ca/recovery-results');
   const reviewId = reviews.body.data.items[0].id;
   assert.equal(

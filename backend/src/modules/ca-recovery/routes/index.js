@@ -12,6 +12,15 @@ const verifyLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Admin printed-form verification has its own counter so public QR lookups cannot starve it.
+// Default 120/min per client; never lower than the configured API-wide limit.
+const scanVerifyLimiter = rateLimit({
+  windowMs: 60_000,
+  max: (req) => Math.max(120, Number(req.app.get('config')?.api?.rateLimitMax) || 0),
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export function createRouter() {
   const router = Router();
   const controller = createCaController();
@@ -32,6 +41,7 @@ export function createRouter() {
   router.post('/admin/windows', requireDepartmentAdmin(), requireCsrf, controller.saveWindow);
   router.delete('/admin/windows/:windowId', requireDepartmentAdmin(), requireCsrf, controller.deleteWindow);
   router.get('/admin/applications', requireDepartmentAdmin(), controller.adminList);
+  router.post('/admin/scan-verify', requireDepartmentAdmin(), scanVerifyLimiter, requireCsrf, controller.scanVerify);
   router.post('/admin/applications/:applicationId/confirm-receipt', requireDepartmentAdmin(), requireCsrf, controller.confirmReceipt);
   router.post('/admin/applications/:applicationId/verify', requireDepartmentAdmin(), requireCsrf, controller.verifyPhysical);
   router.post('/admin/applications/:applicationId/approve', requireDepartmentAdmin(), requireCsrf, controller.approve);
@@ -46,6 +56,13 @@ export function createRouter() {
   router.post('/lecturer/schedules', requireRole(ROLES.LECTURER), requireCsrf, controller.createSchedule);
   router.post('/lecturer/schedules/:scheduleId/cancel', requireRole(ROLES.LECTURER), requireCsrf, controller.cancelSchedule);
   router.post('/lecturer/applications/:applicationId/complete', requireRole(ROLES.LECTURER), requireCsrf, controller.complete);
+  router.get('/lecturer/exam-notices', requireRole(ROLES.LECTURER), controller.listExamNotices);
+  router.post('/lecturer/exam-notices', requireRole(ROLES.LECTURER), requireCsrf, controller.publishExamNotice);
+  router.post('/lecturer/exam-notices/:noticeId/reschedule', requireRole(ROLES.LECTURER), requireCsrf, controller.rescheduleExamNotice);
+  router.post('/lecturer/exam-notices/:noticeId/cancel', requireRole(ROLES.LECTURER), requireCsrf, controller.cancelExamNotice);
+  router.post('/lecturer/exam-notices/:noticeId/attach', requireRole(ROLES.LECTURER), requireCsrf, controller.attachToExamNotice);
+  router.get('/lecturer/exam-notices/:noticeId/delivery', requireRole(ROLES.LECTURER), controller.examNoticeDelivery);
+  router.post('/lecturer/subjects/:linkId/complete', requireRole(ROLES.LECTURER), requireCsrf, controller.completeSubject);
 
   router.get(
     '/recovery-results',

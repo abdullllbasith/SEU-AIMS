@@ -38,7 +38,16 @@ export function validateProductionConfig(config) {
   if (config.logLevel === 'debug') {
     problems.push('LOG_LEVEL=debug is not recommended in production');
   }
-  return { ok: problems.length === 0, problems };
+  // Delivery providers are reported as warnings: the system records undeliverable messages as FAILED,
+  // it never reports them as sent.
+  const warnings = [];
+  if (config.email?.provider !== 'smtp' || !config.email?.smtp?.host) {
+    warnings.push('Email is not configured (EMAIL_PROVIDER=smtp and SMTP_HOST); email notifications will be recorded as FAILED');
+  }
+  if (!config.whatsapp?.accessToken || !config.whatsapp?.phoneNumberId) {
+    warnings.push('WhatsApp Cloud API is not configured; WhatsApp notifications will be recorded as FAILED');
+  }
+  return { ok: problems.length === 0, problems, warnings };
 }
 
 export function assertProductionConfig(config) {

@@ -33,6 +33,7 @@ import {
   CaApplicationSubject,
   CaApplicationEvent,
   CaSchedule,
+  CaExamNotice,
   CaApplicationWindow,
 } from '../../modules/ca-recovery/index.js';
 import { Notice, CalendarEvent } from '../../modules/notices-calendar/index.js';
@@ -76,6 +77,7 @@ export function registerModels() {
     CaApplicationSubject,
     CaApplicationEvent,
     CaSchedule,
+    CaExamNotice,
     CaApplicationWindow,
     Notice,
     CalendarEvent,

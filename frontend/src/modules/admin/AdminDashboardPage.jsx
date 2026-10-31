@@ -700,7 +700,7 @@ export function AdminDashboardPage() {
               <StatIcon name="export" className="shortcut-tile__icon" />
               <span className="shortcut-tile__copy">
                 <span className="shortcut-tile__title">Student directory CSV</span>
-                <span className="shortcut-tile__meta">Offline export · max 500 rows</span>
+                <span className="shortcut-tile__meta">Offline export · up to 10,000 students</span>
               </span>
               <StatIcon name="chevron" className="shortcut-tile__chevron" />
             </a>
@@ -795,6 +795,7 @@ export function AdminDashboardPage() {
       <Panel title="Academic intelligence" kicker="Department insights">
         <p className="panel-lead panel-lead--tight">
           Aggregated academic signals from verified GPA snapshots and official result codes.
+          The average uses the DICT calculator copy in this system. It is not a faculty-confirmed senate rule.
           Individual student values are never shown here.
         </p>
 

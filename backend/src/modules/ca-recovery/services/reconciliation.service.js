@@ -3,6 +3,7 @@ import { AcademicResult } from '../../results/models/academic-result.model.js';
 import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { CaSchedule } from '../models/ca-schedule.model.js';
 import { CaApplication } from '../models/ca-application.model.js';
+import { CaApplicationSubject } from '../models/ca-application-subject.model.js';
 import { syncIncompleteCaFromResult } from './eca-from-results.js';
 import { recordCaAudit } from './notify.js';
 import { ForbiddenError } from '../../../shared/errors/app-error.js';
@@ -69,7 +70,10 @@ export async function reconcileCaConditions(principal) {
     }
   }
 
-  const schedules = await CaSchedule.find({ departmentId, cancelledAt: { $exists: false } })
+  const schedules = await CaSchedule.find({
+    departmentId,
+    $or: [{ status: 'ACTIVE' }, { status: { $exists: false }, cancelledAt: { $exists: false } }],
+  })
     .select('applicationId')
     .lean();
   if (schedules.length) {
@@ -137,8 +141,66 @@ export async function listUnresolvedEcaConditions(principal) {
   };
 }
 
+// Links created before subject-level states have no examStatus field at all (the schema default only applies
+// to new documents), so a missing field is treated like the PENDING_APPROVAL default.
+const UNSET_EXAM_STATUS = { $or: [{ examStatus: 'PENDING_APPROVAL' }, { examStatus: { $exists: false } }] };
+
+/**
+ * Give pre-existing schedules and subject links their subject-level state. Idempotent: it only touches
+ * schedules with no status and links still at the default PENDING_APPROVAL on an already approved application.
+ */
+export async function backfillSubjectExamStates(departmentId) {
+  // Replaces the old unique (application, subject) and unique calendar-event indexes.
+  await CaSchedule.syncIndexes();
+  await CaSchedule.updateMany(
+    { departmentId, status: { $exists: false }, cancelledAt: { $exists: true } },
+    { $set: { status: 'CANCELLED', generation: 1 } },
+  );
+  await CaSchedule.updateMany(
+    { departmentId, status: { $exists: false } },
+    { $set: { status: 'ACTIVE', generation: 1 } },
+  );
+  const applications = await CaApplication.find({
+    departmentId,
+    workflowStatus: { $in: ['APPROVED', 'SCHEDULED', 'COMPLETED', 'RESOLVED'] },
+  }).select('workflowStatus');
+  const counts = { READY_TO_SCHEDULE: 0, SCHEDULED: 0, COMPLETED: 0, RESOLVED: 0 };
+  for (const application of applications) {
+    const links = await CaApplicationSubject.find({ applicationId: application._id, ...UNSET_EXAM_STATUS });
+    for (const link of links) {
+      const condition = await IncompleteCa.findById(link.incompleteCaId).select('status');
+      const schedule = await CaSchedule.findOne({
+        applicationId: application._id,
+        incompleteCaId: link.incompleteCaId,
+        status: 'ACTIVE',
+      });
+      let examStatus = 'READY_TO_SCHEDULE';
+      if (condition?.status === 'RESOLVED' || application.workflowStatus === 'RESOLVED') {
+        examStatus = 'RESOLVED';
+      } else if (schedule) {
+        examStatus = 'SCHEDULED';
+      } else if (application.workflowStatus === 'COMPLETED') {
+        examStatus = 'COMPLETED';
+      }
+      await CaApplicationSubject.updateOne(
+        { _id: link._id, ...UNSET_EXAM_STATUS },
+        {
+          $set: {
+            examStatus,
+            statusChangedAt: new Date(),
+            ...(examStatus === 'SCHEDULED' ? { activeScheduleId: schedule._id } : {}),
+          },
+        },
+      );
+      counts[examStatus] += 1;
+    }
+  }
+  return counts;
+}
+
 export async function backfillMissingCaConditions(principal) {
   assertAdmin(principal);
+  const subjects = await backfillSubjectExamStates(principal.departmentId);
   const results = await AcademicResult.find({ departmentId: principal.departmentId, isEca: true });
   let created = 0;
   let existing = 0;
@@ -157,7 +219,7 @@ export async function backfillMissingCaConditions(principal) {
     entityType: 'IncompleteCa',
     entityId: principal.departmentId,
     departmentId: principal.departmentId,
-    metadata: { created, existing },
+    metadata: { created, existing, subjects },
   });
-  return { created, existing, examined: results.length };
+  return { created, existing, examined: results.length, subjects };
 }

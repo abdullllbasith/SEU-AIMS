@@ -23,7 +23,9 @@ import { CaApplication } from '../../src/modules/ca-recovery/models/ca-applicati
 import { CalendarEvent } from '../../src/modules/notices-calendar/models/calendar-event.model.js';
 import { Notification } from '../../src/modules/notifications/models/notification.model.js';
 import { syncIncompleteCaFromResult } from '../../src/modules/ca-recovery/services/eca-from-results.js';
-import { evaluateReminder } from '../../src/modules/ca-recovery/services/reminder.service.js';
+import { releaseDueNotifications } from '../../src/modules/notifications/services/dispatcher.service.js';
+import { CaExamNotice } from '../../src/modules/ca-recovery/models/ca-exam-notice.model.js';
+import { CaApplicationSubject } from '../../src/modules/ca-recovery/models/ca-application-subject.model.js';
 import { CaSchedule } from '../../src/modules/ca-recovery/models/ca-schedule.model.js';
 import { ROLES } from '../../src/shared/constants/roles.js';
 import { AuditEvent } from '../../src/modules/audit-security/index.js';
@@ -377,7 +379,17 @@ test('physical verify, approve, lecturer scope, schedule, reminders, and cancel'
       outcome: 'verified',
       receipt: `http://localhost:3001/api/ca/verify/${stored.qrVerificationToken}`,
     });
-  assert.equal(verified.status, 200);
+  assert.equal(verified.status, 400, 'verification needs the explicit inspection confirmation');
+  const verifiedConfirmed = await admin.agent
+    .post(`/api/ca/admin/applications/${applicationId}/verify`)
+    .set('X-CSRF-Token', admin.csrfToken)
+    .send({
+      outcome: 'verified',
+      receipt: `http://localhost:3001/api/ca/verify/${stored.qrVerificationToken}`,
+      inspectionConfirmed: true,
+    });
+  assert.equal(verifiedConfirmed.status, 200);
+  verified.body = verifiedConfirmed.body;
   assert.equal(verified.body.data.physicalVerificationStatus, 'PHYSICALLY_VERIFIED');
   const approved = await admin.agent
     .post(`/api/ca/admin/applications/${applicationId}/approve`)
@@ -419,37 +431,54 @@ test('physical verify, approve, lecturer scope, schedule, reminders, and cancel'
   assert.equal(reminders, 9);
 
   const schedule = await CaSchedule.findById(scheduled.body.data.id);
-  const tooEarly = await evaluateReminder({ scheduleId: schedule._id, offsetDays: 7, now: new Date() });
-  assert.equal(tooEarly.sent, false);
-  const due = await evaluateReminder({
-    scheduleId: schedule._id,
-    offsetDays: 7,
-    now: new Date(schedule.scheduledAt.getTime() - 6 * 24 * 3600_000),
-  });
-  assert.equal(due.sent, true);
-  const duplicateReminder = await evaluateReminder({
-    scheduleId: schedule._id,
-    offsetDays: 7,
-    now: new Date(schedule.scheduledAt.getTime() - 6 * 24 * 3600_000),
-  });
-  assert.equal(duplicateReminder.reason, 'ALREADY_SENT');
+  assert.equal(schedule.status, 'ACTIVE');
+  assert.ok(schedule.examNoticeId, 'legacy scheduling goes through the exam notice workflow');
+  assert.equal(await Notification.countDocuments({ type: 'CA_EXAM_SCHEDULED' }), 3);
 
-  await lecturer.agent
+  const tooEarly = await releaseDueNotifications({ now: new Date(), infrastructure: app.get('infrastructure') });
+  assert.equal(tooEarly.released, 0);
+  const sevenDayMark = new Date(schedule.scheduledAt.getTime() - 6 * 24 * 3600_000);
+  const due = await releaseDueNotifications({ now: sevenDayMark, infrastructure: app.get('infrastructure') });
+  assert.equal(due.released, 3);
+  const duplicateRelease = await releaseDueNotifications({ now: sevenDayMark, infrastructure: app.get('infrastructure') });
+  assert.equal(duplicateRelease.released, 0);
+
+  const legacyCancel = await lecturer.agent
     .post(`/api/ca/lecturer/schedules/${schedule._id}/cancel`)
     .set('X-CSRF-Token', lecturer.csrfToken)
     .send({});
+  assert.equal(legacyCancel.status, 409, 'a notice-backed schedule is cancelled through its notice');
+
+  const noReason = await lecturer.agent
+    .post(`/api/ca/lecturer/exam-notices/${schedule.examNoticeId}/cancel`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .send({});
+  assert.equal(noReason.status, 400);
+  const cancelledNotice = await lecturer.agent
+    .post(`/api/ca/lecturer/exam-notices/${schedule.examNoticeId}/cancel`)
+    .set('X-CSRF-Token', lecturer.csrfToken)
+    .send({ reason: 'Hall unavailable' });
+  assert.equal(cancelledNotice.status, 200);
   const calendar = await CalendarEvent.findById(schedule.calendarEventId);
   assert.ok(calendar.cancelledAt);
   assert.equal(calendar.reminderEnabled, false);
   assert.equal(await CalendarEvent.countDocuments(CalendarEvent.activeFilter({ eventType: 'CA_SCHEDULE' })), 0);
   assert.equal(await CalendarEvent.countDocuments({ eventType: 'CA_SCHEDULE' }), 1);
-  assert.equal(await AuditEvent.countDocuments({ action: 'ca.schedule.cancel', entityId: String(schedule._id) }), 1);
-  const cancelled = await evaluateReminder({
-    scheduleId: schedule._id,
-    offsetDays: 1,
+  assert.equal(
+    await AuditEvent.countDocuments({ action: 'ca.exam-notice.cancel', entityId: String(schedule.examNoticeId) }),
+    1,
+  );
+  assert.equal((await CaSchedule.findById(schedule._id)).status, 'CANCELLED');
+  assert.equal((await CaExamNotice.findById(schedule.examNoticeId)).status, 'CANCELLED');
+  assert.equal(await Notification.countDocuments({ type: 'CA_REMINDER', status: { $in: ['SCHEDULED', 'PENDING'] } }), 0);
+  const after = await releaseDueNotifications({
     now: new Date(schedule.scheduledAt.getTime()),
+    infrastructure: app.get('infrastructure'),
   });
-  assert.equal(cancelled.reason, 'CANCELLED_OR_MISSING');
+  assert.equal(after.released, 0, 'cancelled reminders are never released');
+  const link = await CaApplicationSubject.findOne({ incompleteCaId: condition._id });
+  assert.equal(link.examStatus, 'READY_TO_SCHEDULE');
+  assert.equal((await CaApplication.findOne({ applicationId })).workflowStatus, 'APPROVED');
 });
 
 test('reject and reopen restore draft editability; later official result resolves the condition', async () => {
@@ -538,7 +567,7 @@ test('concurrent semester applications leave one record; completing CA does not 
   await admin.agent
     .post(`/api/ca/admin/applications/${applicationId}/verify`)
     .set('X-CSRF-Token', admin.csrfToken)
-    .send({ outcome: 'verified', receipt: applicationId });
+    .send({ outcome: 'verified', receipt: applicationId, inspectionConfirmed: true });
   await admin.agent.post(`/api/ca/admin/applications/${applicationId}/approve`).set('X-CSRF-Token', admin.csrfToken).send({});
   await lecturer.agent
     .post('/api/ca/lecturer/schedules')
@@ -548,6 +577,7 @@ test('concurrent semester applications leave one record; completing CA does not 
       incompleteCaId: String(condition._id),
       subjectOfferingId: String(offering._id),
       scheduledAt: new Date(Date.now() + 8 * 24 * 3600_000).toISOString(),
+      venue: 'Lab 1',
     });
   const completed = await lecturer.agent
     .post(`/api/ca/lecturer/applications/${applicationId}/complete`)
@@ -589,7 +619,7 @@ test('completed or resolved cycle does not block a later E(CA) application; dupl
   await admin.agent
     .post(`/api/ca/admin/applications/${firstApplicationId}/verify`)
     .set('X-CSRF-Token', admin.csrfToken)
-    .send({ outcome: 'verified', receipt: firstApplicationId });
+    .send({ outcome: 'verified', receipt: firstApplicationId, inspectionConfirmed: true });
   await admin.agent
     .post(`/api/ca/admin/applications/${firstApplicationId}/approve`)
     .set('X-CSRF-Token', admin.csrfToken)

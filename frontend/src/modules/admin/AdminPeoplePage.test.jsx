@@ -15,6 +15,8 @@ vi.mock('./admin-api.js', () => ({
 vi.mock('./academic-api.js', () => ({
   academicApi: {
     batches: vi.fn(),
+    years: vi.fn(),
+    semesters: vi.fn(),
   },
 }));
 
@@ -33,6 +35,8 @@ describe('AdminPeoplePage', () => {
     academicApi.batches.mockResolvedValue({
       data: { items: [{ id: 'batch-21', code: '21ICT', name: '21 ICT' }] },
     });
+    academicApi.years.mockResolvedValue({ data: { items: [] } });
+    academicApi.semesters.mockResolvedValue({ data: { items: [] } });
     adminApi.students.mockResolvedValue({
       data: {
         page: 1,
@@ -66,7 +70,7 @@ describe('AdminPeoplePage', () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
     });
 
-    const batch = container.querySelector('select');
+    const batch = container.querySelector('#people-batch-filter');
     expect(batch).toBeTruthy();
     expect(container.textContent).toContain('21ICT');
     const setValue = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;

@@ -70,9 +70,9 @@ export async function getLecturerDashboard(principal, { refresh = false } = {}) 
   });
 
   const eligibleItems = caEligible.ok ? caEligible.data.items : [];
-  const approvedAwaiting = eligibleItems.filter((row) => row.workflowStatus === 'APPROVED').length;
+  const approvedAwaiting = eligibleItems.filter((row) => row.examStatus === 'READY_TO_SCHEDULE').length;
   const scheduleItems = caSchedules.ok
-    ? caSchedules.data.items.filter((row) => !row.cancelledAt)
+    ? caSchedules.data.items.filter((row) => !row.cancelledAt && row.status === 'ACTIVE')
     : [];
   const eventItems = events.ok ? events.data.items : [];
   const unreadValue = unread.ok ? unread.data.count : null;
@@ -183,7 +183,7 @@ export async function getOfferingWorkspace(principal, offeringId, query = {}) {
     ? caEligible.data.items.filter((row) => String(row.subjectOfferingId) === item.id)
     : [];
   const schedules = caSchedules.ok
-    ? caSchedules.data.items.filter((row) => String(row.subjectOfferingId) === item.id && !row.cancelledAt)
+    ? caSchedules.data.items.filter((row) => String(row.subjectOfferingId) === item.id && !row.cancelledAt && row.status === 'ACTIVE')
     : [];
   return {
     lecturerStatus,

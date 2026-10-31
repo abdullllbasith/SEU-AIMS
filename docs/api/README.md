@@ -43,9 +43,13 @@ Public (rate-limited): `GET /api/ca/verify/:token` — application ID plus workf
 
 Student: `GET /api/ca/conditions`, `GET /api/ca/windows/me`, `GET|POST /api/ca/applications`, `GET|PATCH /api/ca/applications/:applicationId`, `POST .../submit`, `GET .../pdf`.
 
-Admin: `GET|POST /api/ca/admin/windows`, `GET /api/ca/admin/applications`, `POST .../verify|approve|reject|reopen`.
+Admin: `GET|POST /api/ca/admin/windows`, `GET /api/ca/admin/applications`, `POST .../verify|approve|reject|reopen`, and `POST /api/ca/admin/scan-verify` `{ receipt, inspectionConfirmed: true }` (QR value or Application ID; records physical verification only, never approves; `verify` also needs `inspectionConfirmed`).
 
-Lecturer: `GET /api/ca/lecturer/eligible-students`, `GET|POST /api/ca/lecturer/schedules`, `POST .../schedules/:scheduleId/cancel`, `POST /api/ca/lecturer/applications/:applicationId/complete`.
+Lecturer (subject-level; each subject of a student's application is scheduled, cancelled, rescheduled, completed and reminded independently): `GET /api/ca/lecturer/eligible-students`, `GET|POST /api/ca/lecturer/exam-notices` (`{ subjectOfferingId, date, startTime, endTime?, venue }`, Asia/Colombo), `POST .../exam-notices/:noticeId/reschedule|cancel|attach`, `GET .../exam-notices/:noticeId/delivery`, `POST /api/ca/lecturer/subjects/:linkId/complete`.
+
+Deprecated lecturer endpoints: `GET|POST /api/ca/lecturer/schedules` (POST delegates to the notice workflow), `POST .../schedules/:scheduleId/cancel` (409 for notice-backed schedules), `POST /api/ca/lecturer/applications/:applicationId/complete` (completes one subject; 400 when ambiguous).
+
+WhatsApp: `POST /api/webhooks/whatsapp` applies Meta delivery receipts (`delivered`/`read` → `DELIVERED`, `failed` → `FAILED`) after the signature check.
 
 Mutating routes require CSRF except the public verify GET.
 

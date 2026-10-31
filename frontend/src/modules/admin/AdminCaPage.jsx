@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { caApi } from '../ca-recovery/ca-api.js';
 import { AdminCaReview } from './AdminCaReview.jsx';
+import { CaQrScanner } from './CaQrScanner.jsx';
 import { RecoveryResultReviews } from '../ca-recovery/RecoveryResultReviews.jsx';
 import { academicApi } from './academic-api.js';
 import { ActionButton } from '../../ui/ActionButton.jsx';
@@ -88,6 +89,7 @@ function AdminCaQueue() {
   const [form, setForm] = useState(EMPTY_WINDOW_FORM);
   const [editingId, setEditingId] = useState('');
   const [windowOpen, setWindowOpen] = useState(false);
+  const [lastVerified, setLastVerified] = useState(null);
 
   async function reload() {
     const [apps, yearRes, semRes, reviewRes, windowRes, conditionRes] = await Promise.all([
@@ -264,6 +266,29 @@ function AdminCaQueue() {
           tone="watch"
         />
       </div>
+
+      <Panel title="Verify printed form" kicker="QR scan or Application ID">
+        <CaQrScanner
+          busy={busy}
+          onSubmit={async (receipt) => {
+            const response = await caApi.scanVerify(receipt, true);
+            setLastVerified({
+              applicationId: response.data.applicationId,
+              alreadyVerified: Boolean(response.data.alreadyVerified),
+            });
+            await reload();
+          }}
+        />
+        {lastVerified ? (
+          <p className="receipt-check__status" role="status">
+            {lastVerified.alreadyVerified
+              ? `${lastVerified.applicationId} was already physically verified.`
+              : `${lastVerified.applicationId} is physically verified.`}{' '}
+            It is not approved yet.{' '}
+            <Link to={`/admin/ca/${encodeURIComponent(lastVerified.applicationId)}`}>Review &amp; approve</Link>
+          </p>
+        ) : null}
+      </Panel>
 
       <Panel
         id="unresolved-eca"

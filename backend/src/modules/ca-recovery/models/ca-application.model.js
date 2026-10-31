@@ -45,6 +45,11 @@ const caApplicationSchema = new mongoose.Schema(
     submittedAt: Date,
     physicallyVerifiedAt: Date,
     verifiedByAdminUserId: { type: objectId, ref: 'User' },
+    physicalInspection: {
+      confirmedByUserId: { type: objectId, ref: 'User' },
+      confirmedAt: Date,
+      method: { type: String, enum: ['QR_SCAN', 'MANUAL_ID'] },
+    },
     decidedAt: Date,
     decidedByUserId: { type: objectId, ref: 'User' },
     reopenedAt: Date,

@@ -29,6 +29,7 @@ export function AdminObservabilityPage() {
   const [notify, setNotify] = useState(null);
   const [calendar, setCalendar] = useState(null);
   const [files, setFiles] = useState(null);
+  const [retryingId, setRetryingId] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -119,12 +120,47 @@ export function AdminObservabilityPage() {
               </div>
             ) : null}
           </dl>
+          {jobs?.failed?.length ? (
+            <ul className="entity-list">
+              {jobs.failed.map((job) => (
+                <li key={job.jobId || `${job.name}-${job.failedAt}`}>
+                  <span>
+                    {job.name} · {job.category}
+                  </span>
+                  {job.retryable ? (
+                    <button
+                      type="button"
+                      disabled={retryingId === job.jobId}
+                      onClick={() => {
+                        setRetryingId(job.jobId);
+                        setError('');
+                        adminApi
+                          .retryJob(job.jobId)
+                          .then(() => adminApi.jobs())
+                          .then((response) => setJobs(response.data))
+                          .catch((caught) => setError(caught.message || 'Retry failed'))
+                          .finally(() => setRetryingId(''));
+                      }}
+                    >
+                      {retryingId === job.jobId ? 'Retrying…' : 'Retry'}
+                    </button>
+                  ) : (
+                    <span className="deadline-empty">No saved payload</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="deadline-empty">No failed jobs are waiting.</p>
+          )}
         </Panel>
 
         <Panel title="Integrity & notifications" kicker="Diagnostic">
           <p className="panel-lead">
             Integrity issues: <strong>{ops?.integrity?.issueCount ?? '—'}</strong>. Diagnostic only;
-            this view does not repair records.
+            this view does not repair records. Email:{' '}
+            {notify?.channels?.email ? 'configured' : 'not configured'}. WhatsApp:{' '}
+            {notify?.channels?.whatsapp ? 'configured' : 'not configured'}. In-app delivery stays on.
           </p>
           <dl className="record-dl record-dl--inline">
             <div>

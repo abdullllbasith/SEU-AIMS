@@ -58,13 +58,22 @@ export const caApi = {
   reconciliation: () => apiRequest('/ca/admin/reconciliation'),
   unresolvedConditions: () => apiRequest('/ca/admin/conditions'),
   backfill: () => apiRequest('/ca/admin/backfill', { method: 'POST', body: JSON.stringify({}) }),
+  scanVerify: (receipt, inspectionConfirmed) =>
+    apiRequest('/ca/admin/scan-verify', { method: 'POST', body: JSON.stringify({ receipt, inspectionConfirmed }) }),
   lecturerEligible: () => apiRequest('/ca/lecturer/eligible-students'),
   lecturerSchedules: () => apiRequest('/ca/lecturer/schedules'),
-  createSchedule: (body) => apiRequest('/ca/lecturer/schedules', { method: 'POST', body: JSON.stringify(body) }),
-  cancelSchedule: (id) =>
-    apiRequest(`/ca/lecturer/schedules/${id}/cancel`, { method: 'POST', body: JSON.stringify({}) }),
-  complete: (id) =>
-    apiRequest(`/ca/lecturer/applications/${id}/complete`, { method: 'POST', body: JSON.stringify({}) }),
+  examNotices: () => apiRequest('/ca/lecturer/exam-notices'),
+  publishExamNotice: (body) =>
+    apiRequest('/ca/lecturer/exam-notices', { method: 'POST', body: JSON.stringify(body) }),
+  rescheduleExamNotice: (id, body) =>
+    apiRequest(`/ca/lecturer/exam-notices/${id}/reschedule`, { method: 'POST', body: JSON.stringify(body) }),
+  cancelExamNotice: (id, reason) =>
+    apiRequest(`/ca/lecturer/exam-notices/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  attachToExamNotice: (id) =>
+    apiRequest(`/ca/lecturer/exam-notices/${id}/attach`, { method: 'POST', body: JSON.stringify({}) }),
+  examNoticeDelivery: (id) => apiRequest(`/ca/lecturer/exam-notices/${id}/delivery`),
+  completeSubject: (linkId) =>
+    apiRequest(`/ca/lecturer/subjects/${linkId}/complete`, { method: 'POST', body: JSON.stringify({}) }),
   recoveryResults: () => apiRequest('/ca/recovery-results'),
   decideRecovery: (id, decision) =>
     apiRequest(`/ca/recovery-results/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision }) }),

@@ -15,7 +15,12 @@ export async function getCaOverview(principal) {
       { $match: { departmentId } },
       { $group: { _id: '$workflowStatus', count: { $sum: 1 } } },
     ]),
-    CaSchedule.countDocuments({ departmentId, cancelledAt: null, scheduledAt: { $gte: now } }),
+    CaSchedule.countDocuments({
+      departmentId,
+      cancelledAt: null,
+      status: { $nin: ['CANCELLED', 'SUPERSEDED', 'COMPLETED'] },
+      scheduledAt: { $gte: now },
+    }),
     CaApplication.countDocuments({ departmentId, pdfStatus: 'FAILED' }),
   ]);
 

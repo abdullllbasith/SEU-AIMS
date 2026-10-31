@@ -25,6 +25,8 @@ export function createNoticesRouter() {
       limits: { fileSize: 4 * 1024 * 1024, files: 1 },
     }).single('file')(req, res, next);
   }, controller.addImage);
+  router.delete('/admin/:noticeId/images/:imageId', requireDepartmentAdmin(), requireCsrf, controller.removeImage);
+  router.patch('/admin/:noticeId/images', requireDepartmentAdmin(), requireCsrf, controller.reorderImages);
   router.post('/admin/:noticeId/publish', requireDepartmentAdmin(), requireCsrf, writeLimiter, controller.publish);
   router.post('/admin/:noticeId/archive', requireDepartmentAdmin(), requireCsrf, controller.archive);
   router.get(

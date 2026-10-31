@@ -23,7 +23,20 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
   'security',
 ]);
 
-export const TEMPLATE_ALLOWED_VARS = Object.freeze(['title', 'applicationId', 'eventTitle', 'when', 'reason']);
+export const TEMPLATE_ALLOWED_VARS = Object.freeze([
+  'title',
+  'applicationId',
+  'eventTitle',
+  'when',
+  'reason',
+  'subjectCode',
+  'subjectName',
+  'venue',
+  'examDate',
+  'examTime',
+  'registrationNumber',
+  'offsetDays',
+]);
 
 /** Configurable mandatory types. Users cannot disable these channels via preferences. */
 export const MANDATORY_NOTIFICATION_TYPES = Object.freeze([
@@ -32,6 +45,10 @@ export const MANDATORY_NOTIFICATION_TYPES = Object.freeze([
   'CA_APPLICATION_REJECTED',
   'CA_APPLICATION_REOPENED',
   'CA_WINDOW_OPEN',
+  'CA_LECTURER_APPROVED_STUDENT',
+  'CA_EXAM_SCHEDULED',
+  'CA_EXAM_RESCHEDULED',
+  'CA_EXAM_CANCELLED',
   'RESULTS_UPDATED',
   'NOTICE_PUBLISHED',
 ]);

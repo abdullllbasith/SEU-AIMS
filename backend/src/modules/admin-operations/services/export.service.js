@@ -41,15 +41,24 @@ export async function exportStudentsCsv(principal, query = {}, { ip, userAgent, 
   const total = await User.countDocuments(userFilter);
   if (total > EXPORT_STUDENT_MAX_ROWS) {
     throw new ValidationError(
-      `Export is limited to ${EXPORT_STUDENT_MAX_ROWS} rows. Narrow the search or batch filter. Asynchronous bulk export is not implemented.`,
+      `Export is limited to ${EXPORT_STUDENT_MAX_ROWS} students. Narrow the search or batch filter.`,
     );
   }
 
-  const users = await User.find(userFilter)
-    .select('displayName email accountStatus')
-    .sort({ displayName: 1 })
-    .limit(EXPORT_STUDENT_MAX_ROWS)
-    .lean();
+  const users = [];
+  const pageSize = 500;
+  while (users.length < total) {
+    const batch = await User.find(userFilter)
+      .select('displayName email accountStatus')
+      .sort({ displayName: 1, _id: 1 })
+      .skip(users.length)
+      .limit(pageSize)
+      .lean();
+    if (!batch.length) {
+      break;
+    }
+    users.push(...batch);
+  }
   const [batches, years, semesters] = await Promise.all([
     Batch.find({ departmentId }).select('code').lean(),
     AcademicYear.find({ departmentId }).select('name').lean(),

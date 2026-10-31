@@ -3,6 +3,11 @@
  * Other modules must import from this file only.
  */
 import { createRouter } from './routes/index.js';
+import { registerNotificationGuard } from '../notifications/index.js';
+import { caNotificationGuard } from './services/exam-notice.guard.js';
+
+// A CA exam message is only sent while its notice generation is still the live schedule for that subject.
+registerNotificationGuard('ca-recovery', caNotificationGuard);
 
 export const MODULE_ID = 'ca-recovery';
 export const API_PREFIX = '/api/ca';
@@ -33,7 +38,8 @@ export {
 } from './services/recovery-result-review.service.js';
 export { processEcaDetectJob } from './services/eca-detect.service.js';
 export { generateApplicationPdf } from './services/pdf.service.js';
-export { evaluateReminder } from './services/reminder.service.js';
+export { CaExamNotice } from './models/ca-exam-notice.model.js';
 export { listOwnApplications, listEligibleConditions } from './services/application.service.js';
 export { listApprovedForLecturer, listSchedules } from './services/schedule.service.js';
+export { syncApplicationStatusFromSubjects, deriveApplicationStatus } from './services/application-status.service.js';
 export { windowLifecycle } from './utils/http.js';

@@ -3,7 +3,7 @@
  * This file is documentation-in-code, not an authoritative store.
  */
 export const DASHBOARD_CACHE_TTL_MS = 15_000;
-export const EXPORT_STUDENT_MAX_ROWS = 500;
+export const EXPORT_STUDENT_MAX_ROWS = 10000;
 export const SEARCH_MAX_LENGTH = 64;
 
 export const PENDING_RESULT_IMPORT_STATUSES = Object.freeze([

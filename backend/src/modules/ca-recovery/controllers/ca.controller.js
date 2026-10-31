@@ -3,6 +3,7 @@ import { asyncHandler } from '../../../shared/http/async-handler.js';
 import * as applicationService from '../services/application.service.js';
 import * as windowService from '../services/window.service.js';
 import * as scheduleService from '../services/schedule.service.js';
+import * as examNoticeService from '../services/exam-notice.service.js';
 import { downloadApplicationPdf } from '../services/pdf.service.js';
 import * as reconciliationService from '../services/reconciliation.service.js';
 import * as recoveryReviewService from '../services/recovery-result-review.service.js';
@@ -102,7 +103,39 @@ export function createCaController() {
       sendSuccess(res, await scheduleService.cancelSchedule(req.principal, req.params.scheduleId));
     }),
     complete: asyncHandler(async (req, res) => {
-      sendSuccess(res, await scheduleService.completeApplication(req.principal, req.params.applicationId));
+      sendSuccess(res, await scheduleService.completeApplication(req.principal, req.params.applicationId, req.body || {}));
+    }),
+    scanVerify: asyncHandler(async (req, res) => {
+      sendSuccess(res, await applicationService.scanVerify(req.principal, req.body || {}));
+    }),
+    listExamNotices: asyncHandler(async (req, res) => {
+      sendSuccess(res, await examNoticeService.listExamNotices(req.principal));
+    }),
+    publishExamNotice: asyncHandler(async (req, res) => {
+      sendSuccess(res, await examNoticeService.publishExamNotice(req.principal, req.body || {}, deps(req)), {
+        statusCode: 201,
+      });
+    }),
+    rescheduleExamNotice: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await examNoticeService.rescheduleExamNotice(req.principal, req.params.noticeId, req.body || {}, deps(req)),
+      );
+    }),
+    cancelExamNotice: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await examNoticeService.cancelExamNotice(req.principal, req.params.noticeId, req.body || {}, deps(req)),
+      );
+    }),
+    attachToExamNotice: asyncHandler(async (req, res) => {
+      sendSuccess(res, await examNoticeService.attachEligibleToNotice(req.principal, req.params.noticeId, deps(req)));
+    }),
+    examNoticeDelivery: asyncHandler(async (req, res) => {
+      sendSuccess(res, await examNoticeService.examNoticeDelivery(req.principal, req.params.noticeId));
+    }),
+    completeSubject: asyncHandler(async (req, res) => {
+      sendSuccess(res, await examNoticeService.completeSubject(req.principal, { linkId: req.params.linkId }));
     }),
     listRecoveryReviews: asyncHandler(async (req, res) => {
       sendSuccess(res, await recoveryReviewService.listRecoveryResultReviews(req.principal));

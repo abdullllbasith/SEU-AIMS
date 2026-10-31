@@ -3,7 +3,11 @@ import { asyncHandler } from '../../../shared/http/async-handler.js';
 import * as query from '../services/audit-query.service.js';
 import { runIntegrityChecks } from '../services/integrity.service.js';
 import { liveness, readiness } from '../../../infrastructure/observability/health.service.js';
-import { verifyWhatsAppWebhookGet, verifyWhatsAppWebhookSignature } from '../services/webhook.service.js';
+import {
+  applyWhatsAppStatuses,
+  verifyWhatsAppWebhookGet,
+  verifyWhatsAppWebhookSignature,
+} from '../services/webhook.service.js';
 
 export function createAuditController() {
   return {
@@ -39,7 +43,8 @@ export function createAuditController() {
     whatsappReceive: asyncHandler(async (req, res) => {
       const raw = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
       verifyWhatsAppWebhookSignature(raw, req.get('x-hub-signature-256'), req.app.get('config'));
-      sendSuccess(res, { accepted: true });
+      const receipts = await applyWhatsAppStatuses(req.body);
+      sendSuccess(res, { accepted: true, receipts });
     }),
   };
 }

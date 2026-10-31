@@ -12,6 +12,7 @@ import {
   getCalendarHealth,
   getStorageHealth,
   getJobs,
+  retryFailedJob,
   getAudit,
   getDataQuality,
   getSecuritySignals,
@@ -54,7 +55,7 @@ export function createAdminController() {
       sendSuccess(res, await listCaApplications(req.principal, req.query));
     }),
     notificationHealth: asyncHandler(async (req, res) => {
-      sendSuccess(res, await getNotificationHealth(req.principal));
+      sendSuccess(res, await getNotificationHealth(req.principal, { config: req.app.get('config') }));
     }),
     calendarHealth: asyncHandler(async (req, res) => {
       sendSuccess(res, await getCalendarHealth(req.principal));
@@ -64,6 +65,12 @@ export function createAdminController() {
     }),
     jobs: asyncHandler(async (req, res) => {
       sendSuccess(res, await getJobs(req.principal, { infrastructure: req.app.get('infrastructure') }));
+    }),
+    retryJob: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await retryFailedJob(req.principal, req.params.jobId, { infrastructure: req.app.get('infrastructure') }),
+      );
     }),
     audit: asyncHandler(async (req, res) => {
       sendSuccess(res, await getAudit(req.principal, req.query));

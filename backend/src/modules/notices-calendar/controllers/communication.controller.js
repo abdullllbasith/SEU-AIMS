@@ -36,6 +36,12 @@ export function createNoticeController() {
         { statusCode: 201 },
       );
     }),
+    removeImage: asyncHandler(async (req, res) => {
+      sendSuccess(res, await noticeService.removeNoticeImage(req.principal, req.params.noticeId, req.params.imageId));
+    }),
+    reorderImages: asyncHandler(async (req, res) => {
+      sendSuccess(res, await noticeService.reorderNoticeImages(req.principal, req.params.noticeId, req.body?.imageIds));
+    }),
     image: asyncHandler(async (req, res) => {
       const file = await noticeService.readNoticeImage(
         req.principal,

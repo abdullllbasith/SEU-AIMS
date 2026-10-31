@@ -95,6 +95,22 @@ export function AdminResourcesPage() {
                       <Link to={`/learning/offerings/${item.subjectOfferingId}`}>Open offering</Link>
                     </td>
                     <td>
+                      {item.scanStatus === 'SAFE' && item.publicationState !== 'PUBLISHED' ? (
+                        <ActionButton
+                          busy={busyId === `publish:${item.id}`}
+                          busyLabel="Publishing…"
+                          onClick={() => {
+                            setBusyId(`publish:${item.id}`);
+                            learningApi
+                              .publish(item.id)
+                              .then(reload)
+                              .catch((caught) => setError(caught.message))
+                              .finally(() => setBusyId(''));
+                          }}
+                        >
+                          Publish
+                        </ActionButton>
+                      ) : null}
                       {item.publicationState === 'PUBLISHED' ? (
                         <ActionButton
                           busy={busyId === item.id}
@@ -113,9 +129,43 @@ export function AdminResourcesPage() {
                         >
                           Unpublish
                         </ActionButton>
-                      ) : (
-                        <span className="deadline-empty">—</span>
-                      )}
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={Boolean(busyId)}
+                        onClick={() => {
+                          const title = window.prompt('New title', item.title);
+                          if (!title || title.trim() === item.title) {
+                            return;
+                          }
+                          setBusyId(`rename:${item.id}`);
+                          learningApi
+                            .updateResource(item.id, { title: title.trim() })
+                            .then(reload)
+                            .catch((caught) => setError(caught.message))
+                            .finally(() => setBusyId(''));
+                        }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        className="btn--danger"
+                        disabled={Boolean(busyId)}
+                        onClick={() => {
+                          if (!window.confirm('Remove this file from students and the department list?')) {
+                            return;
+                          }
+                          setBusyId(`archive:${item.id}`);
+                          learningApi
+                            .archive(item.id)
+                            .then(reload)
+                            .catch((caught) => setError(caught.message))
+                            .finally(() => setBusyId(''));
+                        }}
+                      >
+                        Remove
+                      </button>
                     </td>
                   </tr>
                 ))}

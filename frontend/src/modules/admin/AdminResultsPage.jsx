@@ -456,7 +456,8 @@ export function AdminResultsPage() {
         >
           <div className="import-upload__info">
             <p className="panel-lead panel-lead--tight">
-              Download the template, fill the Results and Repeaters sheets, then upload the file.
+              Download the SEU-AIMS template, fill the Results and Repeaters sheets, then upload that file.
+              A faculty mark sheet with a different layout is rejected.
             </p>
             <div className="import-pipeline-meter">
               <div className="import-pipeline-meter__head">

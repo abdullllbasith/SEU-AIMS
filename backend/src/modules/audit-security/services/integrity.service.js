@@ -31,7 +31,11 @@ export async function runIntegrityChecks(principal) {
     }
   }
 
-  const schedules = await CaSchedule.find({ departmentId, cancelledAt: null }).limit(200);
+  const schedules = await CaSchedule.find({
+    departmentId,
+    cancelledAt: null,
+    status: { $nin: ['CANCELLED', 'SUPERSEDED', 'COMPLETED'] },
+  }).limit(200);
   for (const schedule of schedules) {
     const event = await CalendarEvent.findById(schedule.calendarEventId);
     if (!event) {

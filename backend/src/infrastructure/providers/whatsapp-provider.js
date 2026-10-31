@@ -24,6 +24,35 @@ export function classifyWhatsAppHttpStatus(status) {
   return { retryable: false, category: 'permanent' };
 }
 
+/**
+ * Build the Cloud API payload. A `template` ({ name, language, parameters[] }) sends an approved template
+ * message (required for business-initiated messages); otherwise a plain text message is sent.
+ */
+export function buildMessagePayload(message) {
+  if (message.template?.name) {
+    const parameters = (message.template.parameters || []).map((text) => ({
+      type: 'text',
+      text: String(text ?? '').replace(/[\r\n\t]+/g, ' ').slice(0, 1024),
+    }));
+    return {
+      messaging_product: 'whatsapp',
+      to: message.to,
+      type: 'template',
+      template: {
+        name: message.template.name,
+        language: { code: message.template.language || 'en' },
+        ...(parameters.length ? { components: [{ type: 'body', parameters }] } : {}),
+      },
+    };
+  }
+  return {
+    messaging_product: 'whatsapp',
+    to: message.to,
+    type: 'text',
+    text: { body: String(message.body || '').slice(0, 1024) },
+  };
+}
+
 export class MetaWhatsAppProvider extends WhatsAppProvider {
   constructor({ config, fetchImpl = fetch } = {}) {
     super();
@@ -45,12 +74,7 @@ export class MetaWhatsAppProvider extends WhatsAppProvider {
           Authorization: `Bearer ${this.config.accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: message.to,
-          type: 'text',
-          text: { body: String(message.body || '').slice(0, 1024) },
-        }),
+        body: JSON.stringify(buildMessagePayload(message)),
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
