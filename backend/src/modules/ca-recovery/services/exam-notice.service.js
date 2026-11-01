@@ -4,6 +4,7 @@ import { CaApplicationSubject } from '../models/ca-application-subject.model.js'
 import { CaApplicationEvent } from '../models/ca-application-event.model.js';
 import { CaExamNotice } from '../models/ca-exam-notice.model.js';
 import { CaSchedule } from '../models/ca-schedule.model.js';
+import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { CalendarEvent } from '../../notices-calendar/index.js';
 import { Notification } from '../../notifications/index.js';
 import {
@@ -19,6 +20,7 @@ import { COLOMBO_TIMEZONE, colomboLocalToUtc, formatColombo } from '../../../sha
 import { requireObjectId } from '../utils/http.js';
 import { emitCaNotification, recordCaAudit } from './notify.js';
 import { buildCaMessage } from './exam-messages.js';
+import { notifyBatchStudents, wasNotifiedAsBatch } from './batch-notify.service.js';
 import { syncApplicationStatusFromSubjects } from './application-status.service.js';
 import { cancelNotificationsFor, guardRefFor, noticeSourceId, queueRemindersForLinks } from './reminder.service.js';
 
@@ -175,21 +177,26 @@ async function attachLinks({ notice, entries, subject, actorUserId, infrastructu
     const fromStatus = application.workflowStatus;
     await syncApplicationStatusFromSubjects(application._id, { actorUserId, linkId: String(link._id) });
     await recordLinkEvent({ application, type: 'SCHEDULED', actorUserId, fromStatus, subject });
-    const { vars, templateParams } = buildCaMessage({ type, subject, notice, application });
-    await emitCaNotification({
-      recipientUserId: application.studentUserId,
-      type,
-      sourceId: noticeSourceId(notice, link),
-      departmentId: application.departmentId,
-      infrastructure,
-      vars,
-      templateParams,
-      guardRef: guardRefFor(notice, link),
-    });
-    attached.push({ link: claimed, application, subject });
+    // A current-batch student already has this notice and its reminders; do not send them twice.
+    const batchNotified = await wasNotifiedAsBatch(notice, application.studentUserId);
+    if (!batchNotified) {
+      const { vars, templateParams } = buildCaMessage({ type, subject, notice, application });
+      await emitCaNotification({
+        recipientUserId: application.studentUserId,
+        type,
+        sourceId: noticeSourceId(notice, link),
+        departmentId: application.departmentId,
+        infrastructure,
+        vars,
+        templateParams,
+        guardRef: guardRefFor(notice, link),
+      });
+    }
+    attached.push({ link: claimed, application, subject, batchNotified });
   }
-  if (attached.length) {
-    await queueRemindersForLinks({ notice, entries: attached, infrastructure });
+  const remindable = attached.filter((entry) => !entry.batchNotified);
+  if (remindable.length) {
+    await queueRemindersForLinks({ notice, entries: remindable, infrastructure });
   }
   return attached;
 }
@@ -265,13 +272,22 @@ export async function publishExamNotice(principal, body, { infrastructure } = {}
     actorUserId: principal.userId,
     infrastructure,
   });
+  const batchStudents = await notifyBatchStudents({
+    type: 'CA_EXAM_SCHEDULED',
+    notice,
+    subject,
+    offering,
+    excludeUserIds: attached.map((item) => item.application.studentUserId),
+    withReminders: true,
+    infrastructure,
+  });
   await recordCaAudit({
     actorUserId: principal.userId,
     action: 'ca.exam-notice.publish',
     entityType: 'CaExamNotice',
     entityId: notice._id,
     departmentId: notice.departmentId,
-    metadata: { subjectOfferingId: String(offering._id), students: attached.length },
+    metadata: { subjectOfferingId: String(offering._id), students: attached.length, batchStudents },
   });
   return mapNotice(notice, { subject, studentCount: attached.length });
 }
@@ -447,6 +463,18 @@ export async function rescheduleExamNotice(principal, noticeId, body = {}, { inf
     });
   }
   const reminders = await queueRemindersForLinks({ notice, entries: moved, infrastructure });
+  const offering = await SubjectOffering.findById(notice.subjectOfferingId);
+  if (offering) {
+    await notifyBatchStudents({
+      type: 'CA_EXAM_RESCHEDULED',
+      notice,
+      subject,
+      offering,
+      excludeUserIds: moved.map((entry) => entry.application.studentUserId),
+      withReminders: true,
+      infrastructure,
+    });
+  }
   await recordCaAudit({
     actorUserId: principal.userId,
     action: 'ca.exam-notice.reschedule',
@@ -500,6 +528,7 @@ export async function cancelExamNotice(principal, noticeId, body = {}, { infrast
 
   const subject = await Subject.findById(notice.subjectId);
   const schedules = await CaSchedule.find({ examNoticeId: notice._id, status: 'ACTIVE' });
+  const notifiedStudentIds = [];
   let affected = 0;
   for (const schedule of schedules) {
     const cancelled = await CaSchedule.findOneAndUpdate(
@@ -540,6 +569,19 @@ export async function cancelExamNotice(principal, noticeId, body = {}, { infrast
       infrastructure,
       vars,
       templateParams,
+    });
+    notifiedStudentIds.push(application.studentUserId);
+  }
+  const offering = await SubjectOffering.findById(notice.subjectOfferingId);
+  if (offering) {
+    await notifyBatchStudents({
+      type: 'CA_EXAM_CANCELLED',
+      notice,
+      subject,
+      offering,
+      excludeUserIds: notifiedStudentIds,
+      reason,
+      infrastructure,
     });
   }
   await recordCaAudit({
@@ -613,6 +655,131 @@ export async function completeSubject(principal, { linkId }) {
     examStatus: 'COMPLETED',
     workflowStatus: derived.workflowStatus || application.workflowStatus,
   };
+}
+
+/** Scheduled subject links of a published notice, with their ACTIVE schedule. */
+async function scheduledLinksForNotice(notice) {
+  const schedules = await CaSchedule.find({ examNoticeId: notice._id, status: 'ACTIVE' });
+  const links = await CaApplicationSubject.find({
+    activeScheduleId: { $in: schedules.map((item) => item._id) },
+    examStatus: 'SCHEDULED',
+  });
+  return links;
+}
+
+async function loadAttendanceNotice(principal, noticeId) {
+  requireObjectId(noticeId, 'exam notice');
+  const notice = await CaExamNotice.findById(noticeId);
+  if (!notice) {
+    throw new NotFoundError('Exam notice not found');
+  }
+  await requireManagedOffering(principal, notice.subjectOfferingId);
+  if (notice.status !== 'PUBLISHED') {
+    throw new ValidationError('This examination notice is not active');
+  }
+  if (notice.scheduledAt.getTime() > Date.now()) {
+    throw new ValidationError('Attendance can be recorded once the examination has started');
+  }
+  return notice;
+}
+
+/** Record who attended. Does not change any status; the lecturer confirms afterwards. */
+export async function markAttendance(principal, noticeId, body) {
+  const notice = await loadAttendanceNotice(principal, noticeId);
+  const entries = Array.isArray(body?.attendance) ? body.attendance : [];
+  if (!entries.length) {
+    throw new ValidationError('Attendance entries are required');
+  }
+  const links = await scheduledLinksForNotice(notice);
+  const byId = new Map(links.map((item) => [String(item._id), item]));
+  const now = new Date();
+  for (const entry of entries) {
+    if (!byId.has(String(entry?.linkId)) || typeof entry.attended !== 'boolean') {
+      throw new ValidationError('Attendance entries must reference students on this notice');
+    }
+  }
+  for (const entry of entries) {
+    await CaApplicationSubject.updateOne(
+      { _id: entry.linkId, examStatus: 'SCHEDULED' },
+      { $set: { attended: entry.attended, attendanceMarkedAt: now } },
+    );
+  }
+  return { saved: entries.length };
+}
+
+/**
+ * Lecturer confirms the CA took place. Attended students -> COMPLETED (awaiting results); absent students ->
+ * MISSED and their E(CA) reopens so they can apply in a later application window. All are notified.
+ */
+export async function confirmNoticeCompletion(principal, noticeId, { infrastructure } = {}) {
+  const notice = await loadAttendanceNotice(principal, noticeId);
+  const links = await scheduledLinksForNotice(notice);
+  if (!links.length) {
+    throw new ValidationError('There are no scheduled students to confirm');
+  }
+  if (links.some((link) => typeof link.attended !== 'boolean')) {
+    throw new ValidationError('Record attendance for every student before confirming');
+  }
+  const subject = await Subject.findById(notice.subjectId);
+  const completedAt = new Date();
+  const summary = { completed: 0, missed: 0 };
+  for (const link of links) {
+    const attended = link.attended === true;
+    const claimed = await CaApplicationSubject.findOneAndUpdate(
+      { _id: link._id, examStatus: 'SCHEDULED' },
+      {
+        $set: {
+          examStatus: attended ? 'COMPLETED' : 'MISSED',
+          completedAt,
+          completedByUserId: principal.userId,
+          statusChangedAt: completedAt,
+        },
+      },
+      { new: true },
+    );
+    if (!claimed) {
+      continue;
+    }
+    await CaSchedule.updateOne({ _id: claimed.activeScheduleId, status: 'ACTIVE' }, { $set: { status: 'COMPLETED', completedAt } });
+    await cancelNotificationsFor({ noticeId: notice._id, linkId: claimed._id }, 'subject_completed');
+    if (!attended) {
+      await IncompleteCa.updateOne({ _id: claimed.incompleteCaId, status: { $ne: 'RESOLVED' } }, { $set: { status: 'OPEN' } });
+    }
+    const application = await CaApplication.findById(claimed.applicationId);
+    const fromStatus = application.workflowStatus;
+    await syncApplicationStatusFromSubjects(application._id, { actorUserId: principal.userId, linkId: String(claimed._id) });
+    await recordLinkEvent({
+      application,
+      type: attended ? 'COMPLETED' : 'MISSED',
+      actorUserId: principal.userId,
+      fromStatus,
+      subject,
+      reason: `${attended ? 'Attended' : 'Absent'} - ${subject?.code || ''}`.trim(),
+    });
+    const type = attended ? 'CA_EXAM_COMPLETED' : 'CA_EXAM_MISSED';
+    const { vars, templateParams } = buildCaMessage({ type, subject, notice, application });
+    await emitCaNotification({
+      recipientUserId: application.studentUserId,
+      type,
+      sourceId: `${noticeSourceId(notice, claimed)}:${type}`,
+      departmentId: application.departmentId,
+      infrastructure,
+      vars,
+      templateParams,
+    });
+    summary[attended ? 'completed' : 'missed'] += 1;
+  }
+  notice.status = 'COMPLETED';
+  await notice.save();
+  await recordCaAudit({
+    actorUserId: principal.userId,
+    action: 'ca.exam-notice.confirm-completion',
+    entityType: 'CaExamNotice',
+    entityId: notice._id,
+    departmentId: notice.departmentId,
+    metadata: summary,
+  });
+  return summary;
 }
 
 async function activeStudentCount(noticeId) {

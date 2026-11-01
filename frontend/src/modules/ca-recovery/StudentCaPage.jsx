@@ -14,7 +14,8 @@ import { CaExamForm } from './CaExamForm.jsx';
 
 const EXAM_LABEL = {
   READY_TO_SCHEDULE: 'Approved. Waiting for your lecturer to publish the examination date.',
-  COMPLETED: 'Completed',
+  COMPLETED: 'CA attended. Waiting for the official results.',
+  MISSED: 'CA missed. You may apply for it again in the next CA application window.',
   RESOLVED: 'Resolved by your official result',
 };
 
@@ -418,7 +419,11 @@ export function StudentCaPage() {
             {timeline.timeline.map((event) => (
               <li key={`${event.type}-${event.occurredAt}`}>
                 <span className="timeline-list__title">
-                  {formatWorkflowStatus(event.toStatus)}
+                  {event.type === 'MISSED'
+                    ? 'CA missed'
+                    : event.type === 'COMPLETED'
+                      ? 'CA attended · awaiting results'
+                      : formatWorkflowStatus(event.toStatus)}
                 </span>
                 {event.reason ? <span className="timeline-list__meta">{event.reason}</span> : null}
                 {event.occurredAt ? (

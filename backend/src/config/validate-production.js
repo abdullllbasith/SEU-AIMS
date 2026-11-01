@@ -35,6 +35,12 @@ export function validateProductionConfig(config) {
   if (String(config.api?.corsOrigin || '').includes('localhost')) {
     problems.push('CORS_ORIGIN must not use localhost in production');
   }
+  if (config.ai?.provider === 'dev_mock') {
+    problems.push('AI_PROVIDER=dev_mock is not allowed in production');
+  }
+  if (config.ai?.provider === 'gemini' && !config.ai?.geminiApiKey) {
+    problems.push('GEMINI_API_KEY is required when AI_PROVIDER=gemini');
+  }
   if (config.logLevel === 'debug') {
     problems.push('LOG_LEVEL=debug is not recommended in production');
   }

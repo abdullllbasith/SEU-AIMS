@@ -72,6 +72,10 @@ export const caApi = {
   attachToExamNotice: (id) =>
     apiRequest(`/ca/lecturer/exam-notices/${id}/attach`, { method: 'POST', body: JSON.stringify({}) }),
   examNoticeDelivery: (id) => apiRequest(`/ca/lecturer/exam-notices/${id}/delivery`),
+  saveAttendance: (noticeId, attendance) =>
+    apiRequest(`/ca/lecturer/exam-notices/${noticeId}/attendance`, { method: 'PUT', body: JSON.stringify({ attendance }) }),
+  confirmNoticeCompletion: (noticeId) =>
+    apiRequest(`/ca/lecturer/exam-notices/${noticeId}/confirm-completion`, { method: 'POST', body: JSON.stringify({}) }),
   completeSubject: (linkId) =>
     apiRequest(`/ca/lecturer/subjects/${linkId}/complete`, { method: 'POST', body: JSON.stringify({}) }),
   recoveryResults: () => apiRequest('/ca/recovery-results'),

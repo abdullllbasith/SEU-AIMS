@@ -427,19 +427,19 @@ test('physical verify, approve, lecturer scope, schedule, reminders, and cancel'
     });
   assert.equal(scheduled.status, 201);
   assert.equal(await CalendarEvent.countDocuments({ eventType: 'CA_SCHEDULE' }), 1);
-  const reminders = await Notification.countDocuments({ type: 'CA_REMINDER' });
+  const reminders = await Notification.countDocuments({ type: 'CA_REMINDER', 'guardRef.audience': { $ne: 'BATCH' } });
   assert.equal(reminders, 9);
 
   const schedule = await CaSchedule.findById(scheduled.body.data.id);
   assert.equal(schedule.status, 'ACTIVE');
   assert.ok(schedule.examNoticeId, 'legacy scheduling goes through the exam notice workflow');
-  assert.equal(await Notification.countDocuments({ type: 'CA_EXAM_SCHEDULED' }), 3);
+  assert.equal(await Notification.countDocuments({ type: 'CA_EXAM_SCHEDULED', 'guardRef.audience': { $ne: 'BATCH' } }), 3);
 
   const tooEarly = await releaseDueNotifications({ now: new Date(), infrastructure: app.get('infrastructure') });
   assert.equal(tooEarly.released, 0);
   const sevenDayMark = new Date(schedule.scheduledAt.getTime() - 6 * 24 * 3600_000);
   const due = await releaseDueNotifications({ now: sevenDayMark, infrastructure: app.get('infrastructure') });
-  assert.equal(due.released, 3);
+  assert.equal(due.released, 6, 'applicant plus the current-batch student');
   const duplicateRelease = await releaseDueNotifications({ now: sevenDayMark, infrastructure: app.get('infrastructure') });
   assert.equal(duplicateRelease.released, 0);
 

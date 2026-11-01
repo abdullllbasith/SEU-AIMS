@@ -16,6 +16,8 @@ vi.mock('./ca-api.js', () => ({
     attachToExamNotice: vi.fn(),
     examNoticeDelivery: vi.fn(),
     completeSubject: vi.fn(),
+    saveAttendance: vi.fn(),
+    confirmNoticeCompletion: vi.fn(),
     decideRecovery: vi.fn(),
   },
 }));
@@ -47,6 +49,8 @@ const eligible = [
     subjectCode: 'ICT1002',
     subjectName: 'Subject B',
     incompleteCaId: 'c-b',
+    attended: null,
+    examNotice: { id: 'n-b', scheduledAt: '2020-01-01T00:00:00.000Z', venue: 'Main Hall', generation: 1 },
   },
 ];
 
@@ -125,6 +129,7 @@ describe('LecturerCaPage', () => {
     });
     expect(caApi.publishExamNotice).toHaveBeenCalledWith({
       subjectOfferingId: 'off-a',
+      linkIds: ['l-a'],
       date: '2026-11-10',
       startTime: '09:30',
       endTime: '11:30',
@@ -196,17 +201,21 @@ describe('LecturerCaPage', () => {
     root.unmount();
   });
 
-  it('completes one subject, identified by its link, after confirmation', async () => {
+  it('saves attendance and confirms the CA once the exam has started', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    caApi.completeSubject.mockResolvedValue({ data: {} });
+    caApi.saveAttendance.mockResolvedValue({ data: {} });
+    caApi.confirmNoticeCompletion.mockResolvedValue({ data: {} });
     const { container, root } = await mount();
-    const completeButtons = [...container.querySelectorAll('button')].filter((item) => item.textContent === 'Mark completed');
-    expect(completeButtons).toHaveLength(2);
+    const tick = container.querySelector('input[aria-label="Attended SEU/IS/22/ICT/001"]');
+    expect(tick.checked).toBe(false);
     await act(async () => {
-      completeButtons[1].click();
+      tick.click();
     });
-    expect(caApi.completeSubject).toHaveBeenCalledTimes(1);
-    expect(caApi.completeSubject).toHaveBeenCalledWith('l-b');
+    await act(async () => {
+      find(container, 'Confirm CA completed').click();
+    });
+    expect(caApi.saveAttendance).toHaveBeenCalledWith('n-b', [{ linkId: 'l-b', attended: true }]);
+    expect(caApi.confirmNoticeCompletion).toHaveBeenCalledWith('n-b');
     root.unmount();
   });
 

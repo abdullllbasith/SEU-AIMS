@@ -195,3 +195,11 @@ test('provider results classify into SENT, RETRYING and FAILED; backoff grows an
   assert.deepEqual([1, 2, 3, 4].map(backoffMs), [60_000, 120_000, 240_000, 480_000]);
   assert.equal(backoffMs(20), 30 * 60_000);
 });
+
+test('a missed subject finishes its part of the application like a completed one', async () => {
+  const { assertSubjectExamTransition } = await import('../../src/modules/ca-recovery/services/transitions.js');
+  assert.equal(deriveApplicationStatus(['COMPLETED', 'MISSED']), 'COMPLETED');
+  assert.equal(deriveApplicationStatus(['MISSED', 'SCHEDULED']), 'SCHEDULED');
+  assert.doesNotThrow(() => assertSubjectExamTransition('SCHEDULED', 'MISSED'));
+  assert.throws(() => assertSubjectExamTransition('READY_TO_SCHEDULE', 'MISSED'));
+});

@@ -31,4 +31,5 @@ export {
 export { attachStudyRoomRealtime } from './realtime/attach-study-room.js';
 export { disconnectStudyRoomSockets } from './realtime/socket-registry.js';
 export { syncSharedResourceAfterScan } from './services/resource.service.js';
+export { listStudentAvailableSharedResources } from './services/agent-source.service.js';
 export { CRYPTO_PROTOCOL, MODERATION_MODES } from './constants.js';

@@ -8,6 +8,7 @@ import { createCaRecoveryModule } from '../modules/ca-recovery/index.js';
 import { createNoticesCalendarModule } from '../modules/notices-calendar/index.js';
 import { createNotificationsModule } from '../modules/notifications/index.js';
 import { createStudentExperienceModule } from '../modules/student-experience/index.js';
+import { createStudyAgentModule } from '../modules/study-agent/index.js';
 import { createFilesModule } from '../modules/files/index.js';
 import { createAuditSecurityModule } from '../modules/audit-security/index.js';
 import { createAdminOperationsModule } from '../modules/admin-operations/index.js';
@@ -19,6 +20,7 @@ export function registerModules(app, { config, logger, infrastructure }) {
     createAcademicFoundationModule({ config, logger, infrastructure }),
     createLearningEnvironmentModule({ config, logger, infrastructure }),
     createStudyRoomModule(),
+    createStudyAgentModule(),
     createResultsModule(),
     createGpaCgpaModule(),
     createCaRecoveryModule(),

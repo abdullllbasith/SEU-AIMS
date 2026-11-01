@@ -252,13 +252,20 @@ export function LecturerOfferingWorkspacePage() {
             {eligible.map((item) => (
               <li key={`${item.applicationId}-${item.registrationNumber}`}>
                 <span className="stack-item__title">{item.registrationNumber}</span>
-                <span className="stack-item__meta">{item.workflowStatus}</span>
+                <span className="stack-item__meta">
+                  {{
+                    READY_TO_SCHEDULE: 'Waiting for a notice',
+                    SCHEDULED: 'Scheduled',
+                    COMPLETED: 'Attended · awaiting results',
+                    MISSED: 'Absent · may re-apply',
+                  }[item.examStatus] || item.workflowStatus}
+                </span>
               </li>
             ))}
           </ul>
         )}
         <p className="panel-footnote">
-          <Link to="/lecturer/ca">Schedule CA</Link>
+          <Link to="/lecturer/ca">Schedule CA, record attendance and confirm completion</Link>
         </p>
       </Panel>
     </section>

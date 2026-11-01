@@ -19,6 +19,9 @@ export async function caNotificationGuard(notification) {
   if (notice.generation !== Number(ref.generation)) {
     return { ok: false, reason: 'superseded' };
   }
+  if (ref.audience === 'BATCH') {
+    return { ok: true };
+  }
   const link = await CaApplicationSubject.findById(ref.linkId).select('examStatus activeScheduleId');
   if (!link) {
     return { ok: false, reason: 'exam_cancelled' };

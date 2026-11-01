@@ -8,6 +8,7 @@ export const FILE_OWNING_DOMAINS = Object.freeze([
   'CA_APPLICATION_PDF',
   'PROFILE_IMAGE',
   'NOTICE_IMAGE',
+  'STUDY_AGENT_UPLOAD',
 ]);
 
 const storedFileSchema = new mongoose.Schema(

@@ -46,6 +46,7 @@ export const CA_APPLICATION_EVENT_TYPES = Object.freeze([
   'REJECTED',
   'SCHEDULED',
   'COMPLETED',
+  'MISSED',
   'SUBJECT_STATUS_DERIVED',
 ]);
 
@@ -55,11 +56,12 @@ export const CA_SUBJECT_EXAM_STATUSES = Object.freeze([
   'READY_TO_SCHEDULE',
   'SCHEDULED',
   'COMPLETED',
+  'MISSED',
   'RESOLVED',
 ]);
 
 export const CA_SCHEDULE_STATUSES = Object.freeze(['ACTIVE', 'SUPERSEDED', 'CANCELLED', 'COMPLETED']);
-export const CA_EXAM_NOTICE_STATUSES = Object.freeze(['PUBLISHED', 'CANCELLED']);
+export const CA_EXAM_NOTICE_STATUSES = Object.freeze(['PUBLISHED', 'CANCELLED', 'COMPLETED']);
 
 export const CA_REMINDER_OFFSETS_DAYS = Object.freeze([7, 3, 1]);
 

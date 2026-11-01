@@ -53,6 +53,18 @@ vi.mock('./encryption.js', () => ({
   wrapGroupKey: vi.fn(),
 }));
 
+vi.mock('../study-agent/study-agent-api.js', () => ({
+  studyAgentApi: {
+    access: vi.fn(async () => ({ data: { enabled: true } })),
+    subjects: vi.fn(),
+    sessions: vi.fn(),
+    createSession: vi.fn(),
+    session: vi.fn(),
+    archiveSession: vi.fn(),
+    sendMessage: vi.fn(),
+  },
+}));
+
 import { studyRoomApi } from './study-room-api.js';
 
 describe('StudyRoomPage', () => {
@@ -133,6 +145,42 @@ describe('StudyRoomPage', () => {
     expect(container.querySelector('[aria-label="1 new private chats"]')?.textContent).toBe('1');
     expect(container.querySelector('[aria-label="4 resource updates"]')?.textContent).toBe('4');
     expect(container.textContent).toContain('Common batch chat');
+    expect(container.textContent).toContain('Study agent');
+  });
+
+  it('opens the Study Agent tab beside Shared resources without showing chat state', async () => {
+    studyRoomApi.access.mockResolvedValue({
+      data: { allowed: true, commonConversation: { id: 'c1' } },
+    });
+    studyRoomApi.claimIdentity.mockResolvedValue({ data: {} });
+    studyRoomApi.putPublicKey.mockResolvedValue({ data: {} });
+    studyRoomApi.folders.mockResolvedValue({ data: { items: [] } });
+    studyRoomApi.messages.mockResolvedValue({ data: { items: [] } });
+    studyRoomApi.attention.mockResolvedValue({ data: { common: 0, private: 0, resources: 0, total: 0 } });
+    studyRoomApi.markRead.mockResolvedValue({ data: {} });
+
+    await renderPage();
+    await act(async () => {});
+    await act(async () => {});
+
+    const tabs = [...container.querySelectorAll('[role="tab"]')].map((tab) => tab.textContent.trim());
+    expect(tabs.indexOf('Study agent')).toBe(tabs.indexOf('Shared resources') + 1);
+
+    const agentTab = [...container.querySelectorAll('[role="tab"]')].find((tab) => tab.textContent.includes('Study agent'));
+    await act(async () => {
+      agentTab.click();
+    });
+    // The workspace is a lazy chunk; wait for it instead of guessing how many ticks it needs.
+    for (let i = 0; i < 80 && !container.textContent.includes('What would you like to study?'); i += 1) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      });
+    }
+
+    expect(agentTab.getAttribute('aria-selected')).toBe('true');
+    expect(container.textContent).toContain('What would you like to study?');
+    expect(container.textContent).not.toContain('Common batch chat');
+    expect(container.querySelector('.reconnect-banner')).toBeNull();
   });
 
   it('shows an unread count on a private chat and clears it when that chat is opened', async () => {

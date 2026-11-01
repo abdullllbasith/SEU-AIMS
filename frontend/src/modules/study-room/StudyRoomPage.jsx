@@ -32,6 +32,9 @@ import {
 } from './study-room-attention.js';
 
 const PdfView = lazy(() => import('./PdfView.jsx').then((module) => ({ default: module.PdfView })));
+const StudyAgentWorkspace = lazy(() =>
+  import('../study-agent/StudyAgentWorkspace.jsx').then((module) => ({ default: module.StudyAgentWorkspace })),
+);
 
 function clientMessageId() {
   return crypto.randomUUID ? crypto.randomUUID() : `m_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -512,7 +515,9 @@ export function StudyRoomPage() {
   const fileInputRef = useRef(null);
   const infoTipTimer = useRef(null);
 
-  const conversationId = tab === 'private' ? privateId : overview?.commonConversation?.id;
+  // The Study Agent tab is not a chat room: no conversation is open, so nothing is joined or marked read.
+  const conversationId =
+    tab === 'agent' ? null : tab === 'private' ? privateId : overview?.commonConversation?.id;
   const meId = String(user?.id || user?.userId || '');
   conversationIdRef.current = conversationId;
 
@@ -585,6 +590,8 @@ export function StudyRoomPage() {
       setPrivateId(conversationParam);
     } else if (tabParam === 'common') {
       setTab('common');
+    } else if (tabParam === 'agent') {
+      setTab('agent');
     }
     setSearchParams({}, { replace: true });
   }, [status, searchParams, setSearchParams]);
@@ -1353,11 +1360,54 @@ export function StudyRoomPage() {
         purpose="Batch chat and shared files for your group."
         meta={overview?.batchLabel || overview?.contextLabel || undefined}
         actions={
-          conversationId ? (
-            <span className={connectionTone(socketState)} aria-live="polite">
-              {socketState === 'connected' ? 'Live' : socketState}
-            </span>
-          ) : null
+          <>
+            {conversationId ? (
+              <span className={connectionTone(socketState)} aria-live="polite">
+                {socketState === 'connected' ? 'Live' : socketState}
+              </span>
+            ) : null}
+        <div className="tab-nav" role="tablist" aria-label="Study Room sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'common'}
+            className={tab === 'common' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+            onClick={() => setTab('common')}
+          >
+            Common chat
+            <UpdateBadge count={attention.common} label="new common chat messages" />
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'private'}
+            className={tab === 'private' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+            onClick={() => setTab('private')}
+          >
+            Private chats
+            <UpdateBadge count={attention.private} label="new private chats" />
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'files'}
+            className={tab === 'files' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+            onClick={() => setTab('files')}
+          >
+            Shared resources
+            <UpdateBadge count={tab === 'files' ? 0 : attention.resources} label="resource updates" />
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'agent'}
+            className={tab === 'agent' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
+            onClick={() => setTab('agent')}
+          >
+            Study agent
+          </button>
+        </div>
+          </>
         }
       />
 
@@ -1373,40 +1423,12 @@ export function StudyRoomPage() {
         </p>
       ) : null}
 
-      <div className="tab-nav" role="tablist" aria-label="Study Room sections">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'common'}
-          className={tab === 'common' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
-          onClick={() => setTab('common')}
-        >
-          Common chat
-          <UpdateBadge count={attention.common} label="new common chat messages" />
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'private'}
-          className={tab === 'private' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
-          onClick={() => setTab('private')}
-        >
-          Private chats
-          <UpdateBadge count={attention.private} label="new private chats" />
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'files'}
-          className={tab === 'files' ? 'tab-nav__tab is-active' : 'tab-nav__tab'}
-          onClick={() => setTab('files')}
-        >
-          Shared resources
-          <UpdateBadge count={tab === 'files' ? 0 : attention.resources} label="resource updates" />
-        </button>
-      </div>
 
-      {tab !== 'files' ? (
+      {tab === 'agent' ? (
+        <Suspense fallback={<p className="deadline-empty">Loading Study Agent…</p>}>
+          <StudyAgentWorkspace />
+        </Suspense>
+      ) : tab !== 'files' ? (
         <div
           className={
             tab === 'private'

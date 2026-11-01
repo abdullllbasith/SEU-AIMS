@@ -8,6 +8,7 @@ Each domain has a README next to the code. Import only `backend/src/modules/<nam
 | academic-foundation | [academic-foundation/README.md](../../backend/src/modules/academic-foundation/README.md) | `frontend/src/modules/academic`, admin academic |
 | learning-environment | [learning-environment/README.md](../../backend/src/modules/learning-environment/README.md) | `frontend/src/modules/learning` |
 | study-room | [study-room/README.md](../../backend/src/modules/study-room/README.md) | `frontend/src/modules/study-room` |
+| study-agent | [study-agent/README.md](../../backend/src/modules/study-agent/README.md) | `frontend/src/modules/study-agent` |
 | results | [results/README.md](../../backend/src/modules/results/README.md) | student + admin results |
 | gpa-cgpa | [gpa-cgpa/README.md](../../backend/src/modules/gpa-cgpa/README.md) | performance page composes API |
 | ca-recovery | [ca-recovery/README.md](../../backend/src/modules/ca-recovery/README.md) | student/lecturer/admin CA |

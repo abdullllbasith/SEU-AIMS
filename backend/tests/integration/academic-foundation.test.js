@@ -157,6 +157,35 @@ dbTest('students and lecturers cannot use academic admin endpoints', async () =>
   assert.equal(lecturerRes.status, 403);
 });
 
+dbTest('subjects follow the DICT catalog GPA flag, accept an explicit flag, and the flag can be corrected', async () => {
+  const session = await bootstrapDepartment();
+  const create = (body) =>
+    session.agent.post('/api/academic/subjects').set('X-CSRF-Token', session.csrfToken).send(body);
+
+  // CMS11022 (English I) and CMS12022 (English II) are non-GPA in the catalog, even when sent without a flag.
+  const english = await create({ code: 'cms12022', name: 'English II', credits: 2 });
+  assert.equal(english.body.data.countsForGpa, false);
+  const tamil = await create({ code: 'CMS11031', name: 'Tamil Language', credits: 1 });
+  assert.equal(tamil.body.data.countsForGpa, false);
+  const sinhala = await create({ code: 'CMS11041', name: 'Sinhala Language', credits: 1 });
+  assert.equal(sinhala.body.data.countsForGpa, false);
+
+  // A code the catalog does not list still counts by default, and an explicit flag is honoured.
+  assert.equal((await create({ code: 'ZZZ1001', name: 'Unlisted', credits: 3 })).body.data.countsForGpa, true);
+  assert.equal(
+    (await create({ code: 'ZZZ1002', name: 'Explicit', credits: 2, countsForGpa: false })).body.data.countsForGpa,
+    false,
+  );
+  assert.equal((await create({ code: 'ZZZ1003', name: 'Bad', credits: 2, countsForGpa: 'no' })).status, 400);
+
+  // A wrongly stored subject can be corrected.
+  const fix = await session.agent
+    .patch(`/api/academic/subjects/${(await create({ code: 'ZZZ1004', name: 'Fix me', credits: 2 })).body.data.id}`)
+    .set('X-CSRF-Token', session.csrfToken)
+    .send({ countsForGpa: false });
+  assert.equal(fix.body.data.countsForGpa, false);
+});
+
 dbTest('admin can create structure, offerings reject duplicates, and subject codes stay immutable', async () => {
   const session = await bootstrapDepartment();
   const period = await createPeriod(session, 1, 'Year 1', 1, 'Semester 1');

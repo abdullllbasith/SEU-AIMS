@@ -27,6 +27,7 @@ import { emitCaNotification, recordCaAudit } from './notify.js';
 import { notifyLecturersOfApproval } from './lecturer-notify.service.js';
 import { syncApplicationStatusFromSubjects } from './application-status.service.js';
 import { attachApprovedLinksToPublishedNotices } from './exam-notice.service.js';
+import { resolveActiveOfferingForSubject } from './offering-resolver.js';
 import QRCode from 'qrcode';
 import { generateApplicationPdf } from './pdf.service.js';
 import {
@@ -87,6 +88,24 @@ export function mapApplication(doc, subjects = []) {
   };
 }
 
+async function attendedConditionIds(conditionIds) {
+  if (!conditionIds.length) {
+    return new Set();
+  }
+  const links = await CaApplicationSubject.find({
+    incompleteCaId: { $in: conditionIds },
+    examStatus: 'COMPLETED',
+  }).select('incompleteCaId');
+  return new Set(links.map((link) => String(link.incompleteCaId)));
+}
+
+async function requireNotAttended(conditions) {
+  const attended = await attendedConditionIds(conditions.map((item) => item._id));
+  if (conditions.some((item) => attended.has(String(item._id)))) {
+    throw new ValidationError('A subject whose CA you already attended cannot be applied for again');
+  }
+}
+
 export async function listEligibleConditions(principal, query = {}) {
   assertStudent(principal);
   const context = await findStudentContextByUserId(principal.userId);
@@ -109,7 +128,11 @@ export async function listEligibleConditions(principal, query = {}) {
         String(item.semesterId) === String(semesterId) &&
         windowLifecycle(item) === 'OPEN',
     );
-  const items = conditions.filter((item) => openWindowFor(item.academicYearId, item.semesterId));
+  // A subject whose CA was attended is only waiting for the official result; it cannot be applied for again.
+  const attended = await attendedConditionIds(conditions.map((item) => item._id));
+  const items = conditions.filter(
+    (item) => !attended.has(String(item._id)) && openWindowFor(item.academicYearId, item.semesterId),
+  );
   const window = items.length ? openWindowFor(items[0].academicYearId, items[0].semesterId) : null;
   return {
     items: items.map((item) => ({
@@ -153,6 +176,7 @@ export async function previewApplicationForm(principal, query = {}) {
     }
     conditions.push(condition);
   }
+  await requireNotAttended(conditions);
   const academicYearId = String(conditions[0].academicYearId);
   const semesterId = String(conditions[0].semesterId);
   if (
@@ -255,6 +279,7 @@ export async function createDraft(principal, body) {
     }
     conditions.push(condition);
   }
+  await requireNotAttended(conditions);
 
   const student = await User.findById(principal.userId);
   const composed = await composeExamForm({
@@ -309,12 +334,10 @@ export async function createDraft(principal, body) {
   }
 
   for (const condition of conditions) {
-    const offering = await SubjectOffering.findOne({
+    const offering = await resolveActiveOfferingForSubject({
       departmentId: context.departmentId,
       subjectId: condition.subjectId,
-      batchId: context.batchId,
-      academicYearId: condition.academicYearId,
-      semesterId: condition.semesterId,
+      preferBatchId: context.batchId,
     });
     await CaApplicationSubject.create({
       applicationId: application._id,
@@ -420,12 +443,11 @@ export async function updateDraft(principal, applicationId, body) {
     ) {
       throw new ForbiddenError('One or more subjects are not eligible');
     }
-    const offering = await SubjectOffering.findOne({
+    await requireNotAttended([condition]);
+    const offering = await resolveActiveOfferingForSubject({
       departmentId: context.departmentId,
       subjectId: condition.subjectId,
-      batchId: context.batchId,
-      academicYearId: condition.academicYearId,
-      semesterId: condition.semesterId,
+      preferBatchId: context.batchId,
     });
     await CaApplicationSubject.create({
       applicationId: doc._id,
@@ -706,6 +728,19 @@ export async function approveApplication(principal, applicationId, { infrastruct
     entityId: doc._id,
     metadata: { applicationId: doc.applicationId },
   });
+  // Offerings may have changed (or never matched) since the draft; point each link at the running offering.
+  const pending = await CaApplicationSubject.find({ applicationId: doc._id, examStatus: 'PENDING_APPROVAL' });
+  for (const link of pending) {
+    const offering = await resolveActiveOfferingForSubject({
+      departmentId: doc.departmentId,
+      subjectId: link.subjectId,
+      preferBatchId: link.subjectOfferingId ? (await SubjectOffering.findById(link.subjectOfferingId))?.batchId : null,
+    });
+    if (offering && String(offering._id) !== String(link.subjectOfferingId)) {
+      link.subjectOfferingId = offering._id;
+      await link.save();
+    }
+  }
   // Each subject becomes schedulable on its own; the lecturers of those exact offerings are told.
   await CaApplicationSubject.updateMany(
     { applicationId: doc._id, examStatus: 'PENDING_APPROVAL' },

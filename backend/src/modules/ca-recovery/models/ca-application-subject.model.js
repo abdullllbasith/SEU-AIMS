@@ -15,6 +15,9 @@ const caApplicationSubjectSchema = new mongoose.Schema(
       default: 'PENDING_APPROVAL',
     },
     activeScheduleId: { type: objectId, ref: 'CaSchedule' },
+    /** null until the lecturer records attendance; true attended, false absent. */
+    attended: { type: Boolean, default: null },
+    attendanceMarkedAt: Date,
     completedAt: Date,
     completedByUserId: { type: objectId, ref: 'User' },
     statusChangedAt: Date,

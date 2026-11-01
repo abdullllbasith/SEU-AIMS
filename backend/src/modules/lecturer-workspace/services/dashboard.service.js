@@ -197,6 +197,8 @@ export async function getOfferingWorkspace(principal, offeringId, query = {}) {
         applicationId: row.applicationId,
         registrationNumber: row.registrationNumber,
         workflowStatus: row.workflowStatus,
+        examStatus: row.examStatus,
+        attended: row.attended,
         subjectOfferingId: row.subjectOfferingId,
       })),
       schedules,

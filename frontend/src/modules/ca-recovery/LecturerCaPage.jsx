@@ -11,12 +11,13 @@ import { PageSkeleton } from '../../ui/Skeleton.jsx';
 const EXAM_STATUS_LABEL = {
   READY_TO_SCHEDULE: 'Waiting for a notice',
   SCHEDULED: 'Scheduled',
-  COMPLETED: 'Completed',
+  COMPLETED: 'Attended · awaiting results',
+  MISSED: 'Absent · may re-apply',
 };
 
 const EMPTY_FORM = { subjectOfferingId: '', date: '', startTime: '', endTime: '', venue: '' };
 
-function NoticeForm({ idPrefix, form, onChange, offerings, lockOffering = false, submitLabel, busy, onSubmit, onCancel }) {
+function NoticeForm({ idPrefix, form, onChange, offerings, lockOffering = false, submitLabel, busy, onSubmit, onCancel, children }) {
   return (
     <form
       className="ca-notice-form"
@@ -79,6 +80,7 @@ function NoticeForm({ idPrefix, form, onChange, offerings, lockOffering = false,
           onChange={(event) => onChange({ ...form, venue: event.target.value })}
         />
       </label>
+      {children}
       <div className="stack-item__actions">
         <ActionButton className="btn--primary" type="submit" busy={busy} busyLabel="Saving…" disabled={busy}>
           {submitLabel}
@@ -115,6 +117,8 @@ export function LecturerCaPage() {
   const [cancelling, setCancelling] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [delivery, setDelivery] = useState({});
+  const [excluded, setExcluded] = useState(() => new Set());
+  const [attendance, setAttendance] = useState({});
 
   async function reload() {
     const [eligible, noticeRes, reviewRes] = await Promise.all([
@@ -181,6 +185,49 @@ export function LecturerCaPage() {
     return [...byOffering.values()];
   }, [items, publishedOfferingIds]);
 
+  function examStarted(item) {
+    return Boolean(item.examNotice) && new Date(item.examNotice.scheduledAt).getTime() <= Date.now();
+  }
+
+  /** The notice id when the group has scheduled students and the exam has started. */
+  function confirmableNotice(group) {
+    const scheduled = group.rows.filter((row) => row.examStatus === 'SCHEDULED');
+    return scheduled.length > 0 && scheduled.every(examStarted) ? scheduled[0].examNotice.id : '';
+  }
+
+  function confirmCompletion(group) {
+    const noticeId = confirmableNotice(group);
+    const scheduled = group.rows.filter((row) => row.examStatus === 'SCHEDULED');
+    const entries = scheduled.map((row) => ({
+      linkId: row.linkId,
+      attended: attendance[row.linkId] ?? row.attended === true,
+    }));
+    const absent = entries.filter((entry) => !entry.attended).length;
+    if (
+      !window.confirm(
+        `Confirm that the ${group.title} CA is completed? ${entries.length - absent} attended and ${absent} absent. Students will be notified.`,
+      )
+    ) {
+      return;
+    }
+    runAction(
+      `confirm:${group.key}`,
+      async () => {
+        await caApi.saveAttendance(noticeId, entries);
+        await caApi.confirmNoticeCompletion(noticeId);
+      },
+      'CA confirmed. Attended students were notified and absent students may apply again next window.',
+    );
+  }
+
+  const readyLinks = useMemo(
+    () =>
+      items.filter(
+        (item) => item.examStatus === 'READY_TO_SCHEDULE' && item.subjectOfferingId === form.subjectOfferingId,
+      ),
+    [items, form.subjectOfferingId],
+  );
+
   const groups = useMemo(() => {
     const byOffering = new Map();
     for (const item of items) {
@@ -222,7 +269,11 @@ export function LecturerCaPage() {
 
       <Panel title="Publish examination notice" kicker="One notice per subject">
         {offeringsToSchedule.length === 0 ? (
-          <p className="deadline-empty">No subject has approved students waiting for a notice.</p>
+          <p className="deadline-empty">
+            {items.length === 0
+              ? 'No approved CA students are linked to your offerings yet. Students appear here once the admin approves their application.'
+              : 'Every subject with approved students already has a published notice. Reschedule it or add newly approved students below.'}
+          </p>
         ) : (
           <NoticeForm
             idPrefix="publish"
@@ -234,15 +285,52 @@ export function LecturerCaPage() {
             onSubmit={() =>
               runAction(
                 'publish',
-                () => caApi.publishExamNotice({ subjectOfferingId: form.subjectOfferingId, ...payloadFrom(form) }),
+                () =>
+                  caApi.publishExamNotice({
+                    subjectOfferingId: form.subjectOfferingId,
+                    linkIds: readyLinks.filter((row) => !excluded.has(row.linkId)).map((row) => row.linkId),
+                    ...payloadFrom(form),
+                  }),
                 'Examination notice published. Approved students of that subject have been notified.',
               ).then((ok) => {
                 if (ok) {
                   setForm(EMPTY_FORM);
+                  setExcluded(new Set());
                 }
               })
             }
-          />
+          >
+            {readyLinks.length ? (
+              <fieldset className="choice-list-group">
+                <legend>Students who will receive this notice</legend>
+                <ul className="choice-list">
+                  {readyLinks.map((row) => (
+                    <li key={row.linkId}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          aria-label={`Include ${row.registrationNumber}`}
+                          checked={!excluded.has(row.linkId)}
+                          onChange={(event) =>
+                            setExcluded((current) => {
+                              const next = new Set(current);
+                              if (event.target.checked) {
+                                next.delete(row.linkId);
+                              } else {
+                                next.add(row.linkId);
+                              }
+                              return next;
+                            })
+                          }
+                        />
+                        <span>{row.registrationNumber}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </fieldset>
+            ) : null}
+          </NoticeForm>
         )}
       </Panel>
 
@@ -262,7 +350,7 @@ export function LecturerCaPage() {
                       </span>
                       <span className="stack-item__meta">
                         {notice.localDate} · {notice.localTime} (Asia/Colombo) · {notice.venue} ·{' '}
-                        {published ? `${notice.studentCount} student${notice.studentCount === 1 ? '' : 's'}` : 'cancelled'}
+                        {published ? `${notice.studentCount} student${notice.studentCount === 1 ? '' : 's'}` : notice.status === 'COMPLETED' ? 'completed' : 'cancelled'}
                         {notice.generation > 1 ? ` · rescheduled ×${notice.generation - 1}` : ''}
                       </span>
                       {!published && notice.cancelReason ? (
@@ -313,6 +401,8 @@ export function LecturerCaPage() {
                             Cancel notice
                           </ActionButton>
                         </>
+                      ) : notice.status === 'COMPLETED' ? (
+                        <span className="status-pill status-pill--ok">Completed</span>
                       ) : (
                         <span className="status-pill status-pill--danger">Cancelled</span>
                       )}
@@ -419,6 +509,7 @@ export function LecturerCaPage() {
                       <th>Application</th>
                       <th>Registration</th>
                       <th>Subject status</th>
+                      <th>Attended</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -433,7 +524,27 @@ export function LecturerCaPage() {
                           <span className="status-pill">{EXAM_STATUS_LABEL[item.examStatus] || item.examStatus}</span>
                         </td>
                         <td>
-                          {item.examStatus === 'SCHEDULED' || item.examStatus === 'READY_TO_SCHEDULE' ? (
+                          {item.examStatus === 'SCHEDULED' ? (
+                            <input
+                              type="checkbox"
+                              aria-label={`Attended ${item.registrationNumber}`}
+                              disabled={!examStarted(item) || Boolean(busyKey)}
+                              title={examStarted(item) ? '' : 'Available once the examination has started'}
+                              checked={attendance[item.linkId] ?? item.attended === true}
+                              onChange={(event) =>
+                                setAttendance((current) => ({ ...current, [item.linkId]: event.target.checked }))
+                              }
+                            />
+                          ) : item.examStatus === 'COMPLETED' ? (
+                            <span aria-label="Attended">✓</span>
+                          ) : item.examStatus === 'MISSED' ? (
+                            <span aria-label="Absent">✗</span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>
+                          {item.examStatus === 'READY_TO_SCHEDULE' ? (
                             <ActionButton
                               busy={busyKey === `complete:${item.linkId}`}
                               busyLabel="Saving…"
@@ -458,6 +569,23 @@ export function LecturerCaPage() {
                   </tbody>
                 </table>
               </div>
+              {confirmableNotice(group) ? (
+                <div className="stack-item__actions">
+                  <ActionButton
+                    className="btn--primary"
+                    busy={busyKey === `confirm:${group.key}`}
+                    busyLabel="Confirming…"
+                    disabled={Boolean(busyKey)}
+                    onClick={() => confirmCompletion(group)}
+                  >
+                    Confirm CA completed
+                  </ActionButton>
+                  <span className="stack-item__meta">
+                    Ticked students are marked as attended; unticked students are marked absent and may apply for the
+                    missed CA again in the next window. Everyone is notified.
+                  </span>
+                </div>
+              ) : null}
             </div>
           ))
         )}

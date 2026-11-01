@@ -65,6 +65,7 @@ export function mapSubject(doc) {
     code: doc.code,
     name: doc.name,
     credits: doc.credits,
+    countsForGpa: doc.countsForGpa !== false,
     status: doc.status,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,

@@ -11,6 +11,7 @@ See also [frontend-routes.md](./frontend-routes.md).
 | `/api/academic` | academic-foundation |
 | `/api/learning` | learning-environment |
 | `/api/study-room` | study-room |
+| `/api/study-agent` | study-agent (student-only AI tutor) |
 | `/api/results` | results |
 | `/api/gpa` | gpa-cgpa |
 | `/api/ca` | ca-recovery |

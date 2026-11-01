@@ -62,6 +62,8 @@ export function createRouter() {
   router.post('/lecturer/exam-notices/:noticeId/cancel', requireRole(ROLES.LECTURER), requireCsrf, controller.cancelExamNotice);
   router.post('/lecturer/exam-notices/:noticeId/attach', requireRole(ROLES.LECTURER), requireCsrf, controller.attachToExamNotice);
   router.get('/lecturer/exam-notices/:noticeId/delivery', requireRole(ROLES.LECTURER), controller.examNoticeDelivery);
+  router.put('/lecturer/exam-notices/:noticeId/attendance', requireRole(ROLES.LECTURER), requireCsrf, controller.markAttendance);
+  router.post('/lecturer/exam-notices/:noticeId/confirm-completion', requireRole(ROLES.LECTURER), requireCsrf, controller.confirmNoticeCompletion);
   router.post('/lecturer/subjects/:linkId/complete', requireRole(ROLES.LECTURER), requireCsrf, controller.completeSubject);
 
   router.get(

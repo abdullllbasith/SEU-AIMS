@@ -43,6 +43,12 @@ function sanitize(meta) {
     'whatsappNumber',
     'resultCode',
     'registrationNumber',
+    'prompt',
+    'completion',
+    'documentText',
+    'messageText',
+    'answers',
+    'geminiApiKey',
   ]);
 
   const out = {};

@@ -5,6 +5,7 @@ import { Batch } from '../models/batch.model.js';
 import { AcademicYear } from '../models/academic-year.model.js';
 import { Semester } from '../models/semester.model.js';
 import { Subject } from '../models/subject.model.js';
+import { DICT_SEUSL_CATALOG } from '../data/dict-seusl-catalog.js';
 import { CurriculumMapping } from '../models/curriculum-mapping.model.js';
 import { SubjectOffering } from '../models/subject-offering.model.js';
 import { SubjectEnrollment } from '../models/subject-enrollment.model.js';
@@ -741,6 +742,13 @@ export async function listSubjects(principal, query) {
   return paginatedResult({ items: items.map(mapSubject), total, page, pageSize });
 }
 
+function parseCountsForGpa(value) {
+  if (typeof value !== 'boolean') {
+    throw new ValidationError('countsForGpa must be true or false');
+  }
+  return value;
+}
+
 export async function createSubject(principal, body) {
   const departmentId = await requireAdminDepartment(principal);
   const department = await Department.findById(departmentId);
@@ -751,7 +759,12 @@ export async function createSubject(principal, body) {
   if (!code || !name || Number.isNaN(credits) || credits < 0) {
     throw new ValidationError('Subject code, name, and non-negative credits are required');
   }
-  const subject = await Subject.create({ departmentId, code, name, credits, status: 'ACTIVE' });
+  // An explicit flag wins; otherwise follow the official DICT catalog (English, Sinhala and Tamil
+  // language courses are non-GPA there), and default to counting only for codes the catalog does not list.
+  const catalogCourse = DICT_SEUSL_CATALOG.courses?.find((item) => String(item.code).toUpperCase() === code);
+  const countsForGpa =
+    body.countsForGpa === undefined ? catalogCourse?.countsForGpa !== false : parseCountsForGpa(body.countsForGpa);
+  const subject = await Subject.create({ departmentId, code, name, credits, countsForGpa, status: 'ACTIVE' });
   await recordAudit({
     actorUserId: principal.userId,
     action: 'academic.subject.create',
@@ -782,6 +795,9 @@ export async function updateSubject(principal, subjectId, body) {
     }
     subject.credits = credits;
   }
+  if (body.countsForGpa !== undefined) {
+    subject.countsForGpa = parseCountsForGpa(body.countsForGpa);
+  }
   if (body.status !== undefined) {
     if (!ENTITY_STATUSES.includes(body.status)) {
       throw new ValidationError('Invalid status');
@@ -794,7 +810,7 @@ export async function updateSubject(principal, subjectId, body) {
     action: 'academic.subject.update',
     entityType: 'Subject',
     entityId: subject._id,
-    metadata: { status: subject.status },
+    metadata: { status: subject.status, countsForGpa: subject.countsForGpa },
   });
   return mapSubject(subject);
 }

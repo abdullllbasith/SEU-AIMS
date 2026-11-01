@@ -134,6 +134,12 @@ export function createCaController() {
     examNoticeDelivery: asyncHandler(async (req, res) => {
       sendSuccess(res, await examNoticeService.examNoticeDelivery(req.principal, req.params.noticeId));
     }),
+    markAttendance: asyncHandler(async (req, res) => {
+      sendSuccess(res, await examNoticeService.markAttendance(req.principal, req.params.noticeId, req.body || {}));
+    }),
+    confirmNoticeCompletion: asyncHandler(async (req, res) => {
+      sendSuccess(res, await examNoticeService.confirmNoticeCompletion(req.principal, req.params.noticeId, deps(req)));
+    }),
     completeSubject: asyncHandler(async (req, res) => {
       sendSuccess(res, await examNoticeService.completeSubject(req.principal, { linkId: req.params.linkId }));
     }),

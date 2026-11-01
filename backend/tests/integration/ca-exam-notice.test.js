@@ -483,7 +483,19 @@ test('subject-level notices: publish, cancel, reschedule and complete stay indep
   assert.equal(await statusOf(app1), 'SCHEDULED');
   assert.equal(await statusOf(app2), 'APPROVED');
 
-  const scheduledForA = await Notification.find({ type: 'CA_EXAM_SCHEDULED', 'guardRef.noticeId': noticeAId });
+  // The current batch hears about the notice too (S2 is in the batch, has no approved application yet).
+  const batchForA = await Notification.find({
+    type: 'CA_EXAM_SCHEDULED',
+    'guardRef.noticeId': noticeAId,
+    recipientUserId: users.s2._id,
+  });
+  assert.equal(batchForA.length, 3, 'in-app, email and WhatsApp for the current-batch student');
+  assert.ok(batchForA.every((item) => item.guardRef.audience === 'BATCH'));
+  const scheduledForA = await Notification.find({
+    type: 'CA_EXAM_SCHEDULED',
+    'guardRef.noticeId': noticeAId,
+    recipientUserId: users.s1._id,
+  });
   assert.equal(scheduledForA.length, 3);
   assert.deepEqual([...new Set(scheduledForA.map((item) => String(item.recipientUserId)))], [String(users.s1._id)]);
   assert.deepEqual(scheduledForA.map((item) => item.channel).sort(), ['EMAIL', 'IN_APP', 'WHATSAPP']);
@@ -492,13 +504,18 @@ test('subject-level notices: publish, cancel, reschedule and complete stay indep
   assert.match(scheduledForA[0].body, /Main Hall/);
   assert.match(scheduledForA[0].body, /09:00/);
   assert.equal(
-    await Notification.countDocuments({ type: 'CA_REMINDER', 'guardRef.noticeId': noticeAId }),
+    await Notification.countDocuments({ type: 'CA_REMINDER', 'guardRef.noticeId': noticeAId, recipientUserId: users.s1._id }),
     9,
     '7, 3 and 1 day reminders on three channels',
   );
+  // S2 has no application, but is in the current batch: the notice and its reminders reach them as a batch student.
   assert.equal(
-    await Notification.countDocuments({ recipientUserId: users.s2._id, type: { $in: ['CA_EXAM_SCHEDULED', 'CA_REMINDER'] } }),
-    0,
+    await Notification.countDocuments({ recipientUserId: users.s2._id, type: 'CA_EXAM_SCHEDULED', 'guardRef.noticeId': noticeAId }),
+    3,
+  );
+  assert.equal(
+    await Notification.countDocuments({ recipientUserId: users.s2._id, type: 'CA_REMINDER', 'guardRef.noticeId': noticeAId }),
+    9,
   );
   assert.equal(await AuditEvent.countDocuments({ action: 'ca.exam-notice.publish' }), 1);
 
@@ -522,7 +539,7 @@ test('subject-level notices: publish, cancel, reschedule and complete stay indep
   const reminderCountB = await Notification.countDocuments({ 'guardRef.noticeId': noticeBId, type: 'CA_REMINDER', status: 'SCHEDULED' });
   const reminderCountC = await Notification.countDocuments({ 'guardRef.noticeId': noticeCId, type: 'CA_REMINDER', status: 'SCHEDULED' });
   assert.equal(reminderCountB, 18);
-  assert.equal(reminderCountC, 9);
+  assert.equal(reminderCountC, 18, 'S1 as applicant plus S2 as a current-batch student');
   const cancelledA = await post(sessions.l1, `/api/ca/lecturer/exam-notices/${noticeAId}/cancel`, { reason: 'Hall unavailable' });
   assert.equal(cancelledA.status, 200);
   assert.equal((await linkOf(app1, conditions.s1A)).examStatus, 'READY_TO_SCHEDULE');
@@ -539,7 +556,7 @@ test('subject-level notices: publish, cancel, reschedule and complete stay indep
     reminderCountC,
   );
   assert.equal(await Notification.countDocuments({ type: 'CA_EXAM_CANCELLED', recipientUserId: users.s1._id }), 3);
-  assert.equal(await Notification.countDocuments({ type: 'CA_EXAM_CANCELLED', recipientUserId: users.s2._id }), 0);
+  assert.equal(await Notification.countDocuments({ type: 'CA_EXAM_CANCELLED', recipientUserId: users.s2._id }), 3, 'the current batch is told too');
   const keptNotice = await CaExamNotice.findById(noticeAId);
   assert.equal(keptNotice.status, 'CANCELLED');
   assert.equal(keptNotice.history.length, 2);
@@ -567,9 +584,12 @@ test('subject-level notices: publish, cancel, reschedule and complete stay indep
     'generation 1 reminders are cancelled',
   );
   const gen2Reminders = await Notification.find({ 'guardRef.noticeId': noticeCId, 'guardRef.generation': 2, type: 'CA_REMINDER' });
-  assert.equal(gen2Reminders.length, 9);
-  assert.deepEqual([...new Set(gen2Reminders.map((item) => String(item.recipientUserId)))], [String(users.s1._id)]);
-  assert.equal(await Notification.countDocuments({ type: 'CA_EXAM_RESCHEDULED' }), 3);
+  assert.equal(gen2Reminders.length, 18, 'S1 as applicant plus S2 as a current-batch student');
+  assert.deepEqual(
+    [...new Set(gen2Reminders.map((item) => String(item.recipientUserId)))].sort(),
+    [String(users.s1._id), String(users.s2._id)].sort(),
+  );
+  assert.equal(await Notification.countDocuments({ type: 'CA_EXAM_RESCHEDULED' }), 6, 'applicant and current-batch student');
   assert.equal((await linkOf(app1, conditions.s1C)).examStatus, 'SCHEDULED');
   assert.equal((await post(sessions.l1, `/api/ca/lecturer/exam-notices/${noticeCId}/reschedule`, { venue: 'Elsewhere' })).status, 403);
 
@@ -733,26 +753,26 @@ test('reminders fire at the 7, 3 and 1 day marks exactly once and never after ca
   const jobsBefore = enqueued.length;
   const atSeven = new Date(exam.getTime() - 7 * DAY);
   const sevenDay = await releaseDueNotifications({ now: atSeven, infrastructure: infra });
-  assert.equal(sevenDay.released, 3, 'in-app, email and WhatsApp');
-  assert.equal(enqueued.length - jobsBefore, 2, 'only email and WhatsApp need a delivery job');
+  assert.equal(sevenDay.released, 6, 'in-app, email and WhatsApp for the applicant and the current-batch student');
+  assert.equal(enqueued.length - jobsBefore, 4, 'only email and WhatsApp need a delivery job');
   const afterSeven = await reminders();
-  assert.equal(afterSeven.filter((item) => item.reminderOffsetDays === 7 && item.status !== 'SCHEDULED').length, 3);
-  assert.equal(afterSeven.filter((item) => item.reminderOffsetDays === 3 && item.status === 'SCHEDULED').length, 3);
+  assert.equal(afterSeven.filter((item) => item.reminderOffsetDays === 7 && item.status !== 'SCHEDULED').length, 6);
+  assert.equal(afterSeven.filter((item) => item.reminderOffsetDays === 3 && item.status === 'SCHEDULED').length, 6);
   assert.equal(afterSeven.find((item) => item.reminderOffsetDays === 7 && item.channel === 'IN_APP').status, 'SENT');
 
   const twice = await releaseDueNotifications({ now: atSeven, infrastructure: infra });
   assert.equal(twice.released, 0, 'running the sweep again does not release or enqueue twice');
-  assert.equal(enqueued.length - jobsBefore, 2);
+  assert.equal(enqueued.length - jobsBefore, 4);
 
   const threeDay = await releaseDueNotifications({ now: new Date(exam.getTime() - 3 * DAY), infrastructure: infra });
-  assert.equal(threeDay.released, 3);
+  assert.equal(threeDay.released, 6);
 
   // Cancel before the 1 day mark: that reminder must never be released.
   await post(sessions.l1, `/api/ca/lecturer/exam-notices/${published.body.data.id}/cancel`, { reason: 'Postponed' });
   const oneDay = await releaseDueNotifications({ now: new Date(exam.getTime() - DAY), infrastructure: infra });
   assert.equal(oneDay.released, 0);
   const final = await reminders();
-  assert.equal(final.filter((item) => item.reminderOffsetDays === 1 && item.status === 'CANCELLED').length, 3);
+  assert.equal(final.filter((item) => item.reminderOffsetDays === 1 && item.status === 'CANCELLED').length, 6);
 });
 
 test('a released reminder whose notice went stale is cancelled by the pre-send guard, not sent', async () => {
@@ -769,7 +789,7 @@ test('a released reminder whose notice went stale is cancelled by the pre-send g
     config,
   };
   const released = await releaseDueNotifications({ now: new Date(exam.getTime() - 7 * DAY), infrastructure: infra });
-  assert.equal(released.cancelled, 3);
+  assert.equal(released.cancelled, 6);
   assert.equal(released.released, 0);
   assert.equal(sent.length, 0);
 });
@@ -865,8 +885,8 @@ test('simultaneous workers never send or release the same notification twice', a
   const due = new Date(published.scheduledAt.getTime() + 1000);
   const before = enqueued.length;
   const sweeps = await Promise.all([1, 2, 3].map(() => releaseDueNotifications({ now: due, infrastructure: app.get('infrastructure') })));
-  assert.equal(sweeps.reduce((sum, item) => sum + item.released, 0), 3);
-  assert.equal(enqueued.length - before, 2);
+  assert.equal(sweeps.reduce((sum, item) => sum + item.released, 0), 6);
+  assert.equal(enqueued.length - before, 4);
 });
 
 test('expired leases are recovered and retries wait for their backoff', async () => {
@@ -995,4 +1015,56 @@ test('subject exam states are back-filled for existing approved applications, id
   const second = await backfillSubjectExamStates(world.department._id);
   assert.deepEqual(second, { READY_TO_SCHEDULE: 0, SCHEDULED: 0, COMPLETED: 0, RESOLVED: 0 });
   assert.equal(await IncompleteCa.countDocuments(), 4);
+});
+
+test('attendance and confirmation: attended subjects await results and leave the apply list, absent ones reopen', async () => {
+  const { world, sessions } = await fullSetup();
+  const { conditions, users } = world;
+  const put = (session, url, body) => session.agent.put(url).set('X-CSRF-Token', session.csrfToken).send(body);
+  const noticeB = await publish(sessions.l1, world.offerings.B);
+  assert.equal(noticeB.status, 201, JSON.stringify(noticeB.body));
+  const noticeId = noticeB.body.data.id;
+  const s1Link = await linkOf(await CaApplication.findOne({ studentUserId: users.s1._id }).then((a) => a.applicationId), conditions.s1B);
+  const s2Link = await linkOf(await CaApplication.findOne({ studentUserId: users.s2._id }).then((a) => a.applicationId), conditions.s2B);
+  const attendanceUrl = `/api/ca/lecturer/exam-notices/${noticeId}/attendance`;
+  const confirmUrl = `/api/ca/lecturer/exam-notices/${noticeId}/confirm-completion`;
+
+  // Nothing can be recorded before the examination starts.
+  assert.equal(
+    (await put(sessions.l1, attendanceUrl, { attendance: [{ linkId: String(s1Link._id), attended: true }] })).status,
+    400,
+  );
+  await CaExamNotice.updateOne({ _id: noticeId }, { $set: { scheduledAt: new Date(Date.now() - 3600_000) } });
+
+  // Only the managing lecturer, and only students on this notice.
+  assert.equal((await put(sessions.l2, attendanceUrl, { attendance: [{ linkId: String(s1Link._id), attended: true }] })).status, 403);
+  assert.equal((await put(sessions.l1, attendanceUrl, { attendance: [{ linkId: String(world.conditions.s1A.condition._id), attended: true }] })).status, 400);
+
+  // Confirmation needs a decision for every student.
+  assert.equal((await put(sessions.l1, attendanceUrl, { attendance: [{ linkId: String(s1Link._id), attended: true }] })).status, 200);
+  assert.equal((await post(sessions.l1, confirmUrl)).status, 400);
+  assert.equal((await put(sessions.l1, attendanceUrl, { attendance: [{ linkId: String(s2Link._id), attended: false }] })).status, 200);
+
+  const confirmed = await post(sessions.l1, confirmUrl);
+  assert.equal(confirmed.status, 200, JSON.stringify(confirmed.body));
+  assert.deepEqual(confirmed.body.data, { completed: 1, missed: 1 });
+  assert.equal((await CaApplicationSubject.findById(s1Link._id)).examStatus, 'COMPLETED');
+  assert.equal((await CaApplicationSubject.findById(s2Link._id)).examStatus, 'MISSED');
+  assert.equal((await CaExamNotice.findById(noticeId)).status, 'COMPLETED');
+  assert.equal((await IncompleteCa.findById(conditions.s2B.condition._id)).status, 'OPEN', 'missed CA reopens the E(CA)');
+  assert.equal((await IncompleteCa.findById(conditions.s1B.condition._id)).status, 'IN_APPLICATION', 'attended CA waits for the result');
+  assert.equal(await Notification.countDocuments({ recipientUserId: users.s1._id, type: 'CA_EXAM_COMPLETED' }), 3);
+  assert.equal(await Notification.countDocuments({ recipientUserId: users.s2._id, type: 'CA_EXAM_MISSED' }), 3);
+  assert.equal((await post(sessions.l1, confirmUrl)).status, 400, 'a confirmed notice cannot be confirmed again');
+
+  // The attended subject is no longer offered for application; the absent student can apply again.
+  const s1Options = await sessions.s1.agent.get('/api/ca/conditions');
+  assert.equal(s1Options.status, 200);
+  const s1Ids = s1Options.body.data.items.map((item) => item.id);
+  assert.ok(!s1Ids.includes(String(conditions.s1B.condition._id)), 'attended subject is hidden');
+  assert.ok(s1Ids.includes(String(conditions.s1A.condition._id)), 'other subjects stay');
+  const s1Preview = await sessions.s1.agent.get(`/api/ca/applications/preview?incompleteCaIds=${conditions.s1B.condition._id}`);
+  assert.equal(s1Preview.status, 400, 'an attended subject cannot be applied for again');
+  const s2Options = await sessions.s2.agent.get('/api/ca/conditions');
+  assert.ok(s2Options.body.data.items.map((item) => item.id).includes(String(conditions.s2B.condition._id)));
 });

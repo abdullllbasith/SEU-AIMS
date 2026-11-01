@@ -25,6 +25,13 @@ import {
   MessageReceipt,
   ResourceReport,
 } from '../../modules/study-room/index.js';
+import {
+  StudySession,
+  StudyMessage,
+  DocumentIndex,
+  DocumentChunk,
+  AiUsage,
+} from '../../modules/study-agent/index.js';
 import { ResultImport, ResultImportRow, AcademicResult, ResultRevision } from '../../modules/results/index.js';
 import { GpaSnapshot } from '../../modules/gpa-cgpa/index.js';
 import {
@@ -67,6 +74,11 @@ export function registerModels() {
     ConversationKeyEnvelope,
     MessageReceipt,
     ResourceReport,
+    StudySession,
+    StudyMessage,
+    DocumentIndex,
+    DocumentChunk,
+    AiUsage,
     ResultImport,
     ResultImportRow,
     AcademicResult,

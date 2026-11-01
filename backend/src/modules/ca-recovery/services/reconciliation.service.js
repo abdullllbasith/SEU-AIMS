@@ -1,4 +1,5 @@
-import { AcademicYear, Semester } from '../../academic-foundation/index.js';
+import { AcademicYear, Semester, SubjectOffering } from '../../academic-foundation/index.js';
+import { resolveActiveOfferingForSubject } from './offering-resolver.js';
 import { AcademicResult } from '../../results/models/academic-result.model.js';
 import { IncompleteCa } from '../models/incomplete-ca.model.js';
 import { CaSchedule } from '../models/ca-schedule.model.js';
@@ -146,6 +147,39 @@ export async function listUnresolvedEcaConditions(principal) {
 const UNSET_EXAM_STATUS = { $or: [{ examStatus: 'PENDING_APPROVAL' }, { examStatus: { $exists: false } }] };
 
 /**
+ * Approved links that never matched a running offering are invisible to every lecturer; point them at the
+ * currently active offering of their subject. Returns how many links changed.
+ */
+export async function relinkApprovedLinks(departmentId) {
+  const applications = await CaApplication.find({
+    departmentId,
+    workflowStatus: { $in: ['APPROVED', 'SCHEDULED'] },
+  }).select('_id');
+  let relinked = 0;
+  const links = await CaApplicationSubject.find({
+    applicationId: { $in: applications.map((item) => item._id) },
+    examStatus: 'READY_TO_SCHEDULE',
+  });
+  for (const link of links) {
+    const current = link.subjectOfferingId ? await SubjectOffering.findById(link.subjectOfferingId) : null;
+    if (current?.status === 'ACTIVE') {
+      continue;
+    }
+    const offering = await resolveActiveOfferingForSubject({
+      departmentId,
+      subjectId: link.subjectId,
+      preferBatchId: current?.batchId,
+    });
+    if (offering) {
+      link.subjectOfferingId = offering._id;
+      await link.save();
+      relinked += 1;
+    }
+  }
+  return relinked;
+}
+
+/**
  * Give pre-existing schedules and subject links their subject-level state. Idempotent: it only touches
  * schedules with no status and links still at the default PENDING_APPROVAL on an already approved application.
  */
@@ -165,6 +199,7 @@ export async function backfillSubjectExamStates(departmentId) {
     workflowStatus: { $in: ['APPROVED', 'SCHEDULED', 'COMPLETED', 'RESOLVED'] },
   }).select('workflowStatus');
   const counts = { READY_TO_SCHEDULE: 0, SCHEDULED: 0, COMPLETED: 0, RESOLVED: 0 };
+  await relinkApprovedLinks(departmentId);
   for (const application of applications) {
     const links = await CaApplicationSubject.find({ applicationId: application._id, ...UNSET_EXAM_STATUS });
     for (const link of links) {

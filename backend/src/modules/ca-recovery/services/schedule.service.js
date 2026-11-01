@@ -10,6 +10,7 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '.
 import { requireObjectId } from '../utils/http.js';
 import { recordCaAudit } from './notify.js';
 import { syncApplicationStatusFromSubjects } from './application-status.service.js';
+import { relinkApprovedLinks } from './reconciliation.service.js';
 import { attachLinksToExistingNotice, completeSubject, publishExamNotice } from './exam-notice.service.js';
 
 function assertLecturer(principal) {
@@ -21,6 +22,9 @@ function assertLecturer(principal) {
 /** Subject links on the lecturer's own active offerings that are approved (ready, scheduled or completed). */
 export async function listApprovedForLecturer(principal) {
   assertLecturer(principal);
+  if (principal.departmentId) {
+    await relinkApprovedLinks(principal.departmentId);
+  }
   const assignments = await findActiveAssignmentsForLecturer(principal.userId);
   const offerings = await SubjectOffering.find({
     _id: { $in: assignments.map((item) => item.subjectOfferingId) },
@@ -29,7 +33,7 @@ export async function listApprovedForLecturer(principal) {
   const offeringById = new Map(offerings.map((item) => [String(item._id), item]));
   const links = await CaApplicationSubject.find({
     subjectOfferingId: { $in: offerings.map((item) => item._id) },
-    examStatus: { $in: ['READY_TO_SCHEDULE', 'SCHEDULED', 'COMPLETED'] },
+    examStatus: { $in: ['READY_TO_SCHEDULE', 'SCHEDULED', 'COMPLETED', 'MISSED'] },
   });
   const applications = await CaApplication.find({ _id: { $in: links.map((item) => item.applicationId) } });
   const applicationById = new Map(applications.map((item) => [String(item._id), item]));
@@ -55,6 +59,7 @@ export async function listApprovedForLecturer(principal) {
       registrationNumber: application.registrationNumber,
       workflowStatus: application.workflowStatus,
       examStatus: link.examStatus,
+      attended: typeof link.attended === 'boolean' ? link.attended : null,
       subjectOfferingId: String(link.subjectOfferingId),
       subjectId: String(offering.subjectId),
       subjectCode: subject?.code || '',

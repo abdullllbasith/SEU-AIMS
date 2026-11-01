@@ -6,6 +6,7 @@
 | academic-foundation | Department, batch, year, semester, subject, subject offering, lecturer assignment, student academic context | Official resources, results, CA workflow |
 | learning-environment | Course modules, official lecturer resources, current vs historical learning access | Study Room sharing |
 | study-room | Student-only chat and student resource sharing | Lecturer participation, official resources |
+| study-agent | Student-only AI tutor: sessions, retrieval over authorised files, AI provider calls | Official grades/GPA/results (read-only elsewhere), chat plaintext, any write to another module |
 | results | Import, parse, preview, confirm, commit, official academic records, repeat-student matching | GPA formula, CA application workflow |
 | gpa-cgpa | GPA/CGPA/performance from official results | Invented grading rules; a second result store |
 | ca-recovery | Incomplete CA, application, PDF/QR, physical verification states, scheduling, resolution | Email/WhatsApp provider calls; calendar model duplication |

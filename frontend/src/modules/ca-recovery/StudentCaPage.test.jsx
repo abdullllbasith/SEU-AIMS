@@ -34,7 +34,7 @@ describe('SubjectExams', () => {
     expect(rows[0]).toContain('Asia/Colombo');
     expect(rows[0]).toContain('Main Hall');
     expect(rows[1]).toContain('Waiting for your lecturer');
-    expect(rows[2]).toContain('Completed');
+    expect(rows[2]).toContain('CA attended');
     root.unmount();
   });
 

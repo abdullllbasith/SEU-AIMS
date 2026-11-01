@@ -14,10 +14,10 @@ export function deriveApplicationStatus(examStatuses) {
     return 'RESOLVED';
   }
   const open = examStatuses.filter((status) => status !== 'RESOLVED');
-  if (open.every((status) => status === 'COMPLETED')) {
+  if (open.every((status) => status === 'COMPLETED' || status === 'MISSED')) {
     return 'COMPLETED';
   }
-  if (open.some((status) => status === 'SCHEDULED' || status === 'COMPLETED')) {
+  if (open.some((status) => status === 'SCHEDULED' || status === 'COMPLETED' || status === 'MISSED')) {
     return 'SCHEDULED';
   }
   return 'APPROVED';

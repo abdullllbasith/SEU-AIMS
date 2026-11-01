@@ -29,8 +29,9 @@ export const SUBJECT_EXAM_TRANSITIONS = Object.freeze({
   // READY_TO_SCHEDULE -> COMPLETED keeps the pre-existing rule that an approved subject may be completed
   // without a schedule; it still applies to one subject at a time.
   READY_TO_SCHEDULE: ['SCHEDULED', 'COMPLETED', 'RESOLVED'],
-  SCHEDULED: ['SCHEDULED', 'READY_TO_SCHEDULE', 'COMPLETED', 'RESOLVED'],
+  SCHEDULED: ['SCHEDULED', 'READY_TO_SCHEDULE', 'COMPLETED', 'MISSED', 'RESOLVED'],
   COMPLETED: ['RESOLVED'],
+  MISSED: ['RESOLVED'],
   RESOLVED: [],
 });
 

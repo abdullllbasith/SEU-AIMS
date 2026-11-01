@@ -7,6 +7,7 @@ import { generateApplicationPdf, processEcaDetectJob } from '../../modules/ca-re
 import { processNotificationDeliver } from '../../modules/notifications/index.js';
 import { evaluateCalendarReminder } from '../../modules/notices-calendar/index.js';
 import { syncOfficialResourceAfterScan } from '../../modules/learning-environment/index.js';
+import { enqueueIndexAfterScan, indexFile, syncUploadAfterScan } from '../../modules/study-agent/index.js';
 
 /**
  * Processors delegate to module services. They do not invent academic rules.
@@ -66,6 +67,11 @@ export function registerJobProcessors({ logger, infrastructure }) {
       });
       await syncSharedResourceAfterScan(job?.payload?.fileId);
       await syncOfficialResourceAfterScan(job?.payload?.fileId);
+      await syncUploadAfterScan(job?.payload?.fileId);
+      await enqueueIndexAfterScan({ queue: infrastructure?.queue, fileId: job?.payload?.fileId });
+    },
+    [JOB_NAMES.STUDY_AGENT_INDEX_DOCUMENT]: async (job) => {
+      await indexFile({ fileId: job?.payload?.fileId, infrastructure, logger });
     },
   };
 

@@ -4,6 +4,7 @@ import { createFileStorage } from './storage/file-storage.js';
 import { createEmailProvider } from './providers/email-provider.js';
 import { createWhatsAppProvider } from './providers/whatsapp-provider.js';
 import { createMalwareScanner } from './providers/malware-scanner.js';
+import { createAiProvider } from './providers/ai-provider.js';
 import { connectMongo } from './database/mongo.js';
 import { registerModels } from './database/register-models.js';
 import { ensureCurriculumMappingIndex } from '../modules/academic-foundation/models/ensure-curriculum-index.js';
@@ -15,6 +16,7 @@ export async function createInfrastructure({ config, logger, backendRoot, connec
   const email = createEmailProvider({ config });
   const whatsapp = createWhatsAppProvider({ config });
   const malwareScanner = createMalwareScanner({ config });
+  const aiProvider = createAiProvider({ config });
 
   if (connect) {
     await connectMongo({
@@ -54,6 +56,7 @@ export async function createInfrastructure({ config, logger, backendRoot, connec
     email,
     whatsapp,
     malwareScanner,
+    aiProvider,
     config,
   };
 }

@@ -9,6 +9,7 @@ ca-recovery          →  notifications, notices-calendar (request capabilities)
 student-experience   →  academic-foundation, results, gpa-cgpa, notices-calendar, notifications, ca-recovery, learning-environment, files, authentication, audit-security
 admin-operations     →  authentication, academic-foundation, learning-environment, results, gpa-cgpa, ca-recovery, notices-calendar, notifications, audit-security (reads)
 lecturer-workspace   →  authentication, academic-foundation, learning-environment, ca-recovery, notices-calendar, notifications (reads; writes stay in owning modules)
+study-agent          →  academic-foundation, learning-environment, results, gpa-cgpa, ca-recovery, study-room (read-only: batch shared files the student can already download; never chat), files (reads only through public APIs). Never writes to any of them.
 *                    →  files, authentication (identity), audit-security
 ```
 

@@ -7,6 +7,10 @@ const BODY = {
     'Your CA examination for {{subjectCode}} {{subjectName}} has been rescheduled to {{examDate}} at {{examTime}} (Asia/Colombo). Venue: {{venue}}.',
   CA_EXAM_CANCELLED:
     'The CA examination for {{subjectCode}} {{subjectName}} that was set for {{examDate}} at {{examTime}} (Asia/Colombo) has been cancelled. Reason: {{reason}}.',
+  CA_EXAM_COMPLETED:
+    'Your attendance at the CA examination for {{subjectCode}} {{subjectName}} has been confirmed. Your CA is now with the department; results will be published once the official marks are released. Follow progress on your CA timeline.',
+  CA_EXAM_MISSED:
+    'You were marked absent for the CA examination for {{subjectCode}} {{subjectName}}. Your E(CA) stays open and you may apply for the missed CA again in the next CA application window.',
   CA_REMINDER:
     'Reminder: your CA examination for {{subjectCode}} {{subjectName}} is in {{offsetDays}} day(s), on {{examDate}} at {{examTime}} (Asia/Colombo). Venue: {{venue}}.',
   CA_LECTURER_APPROVED_STUDENT:
@@ -35,7 +39,9 @@ export function buildCaMessage({ type, subject, notice, application, reason = ''
     offsetDays: offsetDays === undefined ? '' : String(offsetDays),
   };
   let templateParams;
-  if (type === 'CA_EXAM_CANCELLED') {
+  if (type === 'CA_EXAM_COMPLETED' || type === 'CA_EXAM_MISSED') {
+    templateParams = [vars.subjectCode, vars.subjectName];
+  } else if (type === 'CA_EXAM_CANCELLED') {
     templateParams = [vars.subjectCode, vars.subjectName, vars.examDate, vars.examTime, vars.reason];
   } else {
     templateParams = [vars.subjectCode, vars.subjectName, vars.examDate, vars.examTime, vars.venue];

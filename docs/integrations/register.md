@@ -7,6 +7,7 @@ Implemented **adapters**, not guaranteed live services.
 | Email | `EMAIL_PROVIDER`, `EMAIL_FROM`, `EMAIL_API_KEY` | Default `noop`; no delivery proof |
 | Meta WhatsApp Cloud API | `WHATSAPP_CLOUD_API_*` | HTTP adapter + webhook HMAC; noop without token |
 | Malware scanner | `MALWARE_SCANNER_*` | Default noop; **must not** mark files clean |
+| Generative AI (Study Agent) | `AI_PROVIDER`, `GEMINI_*`, `AI_*`, `STUDY_AGENT_*` | Gemini HTTP adapter behind `infrastructure/providers/ai-provider.js`; default `noop` reports unavailable; `dev_mock` refused in production; key stays server-side |
 | MongoDB | `MONGODB_URI` | Authoritative store |
 | Redis | `REDIS_URL` | Rate limit, job lists, Socket.IO adapter |
 | Object storage | `FILE_STORAGE_*` | `local_dev` only implemented |

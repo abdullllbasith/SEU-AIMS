@@ -8,7 +8,12 @@ These are current facts, not a promise they will be fixed in this prompt.
 | Object storage | Only `local_dev` writes files; other `FILE_STORAGE_DRIVER` values fail closed |
 | Queue | Redis lists when Redis is connected; lost if Redis is wiped; no outbox |
 | Socket.IO | Redis adapter attached when Redis connects; multi-instance **not** load-tested |
-| Providers | Email/WhatsApp/scanner noop unless configured |
+| Providers | Email/WhatsApp/scanner/AI noop unless configured |
+| Study Agent retrieval | Keyword (Mongo `$text`) search over PDF/plain-text chunks only; no embeddings; scanned PDFs without a text layer and DOCX/PPTX are not indexed |
+| Study Agent indexing | Needs the worker process (like malware scans); with only the in-memory queue, indexing does not run |
+| Study Agent uploads | A student attachment is unusable until a malware scan marks it clean, which needs the worker and a configured scanner (noop leaves it blocked). Removed uploads become unavailable but the stored object is not deleted (no delete in the storage interface) |
+| Study Agent web research | Uses the provider's search grounding; citations are shown as returned, only `https` links are kept, and source quality is not independently verified |
+| Study Agent AI | Answers are AI-generated and can be wrong; live behaviour against the real Gemini API has not been exercised in this repo (tests use a mock) |
 | Parsers | Synthetic PDF/XLSX only; unknown layouts fail closed |
 | E2E chat | Not Signal; no group-key rotation; TOFU public keys |
 | UAT | Scripts exist; humans have not signed off here |

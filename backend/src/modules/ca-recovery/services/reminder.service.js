@@ -12,6 +12,10 @@ export function noticeSourceId(notice, link) {
 }
 
 export function guardRefFor(notice, link) {
+  // Current-batch students have no subject link; they are guarded by the notice generation only.
+  if (link.batch) {
+    return { noticeId: String(notice._id), generation: notice.generation, audience: 'BATCH' };
+  }
   return { noticeId: String(notice._id), generation: notice.generation, linkId: String(link._id) };
 }
 

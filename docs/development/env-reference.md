@@ -22,6 +22,8 @@ Never put real values in git. Names only. Canonical template: [`.env.example`](.
 | `WHATSAPP_CLOUD_API_*` | Meta Cloud API + webhook | **no** |
 | `PROVIDER_TIMEOUT_MS` | Outbound HTTP timeout | no |
 | `MALWARE_SCANNER_*` / `FILE_MAX_BYTES` | Scanner | **no** |
+| `AI_PROVIDER` / `GEMINI_API_KEY` / `GEMINI_MODEL*` / `AI_*` | Study Agent LLM adapter (`noop`, `dev_mock`, `gemini`); key required for `gemini`; `dev_mock` refused in production | **yes** (key) |
+| `STUDY_AGENT_*` | Per-student rate/daily/context limits | no |
 | `JSON_BODY_LIMIT` / `RATE_LIMIT_*` | HTTP limits | no |
 | `NOTIFICATION_RETRY_MAX` / `NOTIFICATION_DEFAULT_LOCALE` | Notifications | no |
 | `AUDIT_RETENTION_DAYS` | `0` = do not auto-delete | no |

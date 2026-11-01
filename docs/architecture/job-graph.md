@@ -13,6 +13,17 @@ Result import upload
       → results.eca-detect (job, idempotent re-sync)
       → fanout RESULTS_UPDATED
 
+Study Agent attachment
+  upload (StoredFile STUDY_AGENT_UPLOAD, SCANNING + UNAVAILABLE)
+  → files.malware-scan
+  → syncUploadAfterScan (SAFE → AVAILABLE to its owner)
+  → study-agent.index-document (PDFs only; images go to the model inline)
+
+Study Agent document indexing
+  files.malware-scan (SAFE official / shared learning file)
+  → study-agent.index-document (extract text, chunk, store; idempotent by checksum)
+  (also queued lazily when a student opens a subject session and a visible file has no index)
+
 CA application submit
   → ca-recovery.generate-pdf (sync + job)
   → fanout CA_APPLICATION_SUBMITTED

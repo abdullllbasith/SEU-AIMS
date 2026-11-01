@@ -24,3 +24,4 @@ export { ResultRevision } from './models/result-revision.model.js';
 export { findOfficialResult } from './repositories/academic-result.repository.js';
 export { processResultParse } from './services/import.service.js';
 export { getOwnResults } from './services/student-results.service.js';
+export { DICT_GRADE_POINTS } from './constants.js';

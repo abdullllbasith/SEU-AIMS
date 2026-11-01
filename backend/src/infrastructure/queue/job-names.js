@@ -9,4 +9,5 @@ export const JOB_NAMES = Object.freeze({
   NOTIFICATION_DELIVER: 'notifications.deliver',
   REMINDER_SCHEDULE: 'notifications.reminder',
   FILE_MALWARE_SCAN: 'files.malware-scan',
+  STUDY_AGENT_INDEX_DOCUMENT: 'study-agent.index-document',
 });
