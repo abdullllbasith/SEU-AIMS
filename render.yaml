@@ -39,7 +39,7 @@ services:
       - key: FILE_STORAGE_LOCAL_PATH
         value: /var/data/storage
       - key: MALWARE_SCANNER_PROVIDER
-        value: dev_trust
+        value: noop
       - key: EMAIL_PROVIDER
         value: noop
       - key: AI_PROVIDER
@@ -85,7 +85,7 @@ services:
       - key: FILE_STORAGE_LOCAL_PATH
         value: /var/data/storage
       - key: MALWARE_SCANNER_PROVIDER
-        value: dev_trust
+        value: noop
       - key: EMAIL_PROVIDER
         value: noop
       - key: AI_PROVIDER
