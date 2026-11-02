@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { applySecurityMiddleware } from './middleware/security.js';
@@ -95,6 +97,34 @@ export function createApp({ config, logger, infrastructure = {} }) {
 
   app.use(defaultDenyApi);
   registerModules(app, { config, logger, infrastructure });
+
+  // Optional: serve the built frontend from the API origin (single-origin deployment, e.g. Render).
+  const frontendDist = config.api.frontendDist;
+  if (frontendDist && fs.existsSync(path.join(frontendDist, 'index.html'))) {
+    // The API default CSP is default-src 'none'; the SPA needs its own policy (mirrors frontend/index.html).
+    const spaCsp =
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss: https://fonts.googleapis.com https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    app.use((req, res, next) => {
+      if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
+        res.setHeader('Content-Security-Policy', spaCsp);
+      }
+      next();
+    });
+    app.use(
+      express.static(frontendDist, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      }),
+    );
+    app.get(/^\/(?!api(\/|$)|socket\.io(\/|$)).*/, (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler(logger));

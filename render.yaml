@@ -1,0 +1,105 @@
+# Render Blueprint. Deploy: Render dashboard -> New -> Blueprint -> select this repo.
+# One web service serves the API, Socket.IO and the built frontend on a single origin
+# (cookies, CORS and websockets behave exactly like local). Secrets are entered in the dashboard (sync: false).
+# API_PUBLIC_URL / CORS_ORIGIN default to Render's RENDER_EXTERNAL_URL; set them only for a custom domain.
+
+services:
+  - type: web
+    name: seu-aims
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./deploy/Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /api/health/live
+    disk:
+      name: seu-aims-files
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY
+        value: 1
+      - key: AUTH_JWT_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: seu-aims-redis
+          property: connectionString
+      - key: FILE_STORAGE_DRIVER
+        value: local_disk
+      - key: FILE_STORAGE_LOCAL_PATH
+        value: /var/data/storage
+      - key: MALWARE_SCANNER_PROVIDER
+        value: dev_trust
+      - key: EMAIL_PROVIDER
+        value: noop
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      - key: GEMINI_MODEL_REASONING
+        sync: false
+
+  - type: worker
+    name: seu-aims-worker
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./deploy/Dockerfile.worker
+    dockerContext: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      # The worker must use the same JWT secret and public URL as the web service.
+      - key: AUTH_JWT_SECRET
+        fromService:
+          type: web
+          name: seu-aims
+          envVarKey: AUTH_JWT_SECRET
+      - key: API_PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: seu-aims-redis
+          property: connectionString
+      - key: FILE_STORAGE_DRIVER
+        value: local_disk
+      - key: FILE_STORAGE_LOCAL_PATH
+        value: /var/data/storage
+      - key: MALWARE_SCANNER_PROVIDER
+        value: dev_trust
+      - key: EMAIL_PROVIDER
+        value: noop
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      - key: GEMINI_MODEL_REASONING
+        sync: false
+
+  - type: keyvalue
+    name: seu-aims-redis
+    plan: starter
+    region: singapore
+    maxmemoryPolicy: noeviction
+    ipAllowList: []

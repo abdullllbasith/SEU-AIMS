@@ -69,3 +69,7 @@ There is no separate migration runner. Mongoose `syncIndexes` runs when models r
 ## TRUST_PROXY
 
 Default `TRUST_PROXY=1` for a single reverse-proxy hop. Set `0` if the Node process is reached directly. Do not set a high hop count on an untrusted network.
+
+## Render (single-origin)
+
+`render.yaml` deploys one web service (`deploy/Dockerfile.render`: API + Socket.IO + built frontend on one origin), a worker, and a Key Value (Redis) instance. Files use `FILE_STORAGE_DRIVER=local_disk` on a Render persistent disk mounted at `/var/data` (single instance only; the disk is not shared with the worker, which does not read files). `API_PUBLIC_URL` and `CORS_ORIGIN` default to `RENDER_EXTERNAL_URL`; set them explicitly (web and worker) for a custom domain. Secrets (`MONGODB_URI`, `GEMINI_*`) are entered in the dashboard. MongoDB Atlas must allow Render's outbound IPs.

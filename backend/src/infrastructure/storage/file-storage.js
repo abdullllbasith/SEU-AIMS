@@ -16,22 +16,23 @@ export class FileStorage {
 }
 
 export class LocalDevFileStorage extends FileStorage {
-  constructor({ rootPath }) {
+  constructor({ rootPath, driver = 'local_dev' }) {
     super();
     this.rootPath = rootPath;
+    this.driver = driver;
   }
 
   async putObject({ key, body, contentType }) {
     const fullPath = path.join(this.rootPath, key);
     await mkdir(path.dirname(fullPath), { recursive: true });
     await writeFile(fullPath, body);
-    return { key, contentType, driver: 'local_dev' };
+    return { key, contentType, driver: this.driver };
   }
 
   async getObject(key) {
     const fullPath = path.join(this.rootPath, key);
     const body = await readFile(fullPath);
-    return { key, body, driver: 'local_dev' };
+    return { key, body, driver: this.driver };
   }
 }
 
@@ -56,6 +57,15 @@ export function createFileStorage({ config, backendRoot }) {
   if (driver === 'local_dev') {
     return new LocalDevFileStorage({
       rootPath: path.resolve(backendRoot, config.storage.localPath),
+    });
+  }
+
+  // local_disk: files on a persistent volume (e.g. a Render disk) mounted at FILE_STORAGE_LOCAL_PATH.
+  // Single-instance only: the volume is attached to one service and is not shared with the worker.
+  if (driver === 'local_disk') {
+    return new LocalDevFileStorage({
+      rootPath: path.resolve(backendRoot, config.storage.localPath),
+      driver: 'local_disk',
     });
   }
 

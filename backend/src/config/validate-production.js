@@ -26,6 +26,9 @@ export function validateProductionConfig(config) {
   if (config.storage?.driver === 'local_dev' && !onVercel) {
     problems.push('FILE_STORAGE_DRIVER=local_dev is not acceptable for production object storage');
   }
+  if (config.storage?.driver === 'local_disk' && !String(config.storage?.localPath || '').startsWith('/')) {
+    problems.push('FILE_STORAGE_DRIVER=local_disk requires FILE_STORAGE_LOCAL_PATH to be an absolute mounted-volume path');
+  }
   const publicUrl = String(config.api?.publicUrl || '');
   if (!publicUrl || publicUrl.includes('localhost')) {
     problems.push('API_PUBLIC_URL must be a public origin in production (not localhost)');

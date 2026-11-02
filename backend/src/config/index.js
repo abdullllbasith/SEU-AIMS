@@ -31,9 +31,10 @@ export function loadConfig() {
     logLevel: optional('LOG_LEVEL', 'info'),
     api: {
       host: optional('API_HOST', '0.0.0.0'),
-      port: integer('API_PORT', 3001),
-      publicUrl: optional('API_PUBLIC_URL', 'http://localhost:3001'),
-      corsOrigin: optional('CORS_ORIGIN', 'http://localhost:5173'),
+      port: integer('API_PORT', integer('PORT', 3001)),
+      publicUrl: optional('API_PUBLIC_URL', optional('RENDER_EXTERNAL_URL', 'http://localhost:3001')),
+      corsOrigin: optional('CORS_ORIGIN', optional('RENDER_EXTERNAL_URL', 'http://localhost:5173')),
+      frontendDist: optional('FRONTEND_DIST'),
       jsonBodyLimit: optional('JSON_BODY_LIMIT', '1mb'),
       rateLimitWindowMs: integer('RATE_LIMIT_WINDOW_MS', 60_000),
       rateLimitMax: integer('RATE_LIMIT_MAX', 120),
