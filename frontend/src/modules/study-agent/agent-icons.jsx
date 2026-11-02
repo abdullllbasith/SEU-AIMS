@@ -59,8 +59,24 @@ export const AGENT_ICONS = {
   ),
   spark: (
     <Icon>
-      <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
-      <path d="m6.3 6.3 2.4 2.4M15.3 15.3l2.4 2.4M6.3 17.7l2.4-2.4M15.3 8.7l2.4-2.4" />
+      <path d="m12 3 1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z" />
+      <path d="M18.5 16.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
+    </Icon>
+  ),
+  bot: (
+    <Icon>
+      <path d="M12 2v3" />
+      <rect width="16" height="12" x="4" y="6" rx="2" />
+      <circle cx="9" cy="12" r="1.25" fill="currentColor" />
+      <circle cx="15" cy="12" r="1.25" fill="currentColor" />
+      <path d="M2 13h2M20 13h2" />
+      <path d="M9 15h6" />
+    </Icon>
+  ),
+  academicCap: (
+    <Icon>
+      <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+      <path d="M6 12v5c3 3 9 3 12 0v-5" />
     </Icon>
   ),
 };
