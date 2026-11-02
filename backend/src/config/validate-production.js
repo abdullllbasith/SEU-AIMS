@@ -38,6 +38,9 @@ export function validateProductionConfig(config) {
   if (String(config.api?.corsOrigin || '').includes('localhost')) {
     problems.push('CORS_ORIGIN must not use localhost in production');
   }
+  if (config.malwareScanner?.provider === 'clamav' && !config.malwareScanner?.clamavHost) {
+    problems.push('CLAMAV_HOST is required when MALWARE_SCANNER_PROVIDER=clamav');
+  }
   if (config.ai?.provider === 'dev_mock') {
     problems.push('AI_PROVIDER=dev_mock is not allowed in production');
   }
@@ -50,6 +53,9 @@ export function validateProductionConfig(config) {
   // Delivery providers are reported as warnings: the system records undeliverable messages as FAILED,
   // it never reports them as sent.
   const warnings = [];
+  if (config.malwareScanner?.provider !== 'clamav') {
+    warnings.push('MALWARE_SCANNER_PROVIDER is not clamav; uploads needing a scan (profile photos, resources, notices) will stay unavailable');
+  }
   if (config.email?.provider !== 'smtp' || !config.email?.smtp?.host) {
     warnings.push('Email is not configured (EMAIL_PROVIDER=smtp and SMTP_HOST); email notifications will be recorded as FAILED');
   }

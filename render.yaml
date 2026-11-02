@@ -39,7 +39,14 @@ services:
       - key: FILE_STORAGE_LOCAL_PATH
         value: /var/data/storage
       - key: MALWARE_SCANNER_PROVIDER
-        value: noop
+        value: clamav
+      - key: CLAMAV_HOST
+        fromService:
+          type: pserv
+          name: seu-aims-clamav
+          property: host
+      - key: CLAMAV_PORT
+        value: 3310
       - key: EMAIL_PROVIDER
         value: noop
       - key: AI_PROVIDER
@@ -85,7 +92,14 @@ services:
       - key: FILE_STORAGE_LOCAL_PATH
         value: /var/data/storage
       - key: MALWARE_SCANNER_PROVIDER
-        value: noop
+        value: clamav
+      - key: CLAMAV_HOST
+        fromService:
+          type: pserv
+          name: seu-aims-clamav
+          property: host
+      - key: CLAMAV_PORT
+        value: 3310
       - key: EMAIL_PROVIDER
         value: noop
       - key: AI_PROVIDER
@@ -96,6 +110,15 @@ services:
         sync: false
       - key: GEMINI_MODEL_REASONING
         sync: false
+
+  # Malware scanner. clamd needs about 1.5-2 GB RAM for its signature database, hence the Standard plan.
+  - type: pserv
+    name: seu-aims-clamav
+    runtime: image
+    image:
+      url: docker.io/clamav/clamav:1.4
+    plan: standard
+    region: singapore
 
   - type: keyvalue
     name: seu-aims-redis

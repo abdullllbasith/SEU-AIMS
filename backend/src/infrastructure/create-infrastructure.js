@@ -15,7 +15,7 @@ export async function createInfrastructure({ config, logger, backendRoot, connec
   const storage = createFileStorage({ config, backendRoot });
   const email = createEmailProvider({ config });
   const whatsapp = createWhatsAppProvider({ config });
-  const malwareScanner = createMalwareScanner({ config });
+  const malwareScanner = createMalwareScanner({ config, storage });
   const aiProvider = createAiProvider({ config });
 
   if (connect) {

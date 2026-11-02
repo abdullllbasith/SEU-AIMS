@@ -108,6 +108,8 @@ export function loadConfig() {
       provider: optional('MALWARE_SCANNER_PROVIDER', 'noop'),
       url: optional('MALWARE_SCANNER_URL'),
       apiKey: optional('MALWARE_SCANNER_API_KEY'),
+      clamavHost: optional('CLAMAV_HOST'),
+      clamavPort: integer('CLAMAV_PORT', 3310),
     },
     ai: {
       provider: optional('AI_PROVIDER', 'noop'),

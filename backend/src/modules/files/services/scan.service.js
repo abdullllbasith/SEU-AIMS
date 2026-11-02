@@ -15,7 +15,8 @@ export async function processMalwareScan({ fileId, scanner, logger }) {
   const result = await scanner.scan({ key: file.storageKey, fileId: String(file._id) });
   if (result?.clean === true) {
     file.scanStatus = 'SAFE';
-  } else if (result?.status === 'not_configured') {
+  } else if (result?.status === 'not_configured' || result?.status === 'scan_failed') {
+    // Fail closed. A scan_failed file is not marked unsafe, so a later scan can still clear it.
     file.scanStatus = 'QUARANTINED';
   } else {
     file.scanStatus = 'UNSAFE';
