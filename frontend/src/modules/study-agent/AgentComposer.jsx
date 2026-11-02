@@ -166,64 +166,67 @@ export function AgentComposer({
         <label className="visually-hidden" htmlFor="study-agent-input">
           Message to Study Agent
         </label>
-        <textarea
-          id="study-agent-input"
-          ref={textarea}
-          value={draft}
-          onChange={(event) => onDraft(event.target.value)}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
-          placeholder="Ask anything, or paste a question, photo or document"
-          rows={1}
-          maxLength={MAX_CHARS}
-          disabled={disabled}
-        />
-        <div className="study-agent__composer-bar">
-          <input
-            ref={fileInput}
-            type="file"
-            className="visually-hidden"
-            multiple
-            accept={ACCEPT_ATTRIBUTE}
-            aria-label="Attach images, PDFs or text files"
-            data-testid="study-agent-file-input"
-            tabIndex={-1}
-            onChange={(event) => {
-              attachments.addFiles(event.target.files);
-              event.target.value = '';
-            }}
+        <div className="study-agent__input-box">
+          <textarea
+            id="study-agent-input"
+            ref={textarea}
+            value={draft}
+            onChange={(event) => onDraft(event.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            placeholder="Ask anything, or paste a question, photo or document"
+            rows={1}
+            maxLength={MAX_CHARS}
+            disabled={disabled}
           />
-          <button
-            type="button"
-            className="study-agent__tool"
-            aria-label="Attach files"
-            title="Attach images, PDFs or text files"
-            disabled={disabled || full}
-            onClick={() => fileInput.current?.click()}
-          >
-            <AgentIcon name="attach" />
-          </button>
-          <button
-            type="button"
-            className="study-agent__tool study-agent__tool--label"
-            aria-pressed={research}
-            title="Let the agent search the web for this message"
-            disabled={disabled || sending}
-            onClick={() => onResearch(!research)}
-          >
-            <AgentIcon name="globe" />
-            <span>Research online</span>
-          </button>
-          <span className="study-agent__composer-hint">Enter to send · Shift+Enter for a new line</span>
-          <button
-            type="submit"
-            className="btn btn--primary study-agent__send"
-            aria-label="Send message"
-            title="Send message"
-            disabled={!canSend}
-          >
-            <AgentIcon name="send" />
-          </button>
+          <div className="study-agent__input-actions">
+            <div className="study-agent__input-tools">
+              <input
+                ref={fileInput}
+                type="file"
+                className="visually-hidden"
+                multiple
+                accept={ACCEPT_ATTRIBUTE}
+                aria-label="Attach images, PDFs or text files"
+                data-testid="study-agent-file-input"
+                tabIndex={-1}
+                onChange={(event) => {
+                  attachments.addFiles(event.target.files);
+                  event.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                className="study-agent__tool"
+                aria-label="Attach files"
+                title="Attach images, PDFs or text files"
+                disabled={disabled || full}
+                onClick={() => fileInput.current?.click()}
+              >
+                <AgentIcon name="attach" />
+              </button>
+              <button
+                type="button"
+                className="study-agent__tool"
+                aria-label="Search the web"
+                aria-pressed={research}
+                title="Search the web for this message"
+                disabled={disabled || sending}
+                onClick={() => onResearch(!research)}
+              >
+                <AgentIcon name="globe" />
+              </button>
+            </div>
+            <button
+              type="submit"
+              className="btn btn--primary study-agent__send"
+              aria-label="Send message"
+              title="Send message"
+              disabled={!canSend}
+            >
+              <AgentIcon name="send" />
+            </button>
+          </div>
         </div>
       </form>
     </div>

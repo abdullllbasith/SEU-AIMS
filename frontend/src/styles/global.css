@@ -8182,6 +8182,29 @@ button.inbox-row {
   .study-agent__action span {
     display: none;
   }
+
+  .study-agent__chat {
+    padding: var(--space-3);
+    height: clamp(520px, calc(100dvh - 160px), 900px);
+  }
+
+  .study-agent__welcome {
+    margin: var(--space-3) auto;
+    padding: 0 var(--space-2);
+  }
+
+  .study-agent__welcome h3 {
+    font-size: var(--text-lg);
+  }
+
+  .study-agent__welcome p {
+    font-size: var(--text-sm);
+  }
+
+  .study-agent__starter {
+    width: 100%;
+    text-align: center;
+  }
 }
 
 /* Study Agent: attachments, quick actions, drop target. */
@@ -8356,8 +8379,7 @@ a.study-agent__source-title {
   flex: none;
 }
 
-.study-agent__action,
-.study-agent__tool {
+.study-agent__action {
   display: inline-flex;
   gap: var(--space-2);
   align-items: center;
@@ -8379,22 +8401,15 @@ a.study-agent__source-title {
   flex: none;
 }
 
-.study-agent__action:hover,
-.study-agent__tool:hover:not(:disabled) {
+.study-agent__action:hover {
   border-color: var(--color-border-hover);
   color: var(--color-text);
 }
 
-.study-agent__action[aria-expanded='true'],
-.study-agent__tool[aria-pressed='true'] {
+.study-agent__action[aria-expanded='true'] {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
   color: var(--color-accent);
-}
-
-.study-agent__tool {
-  border-color: transparent;
-  background: none;
 }
 
 .study-agent__history {
@@ -8446,16 +8461,17 @@ a.study-agent__source-title {
 .study-agent__welcome-icon {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   border-radius: var(--radius-full);
   background: var(--color-accent-soft);
   color: var(--color-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .study-agent__welcome-icon svg {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
 }
 
 .study-agent__starters {
@@ -8528,55 +8544,94 @@ a.study-agent__source-title {
 .study-agent__composer {
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-3);
+  width: 100%;
+}
+
+.study-agent__input-box {
+  display: flex;
+  flex-direction: column;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--space-2) var(--space-3);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-.study-agent__composer:focus-within {
+.study-agent__input-box:focus-within {
   border-color: var(--color-accent);
-  outline: 2px solid var(--color-accent-soft);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
-.study-agent__composer textarea {
+.study-agent__input-box textarea {
   width: 100%;
-  min-height: 28px;
+  min-height: 40px;
   max-height: 200px;
   resize: none;
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-1);
   font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.5;
   color: var(--color-text);
-  background: none;
+  background: transparent;
   border: 0;
   outline: none;
 }
 
-.study-agent__composer-bar {
+.study-agent__input-actions {
   display: flex;
-  gap: var(--space-2);
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
 }
 
-.study-agent__composer-hint {
-  flex: 1;
-  text-align: right;
-  font-size: var(--text-xs);
+.study-agent__input-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.study-agent__tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.study-agent__tool:hover:not(:disabled) {
+  background: var(--color-surface-hover, var(--color-surface-subtle));
+  color: var(--color-text);
+  border-color: var(--color-border-subtle);
+}
+
+.study-agent__tool[aria-pressed='true'] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 .study-agent__send {
   display: inline-grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border-radius: var(--radius-full);
+  flex-shrink: 0;
 }
 
 .study-agent__send svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .study-agent__thinking {

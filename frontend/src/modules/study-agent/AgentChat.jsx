@@ -70,8 +70,7 @@ function SourceList({ sources: allSources }) {
     <ol className="study-agent__sources" aria-label="Sources">
       {sources.map((source, index) => {
         const label =
-          `${sources.length > 1 || source.page ? `${index + 1}. ` : ''}${source.title}${
-            source.page ? `, page ${source.page}` : ''
+          `${sources.length > 1 || source.page ? `${index + 1}. ` : ''}${source.title}${source.page ? `, page ${source.page}` : ''
           }${source.section ? `, ${source.section}` : ''}`;
         return (
           <li key={`${source.kind}-${source.fileId || source.url || index}-${source.page ?? ''}`}>
@@ -250,8 +249,8 @@ export function AgentChat({ session: initialSession, onNewChat, onOpenSession })
         sources: [],
         attachments: fromComposer
           ? attachments.items
-              .filter((item) => item.status === 'READY')
-              .map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType, previewUrl: item.previewUrl }))
+            .filter((item) => item.status === 'READY')
+            .map((item) => ({ id: item.id, name: item.name, mimeType: item.mimeType, previewUrl: item.previewUrl }))
           : [],
       },
     ]);
