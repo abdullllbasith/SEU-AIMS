@@ -1,4 +1,7 @@
-/* Landing page — shares the blue theme with the guest sign-in panel. */
+/* ==========================================================================
+   Landing Page — South Eastern University of Sri Lanka / Faculty of Technology
+   Academic Information & Examination Management System (SEU-AIMS)
+   ========================================================================== */
 
 .landing {
   height: 100%;
@@ -10,16 +13,20 @@
   scroll-behavior: smooth;
 }
 
+/* ==========================================================================
+   Hero Section
+   ========================================================================== */
+
 .landing__hero {
   position: relative;
   isolation: isolate;
   overflow: hidden;
   color: #ffffff;
-  padding: 0 clamp(1.25rem, 6vw, 5rem) clamp(3.5rem, 8vw, 6rem);
+  padding: 0 clamp(1.25rem, 5vw, 4.5rem) clamp(3.5rem, 7vw, 5.5rem);
   background:
-    radial-gradient(110% 70% at 0% 0%, rgba(66, 133, 244, 0.38) 0%, rgba(66, 133, 244, 0) 60%),
-    radial-gradient(80% 60% at 100% 100%, rgba(124, 172, 248, 0.22) 0%, rgba(124, 172, 248, 0) 65%),
-    linear-gradient(160deg, #0a2a6b 0%, var(--brand-900) 55%, #02122e 100%);
+    radial-gradient(110% 70% at 0% 0%, rgba(26, 115, 232, 0.32) 0%, transparent 60%),
+    radial-gradient(80% 60% at 100% 100%, rgba(11, 87, 208, 0.25) 0%, transparent 65%),
+    linear-gradient(165deg, #07193b 0%, #0d2c6c 50%, #030e22 100%);
 }
 
 .landing__hero::before {
@@ -27,7 +34,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
   background-size: 22px 22px;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
   mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
@@ -41,69 +48,158 @@
   width: 28rem;
   height: 28rem;
   border-radius: var(--radius-full);
-  background: radial-gradient(circle, rgba(124, 172, 248, 0.28) 0%, rgba(124, 172, 248, 0) 70%);
+  background: radial-gradient(circle, rgba(66, 133, 244, 0.28) 0%, rgba(11, 87, 208, 0) 70%);
   pointer-events: none;
 }
 
+/* ==========================================================================
+   Navigation Bar
+   ========================================================================== */
+
 .landing__nav {
-  max-width: 72rem;
+  max-width: 76rem;
   margin: 0 auto;
-  padding: 1.5rem 0;
+  padding: 1.25rem 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.landing__brand {
+.landing__brand-lockup {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.9rem;
 }
 
-.landing__brand-icon {
+.landing__crest-card {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  padding: 0.3rem;
   display: grid;
   place-items: center;
-  width: 2.6rem;
-  height: 2.6rem;
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
 }
 
-.landing__brand-copy {
-  display: grid;
+.landing__uni-crest {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.landing__brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.landing__uni-name {
+  font-size: 0.72rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brand-300);
+  line-height: 1.25;
+}
+
+.landing__faculty-name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: var(--weight-bold);
+  color: #ffffff;
+  letter-spacing: -0.015em;
   line-height: 1.2;
 }
 
-.landing__brand-copy strong {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  letter-spacing: -0.02em;
+.landing__brand-sep {
+  width: 1px;
+  height: 2.2rem;
+  background: rgba(255, 255, 255, 0.2);
+  margin-inline: 0.25rem;
 }
 
-.landing__brand-copy small {
-  font-size: 0.74rem;
+.landing__aims-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-md);
+}
+
+.landing__aims-icon {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.landing__aims-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.landing__aims-text strong {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.landing__aims-text small {
+  font-size: 0.68rem;
   color: var(--brand-300);
+}
+
+.landing__nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.landing__nav-links a:not(.landing__login) {
+  color: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: var(--weight-medium);
+  transition: color 0.15s ease;
+}
+
+.landing__nav-links a:not(.landing__login):hover {
+  color: #ffffff;
 }
 
 .landing__login {
   display: inline-flex;
   align-items: center;
-  height: 2.5rem;
-  padding: 0 1.4rem;
+  height: 2.45rem;
+  padding: 0 1.35rem;
   border-radius: var(--radius-full);
   background: #ffffff;
   color: var(--brand-800);
   font-weight: var(--weight-strong);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   text-decoration: none;
   box-shadow: 0 4px 14px rgba(2, 18, 46, 0.3);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 .landing__login:hover {
   background: var(--brand-100);
+  color: var(--brand-900);
+  transform: translateY(-1px);
 }
 
 .landing a:focus-visible {
@@ -111,41 +207,48 @@
   outline-offset: 3px;
 }
 
+/* ==========================================================================
+   Hero Body
+   ========================================================================== */
+
 .landing__hero-body {
-  max-width: 72rem;
-  margin: clamp(2.5rem, 7vw, 5rem) auto 0;
+  max-width: 76rem;
+  margin: clamp(2.5rem, 6vw, 4.5rem) auto 0;
   outline: none;
 }
 
-.landing__eyebrow,
-.landing__kicker {
-  margin: 0 0 1rem;
+.landing__institution-pill {
+  margin: 0 0 1.2rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  font-size: 0.76rem;
+  gap: 0.6rem;
+  padding: 0.4rem 0.95rem;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 0.78rem;
   font-weight: var(--weight-strong);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--brand-300);
+  color: var(--brand-200);
 }
 
-.landing__eyebrow::before {
-  content: '';
-  width: 1.75rem;
-  height: 2px;
+.landing__pill-dot {
+  width: 8px;
+  height: 8px;
   border-radius: var(--radius-full);
-  background: var(--brand-400);
+  background: #34a853;
+  box-shadow: 0 0 8px rgba(52, 168, 83, 0.85);
 }
 
 .landing__hero h1 {
   margin: 0;
-  max-width: 44rem;
+  max-width: 50rem;
   font-family: var(--font-display);
-  font-size: clamp(2.2rem, 5.2vw, 3.8rem);
+  font-size: clamp(2.2rem, 4.8vw, 3.75rem);
   font-weight: var(--weight-bold);
   letter-spacing: -0.035em;
-  line-height: 1.1;
+  line-height: 1.12;
 }
 
 .landing__hero h1 span {
@@ -157,17 +260,17 @@
 
 .landing__lead {
   margin: 1.4rem 0 0;
-  max-width: 36rem;
+  max-width: 44rem;
   font-size: 1.05rem;
   line-height: 1.7;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.84);
 }
 
 .landing__cta {
-  margin-top: 2rem;
+  margin-top: 2.25rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.8rem;
+  gap: 0.9rem;
 }
 
 .landing__btn {
@@ -175,203 +278,538 @@
   align-items: center;
   justify-content: center;
   height: 2.9rem;
-  padding: 0 1.7rem;
+  padding: 0 1.75rem;
   border-radius: var(--radius-full);
   font-weight: var(--weight-strong);
   font-size: 0.95rem;
   text-decoration: none;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .landing__btn--primary {
   background: var(--brand-600);
   color: #ffffff;
-  box-shadow: 0 8px 22px rgba(26, 115, 232, 0.4);
+  box-shadow: 0 6px 20px rgba(26, 115, 232, 0.4);
 }
 
 .landing__btn--primary:hover {
   background: var(--brand-500);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(26, 115, 232, 0.5);
 }
 
 .landing__btn--ghost {
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
 }
 
 .landing__btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+}
+
+.landing__btn--lg {
+  height: 3.2rem;
+  padding: 0 2.25rem;
+  font-size: 1.02rem;
 }
 
 .landing__stats {
   list-style: none;
-  margin: clamp(2.5rem, 6vw, 3.75rem) 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem 3rem;
+  margin: clamp(2.5rem, 5vw, 3.75rem) 0 0;
+  padding: 1.5rem 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1.25rem 2rem;
 }
 
 .landing__stats li {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
 .landing__stats strong {
   font-family: var(--font-display);
-  font-size: 1.75rem;
-  letter-spacing: -0.02em;
+  font-size: 1.08rem;
+  font-weight: var(--weight-bold);
+  color: #ffffff;
+  letter-spacing: -0.015em;
 }
 
 .landing__stats span {
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.4;
 }
+
+/* ==========================================================================
+   Section Standards
+   ========================================================================== */
 
 .landing__section {
-  max-width: 72rem;
+  max-width: 76rem;
   margin: 0 auto;
-  padding: clamp(3rem, 7vw, 5rem) clamp(1.25rem, 6vw, 5rem);
+  padding: clamp(3.25rem, 6vw, 5rem) clamp(1.25rem, 5vw, 4.5rem);
 }
 
-.landing__section .landing__kicker {
+.landing__kicker {
+  margin: 0 0 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.74rem;
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--brand-700);
 }
 
-.landing__section h2,
-.landing__final h2 {
+.landing__kicker::before {
+  content: '';
+  width: 1.5rem;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--brand-600);
+}
+
+.landing__section h2 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 3.2vw, 2.2rem);
+  font-size: clamp(1.65rem, 3.2vw, 2.35rem);
   letter-spacing: -0.03em;
   line-height: 1.2;
   color: var(--slate-900);
 }
 
 .landing__section-lead {
-  margin: 0.8rem 0 0;
-  max-width: 38rem;
+  margin: 0.75rem 0 0;
+  max-width: 44rem;
   color: var(--slate-600);
+  font-size: 0.98rem;
   line-height: 1.65;
 }
 
+/* ==========================================================================
+   Departments Section
+   ========================================================================== */
+
+.landing__departments-grid {
+  margin-top: 2.25rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: 1.5rem;
+}
+
+.landing__dept-card {
+  padding: 2rem 2.2rem;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.landing__dept-card:hover {
+  border-color: var(--brand-300);
+  box-shadow: var(--shadow-raised);
+  transform: translateY(-2px);
+}
+
+.landing__dept-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.landing__dept-icon {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 14px;
+  background: var(--brand-50);
+  color: var(--brand-700);
+  border: 1px solid var(--brand-100);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.landing__dept-code {
+  font-size: 0.76rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--brand-700);
+  display: block;
+}
+
+.landing__dept-header h3 {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: var(--weight-bold);
+  color: var(--slate-900);
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.landing__dept-degree {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: var(--weight-strong);
+  color: var(--brand-800);
+  background: var(--brand-50);
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--brand-600);
+  line-height: 1.4;
+}
+
+.landing__dept-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--slate-600);
+  flex-grow: 1;
+}
+
+.landing__dept-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+}
+
+.landing__tag {
+  font-size: 0.74rem;
+  font-weight: var(--weight-medium);
+  color: var(--slate-700);
+  background: var(--slate-100);
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-full);
+}
+
+/* ==========================================================================
+   Academic Modules Section
+   ========================================================================== */
+
 .landing__grid {
   list-style: none;
-  margin: 2.25rem 0 0;
+  margin: 2.5rem 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1.35rem;
 }
 
 .landing__card {
-  padding: 1.5rem;
+  padding: 1.75rem 1.85rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .landing__card:hover {
   border-color: var(--brand-300);
   box-shadow: var(--shadow-raised);
+  transform: translateY(-2px);
+}
+
+.landing__card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.15rem;
 }
 
 .landing__card-icon {
   display: grid;
   place-items: center;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 2.65rem;
+  height: 2.65rem;
   border-radius: 12px;
   color: var(--brand-700);
   background: var(--brand-50);
+  border: 1px solid var(--brand-100);
 }
 
-.landing__card h3,
-.landing__roles h3 {
-  margin: 1rem 0 0.4rem;
+.landing__card-category {
+  font-size: 0.72rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brand-700);
+  background: var(--brand-50);
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+}
+
+.landing__card h3 {
+  margin: 0 0 0.65rem;
   font-family: var(--font-display);
-  font-size: 1.02rem;
+  font-size: 1.08rem;
+  font-weight: var(--weight-bold);
   color: var(--slate-900);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
 }
 
-.landing__card p,
-.landing__roles p {
+.landing__card p {
   margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.6;
+  font-size: 0.88rem;
+  line-height: 1.65;
   color: var(--slate-600);
 }
 
+/* ==========================================================================
+   Roles Section
+   ========================================================================== */
+
 .landing__section--alt {
   max-width: none;
-  background: var(--color-surface);
+  background: #ffffff;
   border-block: 1px solid var(--color-border);
 }
 
 .landing__section--alt > * {
-  max-width: 62rem;
+  max-width: 76rem;
   margin-inline: auto;
 }
 
 .landing__roles {
   list-style: none;
-  margin: 2rem auto 0;
+  margin: 2.25rem auto 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 1.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1.35rem;
 }
 
 .landing__roles li {
-  padding: 1.4rem 1.5rem;
+  padding: 1.75rem 1.85rem;
   border-radius: var(--radius-lg);
+  background: var(--slate-50);
+  border: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.landing__roles li:hover {
   background: var(--brand-50);
-  border: 1px solid var(--brand-100);
+  border-color: var(--brand-200);
+}
+
+.landing__role-badge {
+  font-size: 0.72rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--brand-700);
 }
 
 .landing__roles h3 {
-  margin-top: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: var(--weight-bold);
+  color: var(--slate-900);
+  letter-spacing: -0.015em;
 }
 
+.landing__roles p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: var(--slate-600);
+}
+
+/* ==========================================================================
+   Final University CTA
+   ========================================================================== */
+
 .landing__final {
-  max-width: 72rem;
-  margin: clamp(2.5rem, 6vw, 4rem) auto;
-  padding: clamp(2.25rem, 5vw, 3.5rem) 1.5rem;
+  max-width: 76rem;
+  margin: clamp(2.5rem, 5vw, 4.5rem) auto;
+  padding: clamp(2.5rem, 5vw, 3.75rem) 2rem;
   text-align: center;
   border-radius: var(--radius-xl);
   color: #ffffff;
-  background: linear-gradient(160deg, #0a2a6b 0%, var(--brand-900) 100%);
-  width: calc(100% - 2 * clamp(1.25rem, 6vw, 5rem));
+  background:
+    radial-gradient(100% 70% at 50% 0%, rgba(26, 115, 232, 0.3) 0%, transparent 60%),
+    linear-gradient(160deg, #07193b 0%, #0c2b69 60%, #030e22 100%);
+  width: calc(100% - 2 * clamp(1.25rem, 5vw, 4.5rem));
+  box-shadow: var(--shadow-raised);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.landing__final-crest {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  padding: 0.45rem;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  margin-bottom: 1.25rem;
+}
+
+.landing__final-crest-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.landing__final-eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--brand-300);
 }
 
 .landing__final h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  font-weight: var(--weight-bold);
   color: #ffffff;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
 }
 
 .landing__final p {
-  margin: 0.7rem 0 1.6rem;
-  color: rgba(255, 255, 255, 0.74);
+  margin: 0.85rem 0 2rem;
+  max-width: 36rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.98rem;
+  line-height: 1.65;
 }
 
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+
 .landing__footer {
-  padding: 1.5rem;
-  text-align: center;
-  font-size: 0.8rem;
-  color: var(--slate-600);
+  padding: 3rem clamp(1.25rem, 5vw, 4.5rem) 2rem;
+  background: #ffffff;
   border-top: 1px solid var(--color-border);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .landing {
-    scroll-behavior: auto;
-  }
+.landing__footer-inner {
+  max-width: 76rem;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
 
-  .landing__login,
-  .landing__btn,
-  .landing__card {
-    transition: none;
+.landing__footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.landing__footer-crest {
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.landing__footer-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: var(--weight-bold);
+  color: var(--slate-900);
+}
+
+.landing__footer-faculty {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  font-weight: var(--weight-strong);
+  color: var(--brand-800);
+}
+
+.landing__footer-address {
+  margin: 0.2rem 0 0;
+  font-size: 0.76rem;
+  color: var(--slate-500);
+}
+
+.landing__footer-dept-list {
+  font-size: 0.82rem;
+  color: var(--slate-600);
+}
+
+.landing__footer-dept-list p {
+  margin: 0 0 0.4rem;
+  color: var(--slate-800);
+}
+
+.landing__footer-dept-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.landing__footer-bottom {
+  max-width: 76rem;
+  margin: 1.5rem auto 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--slate-500);
+}
+
+/* ==========================================================================
+   Responsive Adaptations
+   ========================================================================== */
+
+@media (max-width: 960px) {
+  .landing__nav-links a:not(.landing__login) {
+    display: none;
+  }
+  .landing__brand-sep {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .landing__nav {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .landing__aims-badge {
+    display: none;
+  }
+  .landing__departments-grid {
+    grid-template-columns: 1fr;
+  }
+  .landing__final {
+    width: calc(100% - 2rem);
+    margin-inline: 1rem;
+    padding-inline: 1.25rem;
   }
 }
 
@@ -382,5 +820,18 @@
 
   .landing__btn {
     flex: 1 1 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing {
+    scroll-behavior: auto;
+  }
+
+  .landing__login,
+  .landing__btn,
+  .landing__card,
+  .landing__dept-card {
+    transition: none;
   }
 }
