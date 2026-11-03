@@ -32,7 +32,7 @@ function BrandMark({ size = 'rail' }) {
       <span className="brand-mark__copy">
         <span className="app-shell__title">SEU-AIMS</span>
         <span className="app-shell__subtitle">
-          {size === 'guest' ? 'Department VLE / LMS' : 'Department LMS'}
+          {size === 'guest' ? 'Faculty of Technology' : 'Department LMS'}
         </span>
       </span>
     </div>
@@ -144,19 +144,52 @@ export function AppShell({ children }) {
         </a>
         <aside className="guest-brand">
           <span className="guest-brand__glow" aria-hidden="true" />
+
           <div className="guest-brand__top">
-            <BrandMark size="guest" />
+            <div className="guest-brand__header">
+              <div className="guest-brand__crest-container">
+                <img
+                  src="/South_Eastern_University_of_Sri_Lanka_logo.png"
+                  alt="South Eastern University of Sri Lanka Crest"
+                  className="guest-brand__uni-crest"
+                />
+              </div>
+              <div className="guest-brand__header-titles">
+                <span className="guest-brand__uni-name">South Eastern University of Sri Lanka</span>
+                <span className="guest-brand__faculty-name">Faculty of Technology</span>
+              </div>
+            </div>
+            <div className="guest-brand__system-badge">
+              <BrandMark size="guest" />
+            </div>
           </div>
+
           <div className="guest-brand__body">
-            <p className="guest-brand__eyebrow">South Eastern University of Sri Lanka</p>
+            <div className="guest-brand__badge">
+              <span className="guest-brand__badge-dot" aria-hidden="true" />
+              <span>Academic &amp; Examination Workspace</span>
+            </div>
             <h2 className="guest-brand__headline">
-              Your department’s <span>academic workspace</span>, in one place.
+              Faculty of Technology <span>Academic Information</span> &amp; Management System
             </h2>
             <p className="guest-brand__line">
-              Coursework, continuous assessment, results and study groups for students, lecturers and
-              department administrators.
+              Official institutional portal for undergraduates, academic staff, and administration
+              across the Department of ICT and Department of Biosystems Technology.
             </p>
+
             <ul className="guest-brand__features">
+              <li>
+                <span className="guest-brand__icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  </svg>
+                </span>
+                <span className="guest-brand__feature-copy">
+                  <strong>Course Offerings &amp; Lecture Materials</strong>
+                  <small>Departmental syllabus resources, lecture slides &amp; schedules</small>
+                </span>
+              </li>
               <li>
                 <span className="guest-brand__icon" aria-hidden="true">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -165,8 +198,8 @@ export function AppShell({ children }) {
                   </svg>
                 </span>
                 <span className="guest-brand__feature-copy">
-                  <strong>Continuous Assessment &amp; Recovery</strong>
-                  <small>Official CA records and recovery tracking</small>
+                  <strong>Continuous Assessment (CA) &amp; Recovery</strong>
+                  <small>Verified CA scores, cut-off tracking &amp; formal recovery exams</small>
                 </span>
               </li>
               <li>
@@ -177,8 +210,8 @@ export function AppShell({ children }) {
                   </svg>
                 </span>
                 <span className="guest-brand__feature-copy">
-                  <strong>GPA / CGPA &amp; Transcripts</strong>
-                  <small>Automatic recalculation from official results</small>
+                  <strong>Official Examination Results &amp; GPA Engine</strong>
+                  <small>Registration-verified results with automatic SGPA &amp; CGPA</small>
                 </span>
               </li>
               <li>
@@ -189,13 +222,21 @@ export function AppShell({ children }) {
                   </svg>
                 </span>
                 <span className="guest-brand__feature-copy">
-                  <strong>Encrypted Study Room</strong>
-                  <small>Private, student-only collaboration</small>
+                  <strong>Faculty Notices &amp; Peer Study Rooms</strong>
+                  <small>Official circulars and secure, student-only collaboration</small>
                 </span>
               </li>
             </ul>
           </div>
-          <p className="guest-brand__foot">Department Academic &amp; Examination Management</p>
+
+          <div className="guest-brand__foot">
+            <div className="guest-brand__departments-list">
+              <span>Dept. of Information &amp; Communication Technology</span>
+              <span className="guest-brand__dept-dot">·</span>
+              <span>Dept. of Biosystems Technology</span>
+            </div>
+            <p className="guest-brand__foot-sub">South Eastern University of Sri Lanka · University Park, Oluvil</p>
+          </div>
         </aside>
         <main id="main-content" className="guest-main" tabIndex={-1}>
           {children}

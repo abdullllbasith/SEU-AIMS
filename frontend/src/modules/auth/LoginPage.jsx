@@ -32,9 +32,20 @@ export function LoginPage() {
   return (
     <section className="auth-card">
       <header className="auth-card__header">
+        <div className="auth-card__faculty-banner">
+          <img
+            src="/South_Eastern_University_of_Sri_Lanka_logo.png"
+            alt="South Eastern University of Sri Lanka Crest"
+            className="auth-card__uni-crest"
+          />
+          <div className="auth-card__faculty-meta">
+            <span className="auth-card__uni-label">South Eastern University of Sri Lanka</span>
+            <span className="auth-card__faculty-label">Faculty of Technology</span>
+          </div>
+        </div>
         <h1>Sign in</h1>
         <p className="auth-card__purpose">
-          Use your account email. Registration numbers are academic identity, not login.
+          Sign in with your university account email to access your academic workspace. Registration numbers are academic identity, not login email.
         </p>
       </header>
 
