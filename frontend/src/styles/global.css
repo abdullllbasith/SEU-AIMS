@@ -274,6 +274,20 @@ a:hover {
   margin-bottom: 0.25rem;
 }
 
+/* Blue tile behind the logo image only (sidebar brand) */
+.brand-mark__logo--tile {
+  flex-shrink: 0;
+  box-sizing: content-box;
+  height: 2.5rem;
+  width: 2.5rem;
+  margin: 0;
+  padding: 0.05rem;
+  object-fit: contain;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1a73e8 0%, #0b57d0 100%);
+  box-shadow: 0 2px 6px rgba(11, 87, 208, 0.22);
+}
+
 .brand-mark {
   display: flex;
   align-items: center;
@@ -1266,6 +1280,16 @@ select {
   box-shadow: none;
 }
 
+/* iOS Safari auto-zooms into any field whose font-size is below 16px.
+   Keep form controls at 16px on touch/mobile widths so the page doesn't zoom on focus. */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 input:hover,
 textarea:hover,
 select:hover {
@@ -1807,6 +1831,33 @@ a.stat-card:hover {
   width: fit-content;
 }
 
+.guest-brand__logo {
+  display: block;
+  height: 3.2rem;
+  width: auto;
+  /* Logo PNG has transparent padding on both sides; pull the logo and text closer */
+  margin-left: -0.6rem;
+  margin-right: -0.5rem;
+}
+
+.brand-mark__logo {
+  height: 2.2rem;
+  margin-left: -0.4rem;
+  margin-right: -0.35rem;
+}
+
+.guest-brand__system-badge {
+  gap: 0.1rem;
+}
+
+.guest-brand__system-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
 .guest-brand__system-badge .brand-mark--guest {
   gap: 0.65rem;
 }
@@ -1864,7 +1915,7 @@ a.stat-card:hover {
 .guest-brand__headline {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+  font-size: clamp(2rem, 3vw, 2.8rem);
   font-weight: var(--weight-bold);
   letter-spacing: -0.03em;
   line-height: 1.15;
@@ -1949,6 +2000,29 @@ a.stat-card:hover {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.guest-brand__foot-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.guest-brand__foot-row .guest-brand__crest-container {
+  width: 3.2rem;
+  height: 3.2rem;
+  padding: 0.3rem;
+}
+
+.guest-brand__foot-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.guest-brand__foot-text .guest-brand__faculty-name {
+  font-size: 0.95rem;
 }
 
 .guest-brand__departments-list {

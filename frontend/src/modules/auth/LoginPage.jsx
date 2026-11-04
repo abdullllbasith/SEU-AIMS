@@ -19,9 +19,14 @@ export function LoginPage() {
   async function onSubmit(event) {
     event.preventDefault();
     setError('');
+    const restrictDomain = import.meta.env.VITE_AUTH_RESTRICT_LOGIN_DOMAIN !== 'false';
+    if (restrictDomain && !/^[^\s@]+@seu\.ac\.lk$/i.test(identifier.trim())) {
+      setError('Only @seu.ac.lk email addresses can sign in.');
+      return;
+    }
     setSubmitting(true);
     try {
-      await login({ identifier, password });
+      await login({ identifier: identifier.trim(), password });
     } catch (caught) {
       setError(loginErrorMessage(caught));
     } finally {
@@ -32,20 +37,9 @@ export function LoginPage() {
   return (
     <section className="auth-card">
       <header className="auth-card__header">
-        <div className="auth-card__faculty-banner">
-          <img
-            src="/South_Eastern_University_of_Sri_Lanka_logo.png"
-            alt="South Eastern University of Sri Lanka Crest"
-            className="auth-card__uni-crest"
-          />
-          <div className="auth-card__faculty-meta">
-            <span className="auth-card__uni-label">South Eastern University of Sri Lanka</span>
-            <span className="auth-card__faculty-label">Faculty of Technology</span>
-          </div>
-        </div>
         <h1>Sign in</h1>
         <p className="auth-card__purpose">
-          Sign in with your university account email to access your academic workspace. Registration numbers are academic identity, not login email.
+          Sign in with your university account email to access your academic workspace.
         </p>
       </header>
 
