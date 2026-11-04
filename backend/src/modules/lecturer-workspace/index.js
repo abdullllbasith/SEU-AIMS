@@ -18,6 +18,14 @@ export function createLecturerWorkspaceModule() {
 
 export { createRouter };
 export { TEACHING_SUMMARY_CATALOG } from './constants.js';
-export { getLecturerDashboard } from './services/dashboard.service.js';
+export {
+  getLecturerDashboard,
+  getAssignedOfferings,
+  getOfferingRoster,
+  getUpcoming,
+  getCaEligible,
+  getCaSchedules,
+} from './services/dashboard.service.js';
+export { searchLecturerWorkspace } from './services/search.service.js';
 export { sanitizeWorkspaceSearch } from './services/scope.js';
 export { dashboardCacheKey } from './services/dashboard-cache.js';

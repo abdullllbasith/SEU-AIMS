@@ -28,6 +28,7 @@ import { LecturerCaPage } from '../modules/ca-recovery/LecturerCaPage.jsx';
 import { LecturerDashboardPage } from '../modules/lecturer/LecturerDashboardPage.jsx';
 import { LecturerSearchPage } from '../modules/lecturer/LecturerSearchPage.jsx';
 import { LecturerOfferingWorkspacePage } from '../modules/lecturer/LecturerOfferingWorkspacePage.jsx';
+import { AdminAssistantPage, LecturerAssistantPage } from '../modules/staff-agent/AssistantPages.jsx';
 import { NotificationsPage } from '../modules/communication/NotificationsPage.jsx';
 import { NoticesPage } from '../modules/communication/NoticesPage.jsx';
 import { CalendarPage } from '../modules/communication/CalendarPage.jsx';
@@ -176,6 +177,22 @@ export function AppRoutes() {
         element={
           <ProtectedRoute roles={[ROLES.LECTURER]}>
             <LecturerDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lecturer/assistant"
+        element={
+          <ProtectedRoute roles={[ROLES.LECTURER]}>
+            <LecturerAssistantPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/assistant"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminAssistantPage />
           </ProtectedRoute>
         }
       />

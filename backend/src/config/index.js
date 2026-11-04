@@ -131,6 +131,14 @@ export function loadConfig() {
       maxImages: integer('STUDY_AGENT_MAX_IMAGES', 5),
       imageMaxBytes: integer('STUDY_AGENT_IMAGE_MAX_BYTES', 5 * 1024 * 1024),
     },
+    staffAgent: {
+      messagesPerMinute: integer('STAFF_AGENT_MSGS_PER_MINUTE', 10),
+      dailyRequests: integer('STAFF_AGENT_DAILY_REQUESTS', 150),
+      maxMessageChars: integer('STAFF_AGENT_MAX_MESSAGE_CHARS', 2000),
+      historyMessages: integer('STAFF_AGENT_HISTORY_MESSAGES', 6),
+      maxToolsPerMessage: integer('STAFF_AGENT_MAX_TOOLS', 3),
+      toolResultCharBudget: integer('STAFF_AGENT_TOOL_CHAR_BUDGET', 6000),
+    },
     timezone: optional('TZ', 'Asia/Colombo'),
     notifications: {
       retryMax: integer('NOTIFICATION_RETRY_MAX', 5),

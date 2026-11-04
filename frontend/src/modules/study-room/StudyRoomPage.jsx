@@ -485,6 +485,8 @@ export function StudyRoomPage() {
   const [status, setStatus] = useState('loading');
   const [overview, setOverview] = useState(null);
   const [tab, setTab] = useState('common');
+  const tabNavRef = useRef(null);
+  const tabHintPlayedRef = useRef(false);
   const [identity, setIdentity] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
@@ -522,15 +524,51 @@ export function StudyRoomPage() {
   conversationIdRef.current = conversationId;
 
   const prepareIdentity = useCallback(async () => {
-    let next = await readStoredIdentity(importPrivateJwk);
-    if (!next) {
-      try {
-        const claimed = await studyRoomApi.claimIdentity();
-        if (claimed.data?.privateKeyJwk && claimed.data?.publicKeyJwk) {
-          next = await persistIdentity(claimed.data, importPrivateJwk);
+    const userId = String(user?.id || user?.userId || '');
+    const sameKey = (identityRecord, publicJwk) =>
+      Boolean(identityRecord && publicJwk) &&
+      identityRecord.publicJwk?.x === publicJwk.x &&
+      identityRecord.publicJwk?.y === publicJwk.y;
+
+    // The server copy of the public key is the reference: the private key must match it, otherwise
+    // every message written under the published key becomes unreadable.
+    let claimed = null;
+    try {
+      claimed = (await studyRoomApi.claimIdentity()).data || null;
+    } catch {
+      claimed = null;
+    }
+    const serverPublic = claimed?.publicKeyJwk || null;
+
+    let next = await readStoredIdentity(importPrivateJwk, userId);
+    if (next && serverPublic && !sameKey(next, serverPublic)) {
+      // This device key was replaced elsewhere; prefer one that matches what classmates encrypted to.
+      const recovered = claimed?.privateKeyJwk
+        ? await persistIdentity(claimed, importPrivateJwk, userId).catch(() => null)
+        : null;
+      if (recovered) {
+        next = recovered;
+      } else {
+        const legacy = await readStoredIdentity(importPrivateJwk, userId, { legacy: true });
+        if (sameKey(legacy, serverPublic)) {
+          next = legacy;
         }
-      } catch {
-        // A device key is created below when this browser has nothing to recover.
+      }
+    }
+    if (!next && serverPublic) {
+      if (claimed.privateKeyJwk) {
+        next = await persistIdentity(claimed, importPrivateJwk, userId).catch(() => null);
+      }
+      if (!next) {
+        // Older builds kept one browser-wide key; only reuse it when it is provably this student's.
+        const legacy = await readStoredIdentity(importPrivateJwk, userId, { legacy: true });
+        if (sameKey(legacy, serverPublic)) {
+          next = await persistIdentity(
+            { publicKeyJwk: legacy.publicJwk, privateKeyJwk: await exportPrivateJwk(legacy.privateKey), keyVersion: legacy.keyVersion },
+            importPrivateJwk,
+            userId,
+          ).catch(() => legacy);
+        }
       }
     }
     if (!next) {
@@ -539,12 +577,15 @@ export function StudyRoomPage() {
         exportPrivateJwk,
         importPrivateJwk,
         exportPublicJwk,
+        userId,
       );
     }
     setIdentity(next);
-    await studyRoomApi.putPublicKey({ publicKeyJwk: next.publicJwk, keyVersion: next.keyVersion || '1' });
+    if (!sameKey(next, serverPublic)) {
+      await studyRoomApi.putPublicKey({ publicKeyJwk: next.publicJwk, keyVersion: next.keyVersion || '1' });
+    }
     return next;
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -681,6 +722,31 @@ export function StudyRoomPage() {
     refreshStudyRoomAttention(meId).catch(() => {});
     return undefined;
   }, [status, meId]);
+
+  // On first visit, nudge the overflowing section tabs right and back so users discover the
+  // hidden tabs (e.g. "Study agent") on narrow screens. Runs once per page visit; skipped when
+  // the tabs fit or the user prefers reduced motion.
+  useEffect(() => {
+    if (status !== 'ready' || tabHintPlayedRef.current) return;
+    const nav = tabNavRef.current;
+    if (!nav || nav.scrollWidth <= nav.clientWidth + 4) return;
+    tabHintPlayedRef.current = true;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const slide = (from, to, duration, startAt) => {
+      const start = performance.now() + startAt;
+      const step = (now) => {
+        if (now < start) return requestAnimationFrame(step);
+        const t = Math.min((now - start) / duration, 1);
+        const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // cubic ease-in-out
+        nav.scrollLeft = from + (to - from) * eased;
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+    // Wait 1.5s after the page appears, glide right, pause briefly, then glide back.
+    slide(0, 64, 650, 1500);
+    slide(64, 0, 650, 1500 + 650 + 250);
+  }, [status]);
 
   useEffect(() => {
     if (status !== 'ready' || tab !== 'files' || !meId) {
@@ -1366,7 +1432,7 @@ export function StudyRoomPage() {
                 {socketState === 'connected' ? 'Live' : socketState}
               </span>
             ) : null}
-        <div className="tab-nav" role="tablist" aria-label="Study Room sections">
+        <div className="tab-nav" ref={tabNavRef} role="tablist" aria-label="Study Room sections">
           <button
             type="button"
             role="tab"

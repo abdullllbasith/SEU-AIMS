@@ -29,6 +29,12 @@ function idbPut(db, key, value) {
   });
 }
 
+// Identity keys are stored per signed-in user. A browser shared by several accounts must never
+// hand one student's private key to another, or old messages stop decrypting.
+function identityKey(userId) {
+  return userId ? `identity:${userId}` : 'identity';
+}
+
 function rawSignature(bytes) {
   return Array.from(bytes).join(',');
 }
@@ -66,10 +72,10 @@ export async function rememberRoomKeyMaterial(conversationId, rawKeys) {
   }
 }
 
-export async function readStoredIdentity(importPrivateJwk) {
+export async function readStoredIdentity(importPrivateJwk, userId, { legacy = false } = {}) {
   try {
     const db = await openDb();
-    const stored = await idbGet(db, 'identity');
+    const stored = await idbGet(db, legacy ? 'identity' : identityKey(userId));
     if (!stored?.privateJwk || !stored?.publicJwk) {
       return null;
     }
@@ -87,7 +93,7 @@ export async function readStoredIdentity(importPrivateJwk) {
   }
 }
 
-export async function persistIdentity(record, importPrivateJwk) {
+export async function persistIdentity(record, importPrivateJwk, userId) {
   const publicJwk = {
     kty: 'EC',
     crv: 'P-256',
@@ -104,7 +110,7 @@ export async function persistIdentity(record, importPrivateJwk) {
   );
   try {
     const db = await openDb();
-    await idbPut(db, 'identity', {
+    await idbPut(db, identityKey(userId), {
       privateJwk: record.privateKeyJwk,
       publicJwk,
       keyVersion: record.keyVersion || '1',
@@ -115,12 +121,12 @@ export async function persistIdentity(record, importPrivateJwk) {
   return { privateKey, publicKey, publicJwk, keyVersion: record.keyVersion || '1' };
 }
 
-export async function loadOrCreateIdentity(generateIdentityKeyPair, exportPrivateJwk, importPrivateJwk, exportPublicJwk) {
+export async function loadOrCreateIdentity(generateIdentityKeyPair, exportPrivateJwk, importPrivateJwk, exportPublicJwk, userId) {
   try {
     const db = await openDb();
     const stored = await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly');
-      const req = tx.objectStore(STORE).get('identity');
+      const req = tx.objectStore(STORE).get(identityKey(userId));
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
@@ -140,7 +146,7 @@ export async function loadOrCreateIdentity(generateIdentityKeyPair, exportPrivat
     const privateJwk = await exportPrivateJwk(pair.privateKey);
     await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put({ privateJwk, publicJwk, keyVersion: '1' }, 'identity');
+      tx.objectStore(STORE).put({ privateJwk, publicJwk, keyVersion: '1' }, identityKey(userId));
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

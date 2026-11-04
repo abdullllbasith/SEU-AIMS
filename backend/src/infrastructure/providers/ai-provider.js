@@ -6,11 +6,29 @@ import { AppError } from '../../shared/errors/app-error.js';
  */
 export class AiProviderError extends AppError {
   constructor(message = 'The AI service is unavailable', { retryable = false, quotaExceeded = false } = {}) {
-    super(message, { statusCode: 503, code: 'AI_UNAVAILABLE' });
+    // Every AiProviderError message is written in this file and never includes the upstream response.
+    super(message, { statusCode: 503, code: 'AI_UNAVAILABLE', expose: true });
     this.name = 'AiProviderError';
     this.retryable = retryable;
     this.quotaExceeded = quotaExceeded;
   }
+}
+
+/** Plain-language reason for a failed AI call, so a misconfiguration is visible instead of "Internal error". */
+export function describeStatus(status) {
+  if (status === 401 || status === 403) {
+    return 'The AI service rejected the server credentials. Ask an administrator to check the AI API key.';
+  }
+  if (status === 404) {
+    return 'The configured AI model was not found. Ask an administrator to check the AI model name.';
+  }
+  if (status === 429) {
+    return 'The AI service is busy or its quota is used up. Please try again shortly.';
+  }
+  if (status >= 500) {
+    return 'The AI service is having trouble right now. Please try again shortly.';
+  }
+  return `The AI service could not process this request (status ${status}).`;
 }
 
 export class AiProvider {
@@ -171,7 +189,7 @@ export class GeminiAiProvider extends AiProvider {
           return await response.json();
         }
         const retryable = response.status === 429 || response.status >= 500;
-        lastError = new AiProviderError(`The AI service responded with status ${response.status}`, {
+        lastError = new AiProviderError(describeStatus(response.status), {
           retryable,
           quotaExceeded: response.status === 429,
         });

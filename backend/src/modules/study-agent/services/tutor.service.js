@@ -12,6 +12,7 @@ import { mapMessage } from '../mappers/study-agent.mappers.js';
 import { requireAgentStudent } from './access.service.js';
 import { DEFAULT_SESSION_TITLE, loadOwnedSession } from './session.service.js';
 import { routeMessage } from './route.service.js';
+import { isSmallTalk } from './smalltalk.js';
 import { resolveAllowedSources } from './source-authorization.service.js';
 import { ensureSourcesIndexed } from './indexing.service.js';
 import { retrieveChunks } from './retrieval.service.js';
@@ -133,8 +134,12 @@ export async function sendMessage(principal, sessionId, body = {}, { config, inf
 
   // An AUTO session has no fixed subject: the agent decides per message, and this turn runs as if it were
   // a subject or free session. Everything below only ever sees the effective, access-checked route.
+  // A plain greeting or pleasantry gets an instant reply: no routing call, document search or web search.
+  const quick = isSmallTalk(typed) && attachments.length === 0 && !intent;
   let active = session;
-  if (session.mode === 'AUTO') {
+  if (quick) {
+    active = { _id: session._id, mode: session.mode === 'SUBJECT' ? 'SUBJECT' : 'FREE', subjectOfferingId: session.subjectOfferingId || null, subjectCode: session.subjectCode || '', subjectName: session.subjectName || '' };
+  } else if (session.mode === 'AUTO') {
     const route = await routeMessage({
       principal,
       session,
@@ -152,17 +157,19 @@ export async function sendMessage(principal, sessionId, body = {}, { config, inf
     };
   }
 
-  const sources = await resolveAllowedSources(principal, active);
-  const { pending } = await ensureSourcesIndexed({ sources, queue: infrastructure.queue });
-  const chunks = await retrieveChunks({
-    query: retrievalQuery,
-    sources,
-    topK: settings.retrievalTopK,
-    charBudget: settings.contextCharBudget,
-  });
+  const sources = quick ? [] : await resolveAllowedSources(principal, active);
+  const { pending } = quick ? { pending: 0 } : await ensureSourcesIndexed({ sources, queue: infrastructure.queue });
+  const chunks = quick
+    ? []
+    : await retrieveChunks({
+        query: retrievalQuery,
+        sources,
+        topK: settings.retrievalTopK,
+        charBudget: settings.contextCharBudget,
+      });
   const studentRecord = await buildStudentRecord(principal);
   const parts = attachments.length ? await loadInlineParts(attachments, { infrastructure }) : [];
-  const webSearch = intent === 'research' || active.mode === 'FREE';
+  const webSearch = !quick && (intent === 'research' || active.mode === 'FREE');
   const images = attachments.filter((file) => ATTACHMENT_IMAGE_TYPES.includes(file.mimeType));
 
   // The question is stored first so it survives a provider failure.
@@ -198,6 +205,7 @@ export async function sendMessage(principal, sessionId, body = {}, { config, inf
       }),
       parts,
       webSearch,
+      ...(quick ? { maxOutputTokens: 300 } : {}),
     });
   } catch (error) {
     studentMessage.failed = true;
@@ -226,7 +234,7 @@ export async function sendMessage(principal, sessionId, body = {}, { config, inf
   if (session.title === DEFAULT_SESSION_TITLE && session.messageCount === 0) {
     session.title = content.replace(/\s+/g, ' ').slice(0, 60);
   }
-  if (session.mode === 'AUTO') {
+  if (session.mode === 'AUTO' && !quick) {
     session.subjectOfferingId = active.subjectOfferingId || undefined;
     session.subjectCode = active.subjectCode;
     session.subjectName = active.subjectName;

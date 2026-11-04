@@ -44,6 +44,7 @@ export function navForRole(role) {
         { to: '/', label: 'Workspace', end: true, icon: 'home' },
         { to: '/lecturer/learning', label: 'Official resources', icon: 'resources' },
         { to: '/lecturer/ca', label: 'CA recovery', icon: 'applications' },
+        { to: '/lecturer/assistant', label: 'Assistant', icon: 'chat' },
         { to: '/calendar', label: 'Calendar', icon: 'calendar' },
         { to: '/notices', label: 'Notices', icon: 'notices' },
       ],
@@ -64,6 +65,7 @@ export function navForRole(role) {
         { to: '/admin/results', label: 'Result imports', icon: 'imports' },
         { to: '/admin/ca', label: 'CA recovery', icon: 'applications' },
         { to: '/admin/people', label: 'People', icon: 'people' },
+        { to: '/admin/assistant', label: 'Assistant', icon: 'chat' },
       ],
       more: [
         { to: '/admin/resources', label: 'Resources', icon: 'resources' },
