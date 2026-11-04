@@ -53,6 +53,7 @@ export function loadConfig() {
       csrfCookie: optional('AUTH_CSRF_COOKIE', 'seu_csrf'),
       loginWindowMs: integer('AUTH_LOGIN_WINDOW_MS', 15 * 60 * 1000),
       loginMaxAttempts: integer('AUTH_LOGIN_MAX_ATTEMPTS', 10),
+      restrictLoginDomain: optional('AUTH_RESTRICT_LOGIN_DOMAIN', 'true') !== 'false',
     },
     mongo: {
       uri: nodeEnv === 'test' ? optional('MONGODB_TEST_URI', optional('MONGODB_URI')) : optional('MONGODB_URI'),

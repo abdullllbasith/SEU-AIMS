@@ -34,8 +34,12 @@ export function createAuthController({ config, infrastructure }) {
 
     login: asyncHandler(async (req, res) => {
       const { identifier, email, password } = req.body || {};
+      const loginEmail = String(identifier || email || '').trim();
+      if (config.auth.restrictLoginDomain && !/^[^\s@]+@seu\.ac\.lk$/i.test(loginEmail)) {
+        throw new ValidationError('Only @seu.ac.lk email addresses can sign in');
+      }
       const result = await login({
-        identifier: identifier || email,
+        identifier: loginEmail,
         password,
         userAgent: req.get('user-agent'),
         ip: req.ip,

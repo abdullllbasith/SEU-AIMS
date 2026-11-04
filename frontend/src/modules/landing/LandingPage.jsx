@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import './landing.css';
 
@@ -140,6 +141,8 @@ function Icon({ children, size = 20 }) {
 }
 
 export function LandingPage() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <div className="landing">
       <a className="skip-link" href="#landing-main">
@@ -152,40 +155,43 @@ export function LandingPage() {
         
         <nav className="landing__nav" aria-label="Main Navigation">
           <div className="landing__brand-lockup">
-            <div className="landing__crest-card">
+            <div className="guest-brand__system-badge landing__aims-badge">
               <img
-                src="/South_Eastern_University_of_Sri_Lanka_logo.png"
-                alt="South Eastern University of Sri Lanka Crest"
-                className="landing__uni-crest"
+                src="/SEU-AIMS Academic Logo.png"
+                alt="SEU-AIMS Academic Intelligence & Management System"
+                className="guest-brand__logo"
               />
-            </div>
-            <div className="landing__brand-text">
-              <span className="landing__uni-name">South Eastern University of Sri Lanka</span>
-              <span className="landing__faculty-name">Faculty of Technology</span>
-            </div>
-            <span className="landing__brand-sep" aria-hidden="true" />
-            <div className="landing__aims-badge">
-              <span className="landing__aims-icon" aria-hidden="true">
-                <Icon size={18}>
-                  <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                  <path d="M6 12v5c3 3 9 3 12 0v-5" />
-                </Icon>
-              </span>
-              <div className="landing__aims-text">
-                <strong>SEU-AIMS</strong>
-                <small>Academic Portal</small>
-              </div>
+              <span className="guest-brand__system-name">SEU-AIMS</span>
             </div>
           </div>
 
-          <div className="landing__nav-links">
-            <a href="#overview">Overview</a>
-            <a href="#departments">Departments</a>
-            <a href="#modules">Academic Modules</a>
-            <a href="#roles">Portals</a>
+          <div
+            id="landing-nav-links"
+            className={`landing__nav-links${menuOpen ? ' landing__nav-links--open' : ''}`}
+          >
+            <a href="#overview" onClick={() => setMenuOpen(false)}>Overview</a>
+            <a href="#departments" onClick={() => setMenuOpen(false)}>Departments</a>
+            <a href="#modules" onClick={() => setMenuOpen(false)}>Academic Modules</a>
+            <a href="#roles" onClick={() => setMenuOpen(false)}>Portals</a>
+          </div>
+
+          <div className="landing__nav-actions">
             <Link className="landing__login" to="/login">
               Sign In
             </Link>
+
+            <button
+              type="button"
+              className="landing__menu-toggle"
+              aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={menuOpen}
+              aria-controls="landing-nav-links"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+              <span aria-hidden="true" />
+            </button>
           </div>
         </nav>
 
@@ -197,13 +203,14 @@ export function LandingPage() {
           </div>
 
           <h1>
-            Academic Information &amp; <span>Examination Management</span> System
+            Academic Intelligence &amp; <span>Management System</span>
           </h1>
 
           <p className="landing__lead">
-            The official unified academic management platform for undergraduate degree programs at the
-            Faculty of Technology. Orchestrating course offerings, continuous assessment (CA) tracking,
-            official examination results, GPA auditing, and secure collaborative learning.
+            SEU-AIMS is the official unified platform for the Faculty of Technology, South Eastern University
+            of Sri Lanka. It brings together course offerings, continuous assessment (CA) tracking, verified
+            examination results, GPA computation, and collaborative learning in one secure system for students,
+            lecturers, and administrators.
           </p>
 
           <div className="landing__cta">
@@ -332,7 +339,7 @@ export function LandingPage() {
             examination results, and academic records.
           </p>
           <Link className="landing__btn landing__btn--primary landing__btn--lg" to="/login">
-            Sign in to SEU-AIMS
+            Sign in
           </Link>
         </section>
       </main>

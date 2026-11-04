@@ -11,24 +11,13 @@ import { UpdateBadge } from '../ui/UpdateBadge.jsx';
 const RAIL_COLLAPSE_KEY = 'seu-aims-rail-collapsed';
 
 function BrandMark({ size = 'rail' }) {
-  const iconSize = size === 'guest' ? 24 : 18;
   return (
     <div className={`brand-mark brand-mark--${size}`}>
-      <span className="brand-mark__icon" aria-hidden="true">
-        <svg
-          width={iconSize}
-          height={iconSize}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={size === 'guest' ? 2 : 2.2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-          <path d="M6 12v5c3 3 9 3 12 0v-5" />
-        </svg>
-      </span>
+      <img
+        src="/SEU-AIMS Academic Logo.png"
+        alt="SEU-AIMS Academic Intelligence & Management System"
+        className="brand-mark__logo--tile"
+      />
       <span className="brand-mark__copy">
         <span className="app-shell__title">SEU-AIMS</span>
         <span className="app-shell__subtitle">
@@ -146,21 +135,13 @@ export function AppShell({ children }) {
           <span className="guest-brand__glow" aria-hidden="true" />
 
           <div className="guest-brand__top">
-            <div className="guest-brand__header">
-              <div className="guest-brand__crest-container">
-                <img
-                  src="/South_Eastern_University_of_Sri_Lanka_logo.png"
-                  alt="South Eastern University of Sri Lanka Crest"
-                  className="guest-brand__uni-crest"
-                />
-              </div>
-              <div className="guest-brand__header-titles">
-                <span className="guest-brand__uni-name">South Eastern University of Sri Lanka</span>
-                <span className="guest-brand__faculty-name">Faculty of Technology</span>
-              </div>
-            </div>
             <div className="guest-brand__system-badge">
-              <BrandMark size="guest" />
+              <img
+                src="/SEU-AIMS Academic Logo.png"
+                alt="SEU-AIMS Academic Intelligence & Management System"
+                className="guest-brand__logo"
+              />
+              <span className="guest-brand__system-name">SEU-AIMS</span>
             </div>
           </div>
 
@@ -170,7 +151,7 @@ export function AppShell({ children }) {
               <span>Academic &amp; Examination Workspace</span>
             </div>
             <h2 className="guest-brand__headline">
-              Faculty of Technology <span>Academic Information</span> &amp; Management System
+              <span>Academic Intelligence</span> &amp; Management System
             </h2>
             <p className="guest-brand__line">
               Official institutional portal for undergraduates, academic staff, and administration
@@ -230,12 +211,24 @@ export function AppShell({ children }) {
           </div>
 
           <div className="guest-brand__foot">
-            <div className="guest-brand__departments-list">
-              <span>Dept. of Information &amp; Communication Technology</span>
-              <span className="guest-brand__dept-dot">·</span>
-              <span>Dept. of Biosystems Technology</span>
+            <div className="guest-brand__foot-row">
+              <div className="guest-brand__crest-container">
+                <img
+                  src="/South_Eastern_University_of_Sri_Lanka_logo.png"
+                  alt="South Eastern University of Sri Lanka Crest"
+                  className="guest-brand__uni-crest"
+                />
+              </div>
+              <div className="guest-brand__foot-text">
+                <span className="guest-brand__faculty-name">Faculty of Technology</span>
+                <div className="guest-brand__departments-list">
+                  <span>Dept. of Information &amp; Communication Technology</span>
+                  <span className="guest-brand__dept-dot">·</span>
+                  <span>Dept. of Biosystems Technology</span>
+                </div>
+                <p className="guest-brand__foot-sub">South Eastern University of Sri Lanka · University Park, Oluvil</p>
+              </div>
             </div>
-            <p className="guest-brand__foot-sub">South Eastern University of Sri Lanka · University Park, Oluvil</p>
           </div>
         </aside>
         <main id="main-content" className="guest-main" tabIndex={-1}>
