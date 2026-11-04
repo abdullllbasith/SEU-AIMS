@@ -1,9 +1,26 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ACCEPT_ATTRIBUTE, MAX_FILES } from './attachment-rules.js';
 import { AgentIcon } from './agent-icons.jsx';
 
 const MAX_CHARS = 4000;
 const MAX_HEIGHT_PX = 200;
+const NARROW_QUERY = '(max-width: 640px)';
+const PLACEHOLDER_FULL = 'Ask anything, or paste a question, photo or document';
+const PLACEHOLDER_NARROW = 'Ask anything…';
+
+function useIsNarrow() {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && Boolean(window.matchMedia?.(NARROW_QUERY).matches),
+  );
+  useEffect(() => {
+    const mql = window.matchMedia?.(NARROW_QUERY);
+    if (!mql) return undefined;
+    const onChange = (event) => setNarrow(event.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return narrow;
+}
 
 const STATUS_LABEL = {
   UPLOADING: 'Uploading',
@@ -84,13 +101,15 @@ export function AgentComposer({
     !attachments.hasUnusable &&
     (draft.trim().length > 0 || attachments.readyIds.length > 0);
 
+  const narrow = useIsNarrow();
+
   useEffect(() => {
     const node = textarea.current;
     if (node) {
       node.style.height = 'auto';
       node.style.height = `${Math.min(node.scrollHeight, MAX_HEIGHT_PX)}px`;
     }
-  }, [draft, textarea]);
+  }, [draft, textarea, narrow]);
 
   function onKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent?.isComposing) {
@@ -174,7 +193,7 @@ export function AgentComposer({
             onChange={(event) => onDraft(event.target.value)}
             onKeyDown={onKeyDown}
             onPaste={onPaste}
-            placeholder="Ask anything, or paste a question, photo or document"
+            placeholder={narrow ? PLACEHOLDER_NARROW : PLACEHOLDER_FULL}
             rows={1}
             maxLength={MAX_CHARS}
             disabled={disabled}

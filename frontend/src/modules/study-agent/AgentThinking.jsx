@@ -12,7 +12,13 @@ export const THINKING_STEPS = [
 
 const STEP_MS = 1800;
 
-export function AgentThinking({ steps = THINKING_STEPS, stepMs = STEP_MS }) {
+/** A greeting or pleasantry is answered at once, so it shows just the dots instead of the reasoning steps. */
+export const QUICK_STEPS = [''];
+
+export function AgentThinking({ steps = THINKING_STEPS, stepMs = STEP_MS, quick = false }) {
+  if (quick) {
+    steps = QUICK_STEPS;
+  }
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -31,7 +37,7 @@ export function AgentThinking({ steps = THINKING_STEPS, stepMs = STEP_MS }) {
         <span />
       </span>
       <span key={index} className="study-agent__thinking-word">
-        {steps[index]}…
+        {quick ? '' : `${steps[index]}…`}
       </span>
     </p>
   );

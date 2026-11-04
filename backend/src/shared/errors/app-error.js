@@ -1,14 +1,17 @@
 export class AppError extends Error {
   /**
    * @param {string} message
-   * @param {{ statusCode?: number, code?: string, details?: unknown }} [options]
+   * @param {{ statusCode?: number, code?: string, details?: unknown, expose?: boolean }} [options]
+   *   `expose` lets a 5xx error show its own message to the client. Use it only for hand-written
+   *   messages that never contain upstream bodies, secrets or internals. 5xx messages are otherwise masked.
    */
-  constructor(message, { statusCode = 500, code = 'INTERNAL_ERROR', details } = {}) {
+  constructor(message, { statusCode = 500, code = 'INTERNAL_ERROR', details, expose = false } = {}) {
     super(message);
     this.name = 'AppError';
     this.statusCode = statusCode;
     this.code = code;
     this.details = details;
+    this.expose = expose;
   }
 }
 

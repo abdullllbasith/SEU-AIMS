@@ -9,6 +9,7 @@ import { createNoticesCalendarModule } from '../modules/notices-calendar/index.j
 import { createNotificationsModule } from '../modules/notifications/index.js';
 import { createStudentExperienceModule } from '../modules/student-experience/index.js';
 import { createStudyAgentModule } from '../modules/study-agent/index.js';
+import { createStaffAgentModule } from '../modules/staff-agent/index.js';
 import { createFilesModule } from '../modules/files/index.js';
 import { createAuditSecurityModule } from '../modules/audit-security/index.js';
 import { createAdminOperationsModule } from '../modules/admin-operations/index.js';
@@ -21,6 +22,7 @@ export function registerModules(app, { config, logger, infrastructure }) {
     createLearningEnvironmentModule({ config, logger, infrastructure }),
     createStudyRoomModule(),
     createStudyAgentModule(),
+    createStaffAgentModule(),
     createResultsModule(),
     createGpaCgpaModule(),
     createCaRecoveryModule(),

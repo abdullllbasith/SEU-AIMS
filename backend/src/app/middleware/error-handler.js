@@ -16,7 +16,7 @@ export function errorHandler(logger) {
     const code = multerTooLarge ? 'PAYLOAD_TOO_LARGE' : mapped.code || 'INTERNAL_ERROR';
     const safeMessage = multerTooLarge
       ? 'File too large'
-      : statusCode >= 500
+      : statusCode >= 500 && mapped.expose !== true
         ? 'Internal error'
         : mapped.message;
     const requestId = currentRequestId() || req.requestId;

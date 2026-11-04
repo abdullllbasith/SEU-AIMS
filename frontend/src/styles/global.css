@@ -7351,6 +7351,15 @@ button.inbox-row {
 
 .record-dl--row dd {
   text-align: left;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .record-dl--row > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.3rem;
+  }
 }
 
 .academic-stepper {
@@ -8855,6 +8864,13 @@ a.study-agent__source-title {
   outline: none;
 }
 
+@media (max-width: 640px) {
+  .study-agent__input-box textarea {
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+}
+
 .study-agent__input-actions {
   display: flex;
   align-items: center;
@@ -9015,5 +9031,59 @@ a.study-agent__source-title {
 @media (max-width: 900px) {
   .page-header__actions .tab-nav {
     flex-wrap: wrap;
+  }
+}
+
+/* Mobile: keep the GPA class-band pills and Study Room tabs on one compact row. */
+@media (max-width: 640px) {
+  .gpa-tracker__targets {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 0.3rem;
+    max-width: 100%;
+  }
+
+  .gpa-tracker__targets-label {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .gpa-target-pill {
+    flex-shrink: 0;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.66rem;
+    white-space: nowrap;
+  }
+
+  .tab-nav,
+  .page-header__actions .tab-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 0.15rem;
+    padding: 0.25rem;
+  }
+
+  /* The header actions must shrink to the viewport so the tab row can scroll instead of overflowing. */
+  .page-header__actions {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .page-header__actions .tab-nav {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .tab-nav button {
+    flex: 0 0 auto;
+    height: 30px;
+    padding: 0 0.6rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
   }
 }

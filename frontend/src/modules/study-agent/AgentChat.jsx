@@ -5,6 +5,7 @@ import { AgentComposer } from './AgentComposer.jsx';
 import { AgentHistory } from './AgentHistory.jsx';
 import { AgentIcon } from './agent-icons.jsx';
 import { AgentThinking } from './AgentThinking.jsx';
+import { isSmallTalk } from './smalltalk.js';
 import { isImageType } from './attachment-rules.js';
 import { useAttachments } from './useAttachments.js';
 
@@ -151,6 +152,7 @@ export function AgentChat({ session: initialSession, onNewChat, onOpenSession })
   const [draft, setDraft] = useState('');
   const [research, setResearch] = useState(false);
   const [sending, setSending] = useState(false);
+  const [quickReply, setQuickReply] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [dropping, setDropping] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -236,6 +238,7 @@ export function AgentChat({ session: initialSession, onNewChat, onOpenSession })
     const pendingId = `pending-${Date.now()}`;
     setError('');
     setNote('');
+    setQuickReply(isSmallTalk(content) && !intent && !attachmentIds.length);
     setSending(true);
     if (fromComposer) {
       setDraft('');
@@ -393,7 +396,7 @@ export function AgentChat({ session: initialSession, onNewChat, onOpenSession })
             {message.failed ? <p className="study-agent__unanswered">This question was not answered.</p> : null}
           </div>
         ))}
-        {sending ? <AgentThinking /> : null}
+        {sending ? <AgentThinking quick={quickReply} /> : null}
       </div>
 
       {note ? (

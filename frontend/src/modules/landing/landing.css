@@ -942,6 +942,10 @@
     margin-inline: 1rem;
     padding-inline: 1.25rem;
   }
+  .landing__final .landing__btn--lg {
+    height: auto;
+    padding: 1rem 2.25rem;
+  }
   .landing__stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;

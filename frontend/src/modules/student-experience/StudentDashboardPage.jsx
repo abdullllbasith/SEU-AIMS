@@ -67,7 +67,7 @@ export function StudentDashboardPage() {
     <section className="home-dashboard">
       <PageHeader
         title="Your academic workspace"
-        purpose={registration ? `Current semester · ${registration}` : 'Current semester overview'}
+        purpose={registration || 'Your current semester at a glance'}
         meta={data.generatedAt ? `Updated ${new Date(data.generatedAt).toLocaleString()}` : null}
         actions={
           <button type="button" onClick={() => load(true)} disabled={state.loading}>
