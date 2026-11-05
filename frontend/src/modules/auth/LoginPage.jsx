@@ -36,6 +36,10 @@ export function LoginPage() {
 
   return (
     <section className="auth-card">
+      <Link to="/" className="auth-card__back">
+        <span aria-hidden="true">←</span> Back to home
+      </Link>
+
       <header className="auth-card__header">
         <h1>Sign in</h1>
         <p className="auth-card__purpose">

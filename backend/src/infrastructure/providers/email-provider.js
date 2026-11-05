@@ -63,7 +63,9 @@ export class SmtpEmailProvider extends EmailProvider {
         from: this.from,
         to: message.to,
         subject: message.subject,
-        text: message.body,
+        text: message.text ?? message.body,
+        ...(message.html ? { html: message.html } : {}),
+        ...(message.attachments?.length ? { attachments: message.attachments } : {}),
       });
       const rejected = Array.isArray(info?.rejected) ? info.rejected : [];
       if (rejected.length) {
