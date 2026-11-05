@@ -1,3 +1,4 @@
+import { renderNotificationEmail } from '../../../infrastructure/providers/email-templates.js';
 import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { Notification } from '../models/notification.model.js';
@@ -145,8 +146,7 @@ export async function processNotificationDeliver({
       result = user.email
         ? await infrastructure.email.send({
             to: user.email,
-            subject: doc.title || doc.type,
-            body: doc.body || doc.title || doc.type,
+            ...renderNotificationEmail({ type: doc.type, title: doc.title, body: doc.body }),
           })
         : { accepted: false, retryable: false, category: 'no_recipient_address' };
     } else if (doc.channel === 'WHATSAPP') {

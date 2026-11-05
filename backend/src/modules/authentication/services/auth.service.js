@@ -1,3 +1,4 @@
+import { renderPasswordResetEmail } from '../../../infrastructure/providers/email-templates.js';
 import { createOpaqueToken, hashSecret, signAccessToken } from '../security/tokens.js';
 import { hashPassword, verifyPassword } from '../security/passwords.js';
 import { createSession, rotateSession, revokeSessionByRefreshToken, revokeUserSessions } from './session.service.js';
@@ -122,10 +123,11 @@ export async function requestPasswordReset({ identifier, config, emailProvider }
       tokenHash: hashSecret(token),
       expiresAt: new Date(Date.now() + config.auth.resetTtlSeconds * 1000),
     });
+    const frontendBase = String(config.api.corsOrigin || '').split(',')[0].trim().replace(/\/+$/, '');
+    const resetUrl = `${frontendBase}/reset-password?token=${encodeURIComponent(token)}`;
     await emailProvider.send({
       to: user.email,
-      subject: 'Password reset',
-      text: 'A password reset was requested for your SEU-AIMS account.',
+      ...renderPasswordResetEmail({ resetUrl, ttlMinutes: Math.round(config.auth.resetTtlSeconds / 60) }),
     });
   }
 }

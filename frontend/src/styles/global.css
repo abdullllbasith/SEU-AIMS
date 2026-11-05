@@ -2215,6 +2215,21 @@ a.stat-card:hover {
   line-height: 1.5;
 }
 
+.auth-card__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.84rem;
+  font-weight: var(--weight-medium);
+  color: var(--slate-600);
+  text-decoration: none;
+}
+
+.auth-card__back:hover {
+  color: var(--brand-800);
+}
+
 .auth-card__footer {
   margin: 1.35rem 0 0;
   font-size: 0.84rem;
@@ -2303,11 +2318,20 @@ a.stat-card:hover {
 
   .app-shell--guest {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .guest-brand {
-    padding: 1.5rem 1.75rem;
+    padding: 2.5rem 1.5rem;
     gap: 1rem;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+
+  .guest-main {
+    place-items: center;
+    align-content: center;
   }
 
   .guest-brand__body,
@@ -2322,8 +2346,14 @@ a.stat-card:hover {
     font-size: 1.45rem;
   }
 
+  .guest-brand__top {
+    align-items: center;
+    width: 100%;
+  }
+
   .guest-brand__system-badge {
-    display: none;
+    display: inline-flex;
+    justify-content: center;
   }
 }
 
@@ -9087,3 +9117,5 @@ a.study-agent__source-title {
     white-space: nowrap;
   }
 }
+
+
