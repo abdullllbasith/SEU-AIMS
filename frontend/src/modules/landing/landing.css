@@ -812,55 +812,6 @@
    Responsive Adaptations
    ========================================================================== */
 
-.landing__menu-toggle {
-  display: none;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  width: 2.45rem;
-  height: 2.45rem;
-  padding: 0 0.6rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.08);
-  cursor: pointer;
-}
-
-.landing__menu-toggle span {
-  display: block;
-  height: 2px;
-  width: 100%;
-  border-radius: 2px;
-  background: #ffffff;
-  transition: transform 0.2s ease, opacity 0.2s ease;
-}
-
-.landing__menu-toggle[aria-expanded='true'] span:nth-child(1) {
-  transform: translateY(6px) rotate(45deg);
-}
-
-.landing__menu-toggle[aria-expanded='true'] span:nth-child(2) {
-  opacity: 0;
-}
-
-.landing__menu-toggle[aria-expanded='true'] span:nth-child(3) {
-  transform: translateY(-6px) rotate(-45deg);
-}
-
-/* Explicit states so the global button:hover/focus rule (which turns buttons white)
-   never applies to the navbar toggle. */
-.landing__menu-toggle:hover,
-.landing__menu-toggle:focus,
-.landing__menu-toggle:active {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.landing__menu-toggle:focus-visible {
-  outline: 2px solid var(--brand-300);
-  outline-offset: 2px;
-}
-
 .landing__nav-actions {
   display: flex;
   align-items: center;
@@ -869,56 +820,8 @@
 }
 
 @media (max-width: 960px) {
-  .landing__menu-toggle {
-    display: inline-flex;
-    order: -1;
-  }
-
-  .landing__nav {
-    position: relative;
-  }
-
-  /* Let the toggle, brand and Sign In sit directly in the navbar row so the
-     hamburger can go to the far left while Sign In stays on the right. */
-  .landing__nav-actions {
-    display: contents;
-  }
-
   .landing__login {
     margin-left: auto;
-  }
-
-  .landing__nav-links {
-    display: none;
-  }
-
-  .landing__nav-links--open {
-    display: flex;
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    left: 0;
-    z-index: 20;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.25rem;
-    min-width: 14rem;
-    padding: 0.5rem;
-    border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.12);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
-    backdrop-filter: blur(16px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    box-shadow: 0 12px 32px rgba(2, 18, 46, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  }
-
-  .landing__nav-links--open a {
-    display: block;
-    padding: 0.6rem 0.75rem;
-    border-radius: var(--radius-sm);
-  }
-
-  .landing__nav-links--open a:hover {
-    background: rgba(255, 255, 255, 0.12);
   }
 
   .landing__brand-sep {

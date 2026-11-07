@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import './landing.css';
 
@@ -141,8 +140,6 @@ function Icon({ children, size = 20 }) {
 }
 
 export function LandingPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-
   return (
     <div className="landing">
       <a className="skip-link" href="#landing-main">
@@ -165,33 +162,17 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div
-            id="landing-nav-links"
-            className={`landing__nav-links${menuOpen ? ' landing__nav-links--open' : ''}`}
-          >
-            <a href="#overview" onClick={() => setMenuOpen(false)}>Overview</a>
-            <a href="#departments" onClick={() => setMenuOpen(false)}>Departments</a>
-            <a href="#modules" onClick={() => setMenuOpen(false)}>Academic Modules</a>
-            <a href="#roles" onClick={() => setMenuOpen(false)}>Portals</a>
+          <div className="landing__nav-links">
+            <a href="#overview">Overview</a>
+            <a href="#departments">Departments</a>
+            <a href="#modules">Academic Modules</a>
+            <a href="#roles">Portals</a>
           </div>
 
           <div className="landing__nav-actions">
             <Link className="landing__login" to="/login">
               Sign In
             </Link>
-
-            <button
-              type="button"
-              className="landing__menu-toggle"
-              aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-              aria-expanded={menuOpen}
-              aria-controls="landing-nav-links"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              <span aria-hidden="true" />
-              <span aria-hidden="true" />
-              <span aria-hidden="true" />
-            </button>
           </div>
         </nav>
 
