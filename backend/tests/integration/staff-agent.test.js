@@ -315,7 +315,7 @@ dbTest('unexpected_server_errors_stay_masked', async () => {
     if (input.responseSchema) {
       return { text: '{}', json: { tools: [] }, citations: [], usage: {} };
     }
-    throw new Error('secret connection string mongodb://user:pass@host');
+    throw new Error('secret connection string <redacted>');
   };
   const response = await send(lecturer, '/api/lecturer-agent', { content: 'hello' });
   assert.equal(response.status, 500);
