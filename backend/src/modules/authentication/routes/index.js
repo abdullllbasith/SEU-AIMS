@@ -26,5 +26,10 @@ export function createRouter({ config, logger, infrastructure } = {}) {
   router.patch('/users/:userId/status', requireDepartmentAdmin(), requireCsrf, controller.setStatus);
   router.patch('/users/:userId/password', requireDepartmentAdmin(), requireCsrf, controller.setPassword);
 
+  router.get('/admins', requireDepartmentAdmin(), controller.listAdmins);
+  router.post('/admins', requireDepartmentAdmin(), requireCsrf, controller.createAdmin);
+  router.patch('/admins/:userId/status', requireDepartmentAdmin(), requireCsrf, controller.setAdminStatus);
+  router.post('/admins/:userId/reset-password', requireDepartmentAdmin(), requireCsrf, controller.resetAdminPassword);
+
   return router;
 }

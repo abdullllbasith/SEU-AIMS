@@ -72,6 +72,7 @@ export function navForRole(role) {
         { to: '/notices', label: 'Notices', icon: 'notices' },
         { to: '/calendar', label: 'Calendar', icon: 'calendar' },
         { to: '/admin/study-room', label: 'Study Room moderation', icon: 'chat' },
+        { to: '/admin/administrators', label: 'Administrators', icon: 'profile' },
         { to: '/admin/ops', label: 'Ops', icon: 'ops' },
         { to: '/profile', label: 'Profile', icon: 'profile' },
       ],

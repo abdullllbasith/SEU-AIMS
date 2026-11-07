@@ -13,6 +13,10 @@ import {
   createUserAsAdmin,
   setAccountStatus,
   setPasswordAsAdmin,
+  listAdmins,
+  createAdminAccount,
+  setAdminAccountStatus,
+  resetAdminPassword,
   toPublicUser,
 } from '../services/auth.service.js';
 import { findStudentContextByUserId } from '../../academic-foundation/index.js';
@@ -156,6 +160,41 @@ export function createAuthController({ config, infrastructure }) {
         password: req.body?.password,
         config,
       });
+      sendSuccess(res, result);
+    }),
+
+    listAdmins: asyncHandler(async (req, res) => {
+      const items = await listAdmins({ actor: req.principal });
+      sendSuccess(res, { items });
+    }),
+
+    createAdmin: asyncHandler(async (req, res) => {
+      const result = await createAdminAccount({
+        actor: req.principal,
+        email: req.body?.email,
+        displayName: req.body?.displayName,
+        config,
+      });
+      res.set('Cache-Control', 'no-store');
+      sendSuccess(res, result, { statusCode: 201 });
+    }),
+
+    setAdminStatus: asyncHandler(async (req, res) => {
+      const user = await setAdminAccountStatus({
+        actor: req.principal,
+        userId: req.params.userId,
+        accountStatus: req.body?.accountStatus,
+      });
+      sendSuccess(res, { user });
+    }),
+
+    resetAdminPassword: asyncHandler(async (req, res) => {
+      const result = await resetAdminPassword({
+        actor: req.principal,
+        userId: req.params.userId,
+        config,
+      });
+      res.set('Cache-Control', 'no-store');
       sendSuccess(res, result);
     }),
   };
