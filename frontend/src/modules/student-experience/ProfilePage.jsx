@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { experienceApi } from './experience-api.js';
 import { ProfilePhotoCrop } from './ProfilePhotoCrop.jsx';
+import { ChangePasswordPanel } from './ChangePasswordPanel.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
 import { PageSkeleton } from '../../ui/Skeleton.jsx';
@@ -239,6 +240,8 @@ export function ProfilePage() {
           onConfirm={uploadCropped}
         />
       ) : null}
+
+      <ChangePasswordPanel />
 
       <p className="panel-footnote">
         Notification preferences stay in the <Link to="/notifications">notifications</Link> area.
