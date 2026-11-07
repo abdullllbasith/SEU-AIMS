@@ -4,6 +4,7 @@ import { caApi } from '../ca-recovery/ca-api.js';
 import { AdminCaReview } from './AdminCaReview.jsx';
 import { CaQrScanner } from './CaQrScanner.jsx';
 import { RecoveryResultReviews } from '../ca-recovery/RecoveryResultReviews.jsx';
+import { AdminAttemptsPanel } from './AdminAttemptsPanel.jsx';
 import { academicApi } from './academic-api.js';
 import { ActionButton } from '../../ui/ActionButton.jsx';
 import { OperationNotice } from '../../ui/OperationNotice.jsx';
@@ -327,6 +328,8 @@ function AdminCaQueue() {
           </div>
         )}
       </Panel>
+
+      <AdminAttemptsPanel />
 
       <div className="dashboard-grid dashboard-grid--primary">
         <RecoveryResultReviews

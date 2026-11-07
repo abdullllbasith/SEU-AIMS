@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { caApi } from './ca-api.js';
 import { RecoveryResultReviews } from './RecoveryResultReviews.jsx';
+import { LecturerAttemptsPanel } from './LecturerAttemptsPanel.jsx';
 import { ActionButton } from '../../ui/ActionButton.jsx';
 import { PageHeader } from '../../ui/PageHeader.jsx';
 import { Panel } from '../../ui/Panel.jsx';
@@ -266,6 +267,8 @@ export function LecturerCaPage() {
         pending={busyKey}
         onDecide={(id, decision) => runAction(`${decision}:${id}`, () => caApi.decideRecovery(id, decision))}
       />
+
+      <LecturerAttemptsPanel items={items} />
 
       <Panel title="Publish examination notice" kicker="One notice per subject">
         {offeringsToSchedule.length === 0 ? (
