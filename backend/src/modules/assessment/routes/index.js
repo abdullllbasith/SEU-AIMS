@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireRole } from '../../../shared/auth/authorize.js';
+import { requireDepartmentAdmin, requireRole } from '../../../shared/auth/authorize.js';
 import { ROLES } from '../../../shared/constants/roles.js';
 import { NotFoundError } from '../../../shared/errors/app-error.js';
 import { requireCsrf } from '../../authentication/middleware/csrf.js';
@@ -22,5 +22,14 @@ export function createRouter() {
   router.get('/lecturer/attempts', requireRole(ROLES.LECTURER), controller.listLecturerAttempts);
   router.put('/attempts/:attemptId/marks', requireRole(ROLES.LECTURER), requireCsrf, controller.saveMarks);
   router.post('/attempts/:attemptId/submit', requireRole(ROLES.LECTURER), requireCsrf, controller.submitAttempt);
+
+  router.get('/admin/attempts', requireDepartmentAdmin(), controller.listAdminAttempts);
+  router.post('/attempts/:attemptId/verify', requireDepartmentAdmin(), requireCsrf, controller.verifyAttempt);
+  router.post('/attempts/:attemptId/return', requireDepartmentAdmin(), requireCsrf, controller.returnAttempt);
+  router.post('/attempts/:attemptId/board-authorization', requireDepartmentAdmin(), requireCsrf, controller.recordBoardAuthorization);
+  router.post('/attempts/:attemptId/publish', requireDepartmentAdmin(), requireCsrf, controller.publishAttempt);
+  router.post('/admin/subjects/:linkId/absent-attempt', requireDepartmentAdmin(), requireCsrf, controller.recordAbsentAttempt);
+  router.post('/attempts/:attemptId/absence-claim', requireDepartmentAdmin(), requireCsrf, controller.recordAbsenceClaim);
+  router.post('/attempts/:attemptId/absence-claim/:claimId/decision', requireDepartmentAdmin(), requireCsrf, controller.decideAbsenceClaim);
   return router;
 }

@@ -1,6 +1,7 @@
 import { sendSuccess } from '../../../shared/http/api-response.js';
 import { asyncHandler } from '../../../shared/http/async-handler.js';
 import * as attemptService from '../services/attempt.service.js';
+import * as adminService from '../services/admin-attempt.service.js';
 
 export function createAssessmentController() {
   return {
@@ -15,6 +16,37 @@ export function createAssessmentController() {
     }),
     listLecturerAttempts: asyncHandler(async (req, res) => {
       sendSuccess(res, await attemptService.listLecturerAttempts(req.principal, req.query));
+    }),
+    listAdminAttempts: asyncHandler(async (req, res) => {
+      sendSuccess(res, await adminService.listAdminAttempts(req.principal, req.query));
+    }),
+    verifyAttempt: asyncHandler(async (req, res) => {
+      sendSuccess(res, await adminService.verifyAttempt(req.principal, req.params.attemptId, req.body || {}));
+    }),
+    returnAttempt: asyncHandler(async (req, res) => {
+      sendSuccess(res, await adminService.returnAttempt(req.principal, req.params.attemptId, req.body || {}));
+    }),
+    recordBoardAuthorization: asyncHandler(async (req, res) => {
+      sendSuccess(res, await adminService.recordBoardAuthorization(req.principal, req.params.attemptId, req.body || {}), {
+        statusCode: 201,
+      });
+    }),
+    publishAttempt: asyncHandler(async (req, res) => {
+      sendSuccess(res, await adminService.publishAttempt(req.principal, req.params.attemptId, req.body || {}));
+    }),
+    recordAbsentAttempt: asyncHandler(async (req, res) => {
+      sendSuccess(res, await adminService.recordAbsentAttempt(req.principal, req.params.linkId), { statusCode: 201 });
+    }),
+    recordAbsenceClaim: asyncHandler(async (req, res) => {
+      sendSuccess(res, await adminService.recordAbsenceClaim(req.principal, req.params.attemptId, req.body || {}), {
+        statusCode: 201,
+      });
+    }),
+    decideAbsenceClaim: asyncHandler(async (req, res) => {
+      sendSuccess(
+        res,
+        await adminService.decideAbsenceClaim(req.principal, req.params.attemptId, req.params.claimId, req.body || {}),
+      );
     }),
   };
 }

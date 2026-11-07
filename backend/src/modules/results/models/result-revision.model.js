@@ -4,7 +4,7 @@ import { defineModel, objectId, persistenceOptions } from '../../../infrastructu
 const resultRevisionSchema = new mongoose.Schema(
   {
     academicResultId: { type: objectId, ref: 'AcademicResult', required: true },
-    importId: { type: objectId, ref: 'ResultImport', required: true },
+    importId: { type: objectId, ref: 'ResultImport' },
     actorUserId: { type: objectId, ref: 'User', required: true },
     registrationNumber: { type: String, required: true },
     subjectCode: { type: String, required: true },
@@ -15,7 +15,9 @@ const resultRevisionSchema = new mongoose.Schema(
     gradeCapReason: { type: String, trim: true, default: '' },
     caRecoveryReviewId: { type: objectId, ref: 'CaRecoveryResultReview' },
     /** Which authorized path produced this change. Absent on rows written before the single writer existed. */
-    changeKind: { type: String, trim: true, enum: ['IMPORT_COMMIT', 'IMPORT_SOURCED_REVIEW'] },
+    changeKind: { type: String, trim: true, enum: ['IMPORT_COMMIT', 'IMPORT_SOURCED_REVIEW', 'ATTEMPT_PUBLISH'] },
+    attemptId: { type: objectId, ref: 'AssessmentAttempt' },
+    authorizationId: { type: objectId, ref: 'BoardAuthorization' },
   },
   persistenceOptions,
 );

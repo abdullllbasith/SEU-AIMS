@@ -16,6 +16,7 @@ import { ResultRevision } from '../models/result-revision.model.js';
 export const OFFICIAL_RESULT_CHANGE_KINDS = Object.freeze({
   IMPORT_COMMIT: 'IMPORT_COMMIT',
   IMPORT_SOURCED_REVIEW: 'IMPORT_SOURCED_REVIEW',
+  ATTEMPT_PUBLISH: 'ATTEMPT_PUBLISH',
 });
 
 /** Fields a caller may set on the official row. Anything else is refused. */
@@ -50,7 +51,7 @@ function pickWritable(fields = {}) {
  * @param {object|null} args.existing Current AcademicResult document, or null to create a row.
  * @param {object} args.identity Row identity, required when creating (department, student, subject, period).
  * @param {object} args.fields New official values (see WRITABLE_FIELDS).
- * @param {{ importId?: unknown, caRecoveryReviewId?: unknown }} args.link Source of the change for history.
+ * @param {{ importId?: unknown, caRecoveryReviewId?: unknown, attemptId?: unknown, authorizationId?: unknown }} args.link Source of the change for history.
  * @returns {Promise<object>} The saved AcademicResult document.
  */
 export async function applyOfficialResultChange({ kind, principal, existing = null, identity = null, fields, link = {} }) {
@@ -83,6 +84,8 @@ export async function applyOfficialResultChange({ kind, principal, existing = nu
     academicResultId: official._id,
     importId: link.importId,
     caRecoveryReviewId: link.caRecoveryReviewId,
+    attemptId: link.attemptId,
+    authorizationId: link.authorizationId,
     actorUserId: principal.userId,
     registrationNumber: official.registrationNumber,
     subjectCode: official.subjectCode,
