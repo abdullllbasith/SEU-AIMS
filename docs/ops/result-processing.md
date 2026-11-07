@@ -57,3 +57,11 @@ After a successful commit the official rows stay committed even if a notificatio
 ## Not decided here
 
 Manual grade correction outside a new import, file retention expiry, and small-count suppression on analytics are not implemented. Do not treat this document as a new academic rule for those cases.
+
+## Single writer for official grades
+
+Every change to an official grade goes through `applyOfficialResultChange` in `backend/src/modules/results/services/official-result-writer.js`. Today two paths call it: import commit (`IMPORT_COMMIT`) and approval of an import-sourced CA recovery review (`IMPORT_SOURCED_REVIEW`). Behaviour is unchanged. Each `ResultRevision` written now records a `changeKind`; older rows do not have one.
+
+`backend/tests/unit/official-result-writer-boundary.test.js` fails if any other source file creates, updates or deletes an `AcademicResult` or assigns `resultCode`. Period realignment may only touch period and offering fields.
+
+Not yet implemented: Board references, a shared grade-cap service, and the publication modes described in the approved plan. They are later phases and stay off until approved.

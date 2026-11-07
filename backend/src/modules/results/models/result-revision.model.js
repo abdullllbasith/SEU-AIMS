@@ -14,6 +14,8 @@ const resultRevisionSchema = new mongoose.Schema(
     gradeCapApplied: { type: Boolean, default: false },
     gradeCapReason: { type: String, trim: true, default: '' },
     caRecoveryReviewId: { type: objectId, ref: 'CaRecoveryResultReview' },
+    /** Which authorized path produced this change. Absent on rows written before the single writer existed. */
+    changeKind: { type: String, trim: true, enum: ['IMPORT_COMMIT', 'IMPORT_SOURCED_REVIEW'] },
   },
   persistenceOptions,
 );

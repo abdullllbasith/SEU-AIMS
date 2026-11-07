@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { ResultImport } from '../models/result-import.model.js';
 import { ResultImportRow } from '../models/result-import-row.model.js';
 import { AcademicResult } from '../models/academic-result.model.js';
-import { ResultRevision } from '../models/result-revision.model.js';
+import { OFFICIAL_RESULT_CHANGE_KINDS, applyOfficialResultChange } from './official-result-writer.js';
 import { RESULT_COMMIT_LOCK_MS, RESULT_PARSER_VERSION } from '../constants.js';
 import { RESULT_PERIOD_VERSION, chooseSubjectPeriod, deriveResultPeriods } from './result-period.js';
 import { parseXlsxResults } from './xlsx-parser.js';
@@ -964,8 +964,14 @@ export async function commitResultImport(principal, importId, { infrastructure }
       await row.save();
       continue;
     }
-    if (!official) {
-      official = await AcademicResult.create({
+    if (official && String(official.studentUserId) !== String(student.userId)) {
+      throw new ConflictError('Registration number is bound to a different student');
+    }
+    official = await applyOfficialResultChange({
+      kind: OFFICIAL_RESULT_CHANGE_KINDS.IMPORT_COMMIT,
+      principal,
+      existing: official,
+      identity: {
         departmentId: importDoc.departmentId,
         studentUserId: student.userId,
         registrationNumber: row.registrationNumber,
@@ -974,44 +980,18 @@ export async function commitResultImport(principal, importId, { infrastructure }
         subjectOfferingId: row.subjectOfferingId,
         studentAcademicYearId: row.academicYearId || student.currentAcademicYearId,
         studentSemesterId: row.semesterId || student.currentSemesterId,
-        sourceImportId: locked._id,
         sourceBatchId: student.batchId,
+      },
+      fields: {
         resultCode: storedCode,
-        previousResultCode: '',
+        previousResultCode: official ? official.resultCode : '',
         rawResultCode: row.rawResultCode || row.resultCode,
         gradeCapApplied: Boolean(row.gradeCapApplied),
         gradeCapReason: row.gradeCapReason || '',
-        version: 1,
         isEca: storedIsEca,
-        committedByUserId: principal.userId,
-      });
-    } else {
-      if (String(official.studentUserId) !== String(student.userId)) {
-        throw new ConflictError('Registration number is bound to a different student');
-      }
-      official.previousResultCode = official.resultCode;
-      official.resultCode = storedCode;
-      official.rawResultCode = row.rawResultCode || row.resultCode;
-      official.gradeCapApplied = Boolean(row.gradeCapApplied);
-      official.gradeCapReason = row.gradeCapReason || '';
-      official.isEca = storedIsEca;
-      official.sourceImportId = locked._id;
-      official.committedByUserId = principal.userId;
-      official.version += 1;
-      await official.save();
-    }
-
-    await ResultRevision.create({
-      academicResultId: official._id,
-      importId: locked._id,
-      actorUserId: principal.userId,
-      registrationNumber: row.registrationNumber,
-      subjectCode: row.subjectCode,
-      previousResultCode,
-      newResultCode: storedCode,
-      rawResultCode: row.rawResultCode || row.resultCode,
-      gradeCapApplied: Boolean(row.gradeCapApplied),
-      gradeCapReason: row.gradeCapReason || '',
+        sourceImportId: locked._id,
+      },
+      link: { importId: locked._id },
     });
     await persistAudit({
       actorUserId: principal.userId,

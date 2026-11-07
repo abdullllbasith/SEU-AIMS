@@ -1,6 +1,9 @@
 import { CaRecoveryResultReview } from '../models/ca-recovery-result-review.model.js';
 import { AcademicResult } from '../../results/models/academic-result.model.js';
-import { ResultRevision } from '../../results/models/result-revision.model.js';
+import {
+  OFFICIAL_RESULT_CHANGE_KINDS,
+  applyOfficialResultChange,
+} from '../../results/services/official-result-writer.js';
 import { ECA_RESULT_CODE } from '../../results/constants.js';
 import { isKnownGrade } from '../../results/services/normalize.js';
 import { syncIncompleteCaFromResult } from './eca-from-results.js';
@@ -216,27 +219,19 @@ export async function decideRecoveryResultReview(principal, reviewId, body = {})
   }
 
   const previousResultCode = result.resultCode;
-  result.previousResultCode = previousResultCode;
-  result.resultCode = claimed.rawResultCode;
-  result.rawResultCode = claimed.rawResultCode;
-  result.gradeCapApplied = false;
-  result.gradeCapReason = '';
-  result.isEca = false;
-  result.version += 1;
-  result.committedByUserId = principal.userId;
-  await result.save();
-  await ResultRevision.create({
-    academicResultId: result._id,
-    importId: claimed.sourceImportId,
-    actorUserId: principal.userId,
-    registrationNumber: result.registrationNumber,
-    subjectCode: result.subjectCode,
-    previousResultCode,
-    newResultCode: claimed.rawResultCode,
-    rawResultCode: claimed.rawResultCode,
-    gradeCapApplied: false,
-    gradeCapReason: '',
-    caRecoveryReviewId: claimed._id,
+  await applyOfficialResultChange({
+    kind: OFFICIAL_RESULT_CHANGE_KINDS.IMPORT_SOURCED_REVIEW,
+    principal,
+    existing: result,
+    fields: {
+      previousResultCode,
+      resultCode: claimed.rawResultCode,
+      rawResultCode: claimed.rawResultCode,
+      gradeCapApplied: false,
+      gradeCapReason: '',
+      isEca: false,
+    },
+    link: { importId: claimed.sourceImportId, caRecoveryReviewId: claimed._id },
   });
   await syncIncompleteCaFromResult(result);
   await recalculateStudentGpa(result.studentUserId);
