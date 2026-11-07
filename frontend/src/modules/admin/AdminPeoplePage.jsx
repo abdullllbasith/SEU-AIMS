@@ -32,10 +32,6 @@ export function AdminPeoplePage() {
   const [query, setQuery] = useState('');
   const [batchId, setBatchId] = useState('');
   const [batches, setBatches] = useState([]);
-  const [years, setYears] = useState([]);
-  const [semesters, setSemesters] = useState([]);
-  const [yearId, setYearId] = useState('');
-  const [creating, setCreating] = useState(false);
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -44,23 +40,16 @@ export function AdminPeoplePage() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      academicApi.batches({ status: 'ALL', pageSize: 50 }),
-      academicApi.years({ status: 'ALL', pageSize: 50 }),
-      academicApi.semesters({ status: 'ALL', pageSize: 50 }),
-    ])
-      .then(([batchResponse, yearResponse, semesterResponse]) => {
+    academicApi
+      .batches({ status: 'ALL', pageSize: 50 })
+      .then((batchResponse) => {
         if (!cancelled) {
           setBatches(batchResponse.data?.items || []);
-          setYears(yearResponse.data?.items || []);
-          setSemesters(semesterResponse.data?.items || []);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setBatches([]);
-          setYears([]);
-          setSemesters([]);
         }
       });
     return () => {
@@ -137,152 +126,6 @@ export function AdminPeoplePage() {
           Lecturers
         </button>
       </nav>
-
-      {tab === 'students' ? (
-        <Panel title="Create student account" kicker="Login and academic context">
-          <form
-            className="settings-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const data = new FormData(event.target);
-              setCreating(true);
-              setError('');
-              academicApi
-                .createUser({
-                  email: data.get('email'),
-                  password: data.get('password'),
-                  displayName: data.get('displayName'),
-                  role: 'STUDENT',
-                })
-                .then((created) =>
-                  academicApi.createStudentContext({
-                    userId: created.data.user.id,
-                    registrationNumber: data.get('registrationNumber'),
-                    batchId: data.get('batchId'),
-                    currentAcademicYearId: data.get('currentAcademicYearId'),
-                    currentSemesterId: data.get('currentSemesterId'),
-                  }),
-                )
-                .then(() => {
-                  event.target.reset();
-                  setYearId('');
-                  setPage(1);
-                  return adminApi.students({ q: query, page: 1, pageSize: 20, ...(batchId ? { batchId } : {}) });
-                })
-                .then((response) => setStudents(response.data))
-                .catch((caught) => setError(caught.message || 'Student account could not be created'))
-                .finally(() => setCreating(false));
-            }}
-          >
-            <label>
-              Email
-              <input name="email" type="email" required />
-            </label>
-            <label>
-              Display name
-              <input name="displayName" required />
-            </label>
-            <label>
-              Temporary password
-              <input name="password" type="password" minLength={10} required />
-            </label>
-            <label>
-              Registration number
-              <input name="registrationNumber" required />
-            </label>
-            <label>
-              Batch
-              <select name="batchId" required>
-                <option value="">Select a batch</option>
-                {batches.map((batch) => (
-                  <option key={batch.id} value={batch.id}>
-                    {batch.code}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Current year
-              <select
-                name="currentAcademicYearId"
-                required
-                value={yearId}
-                onChange={(event) => setYearId(event.target.value)}
-              >
-                <option value="">Select a year</option>
-                {years.map((year) => (
-                  <option key={year.id} value={year.id}>
-                    {year.name || year.code}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Current semester
-              <select name="currentSemesterId" required disabled={!yearId}>
-                <option value="">Select a semester</option>
-                {semesters
-                  .filter((semester) => !yearId || semester.academicYearId === yearId)
-                  .map((semester) => (
-                    <option key={semester.id} value={semester.id}>
-                      {semester.name || semester.code}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <div className="panel-actions">
-              <button type="submit" disabled={creating}>
-                {creating ? 'Creating…' : 'Create student account'}
-              </button>
-            </div>
-          </form>
-        </Panel>
-      ) : (
-        <Panel title="Create lecturer account" kicker="Department staff">
-          <form
-            className="settings-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const data = new FormData(event.target);
-              setCreating(true);
-              setError('');
-              academicApi
-                .createUser({
-                  email: data.get('email'),
-                  password: data.get('password'),
-                  displayName: data.get('displayName'),
-                  role: 'LECTURER',
-                })
-                .then(() => {
-                  event.target.reset();
-                  setPage(1);
-                  return adminApi.lecturers({ q: query, page: 1, pageSize: 20 });
-                })
-                .then((response) => setLecturers(response.data))
-                .catch((caught) => setError(caught.message || 'Lecturer account could not be created'))
-                .finally(() => setCreating(false));
-            }}
-          >
-            <label>
-              Email
-              <input name="email" type="email" required />
-            </label>
-            <label>
-              Display name
-              <input name="displayName" required />
-            </label>
-            <label>
-              Temporary password
-              <input name="password" type="password" minLength={10} required />
-            </label>
-            <div className="panel-actions">
-              <button type="submit" disabled={creating}>
-                {creating ? 'Creating…' : 'Create lecturer account'}
-              </button>
-            </div>
-          </form>
-        </Panel>
-      )}
 
       <div className={tab === 'students' ? 'filter-bar filter-bar--people' : 'filter-bar filter-bar--search'}>
         <label>

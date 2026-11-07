@@ -159,6 +159,80 @@ export async function verifyAttempt(principal, attemptId, body = {}) {
   return mapAdminAttempt(claimed);
 }
 
+/**
+ * Administrator corrects the CA and/or ESA mark on a verified attempt before publication. Every change needs a
+ * reason and is audited with old and new values. The proposed code is recalculated. Any Board authorization
+ * already recorded for this attempt is invalidated, so the Board reference and cap decision must be recorded again.
+ */
+export async function correctAttemptMarks(principal, attemptId, body = {}) {
+  const attempt = await loadAdminAttempt(principal, attemptId);
+  if (!['VERIFIED', 'BOARD_AUTHORIZED'].includes(attempt.stage)) {
+    throw new ConflictError('Marks can only be corrected on a verified attempt before publication');
+  }
+  const reason = String(body.reason || '').trim();
+  if (!reason) {
+    throw new ValidationError('A reason is required for a mark correction');
+  }
+  const ca = attempt.configSnapshot.find((c) => c.key === 'CA');
+  const esa = attempt.configSnapshot.find((c) => c.key === 'ESA');
+  const esaApplicable = Boolean(esa?.applicable);
+  const isMark = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+  const caMark = body.caMark === undefined ? attempt.caMark : Number(body.caMark);
+  if (!isMark(caMark)) {
+    throw new ValidationError('CA mark must be a number from 0 to 100');
+  }
+  let esaMark = null;
+  if (esaApplicable) {
+    esaMark = body.esaMark === undefined ? attempt.esaMark : Number(body.esaMark);
+    if (!isMark(esaMark)) {
+      throw new ValidationError('ESA mark must be a number from 0 to 100');
+    }
+  } else if (body.esaMark !== undefined && body.esaMark !== null && body.esaMark !== '') {
+    throw new ValidationError('This subject has no ESA component');
+  }
+  const scheme = { status: 'VERIFIED', components: attempt.configSnapshot.map((c) => c.toObject?.() || c) };
+  const caPassed = caMark >= ca.passMark;
+  const esaPassed = esaApplicable ? esaMark >= esa.passMark : null;
+  const finalMark = computeFinalMark(scheme, { CA: caMark, ESA: esaMark });
+  const proposedResultCode = proposeResultCode({ caPassed, esaPassed, esaApplicable, finalMark }) || '';
+  const before = { caMark: attempt.caMark, esaMark: attempt.esaMark, proposedResultCode: attempt.proposedResultCode };
+  const after = { caMark, esaMark, proposedResultCode };
+  if (JSON.stringify(before) === JSON.stringify(after)) {
+    throw new ValidationError('The marks are unchanged');
+  }
+  const claimed = await AssessmentAttempt.findOneAndUpdate(
+    { _id: attempt._id, stage: attempt.stage },
+    {
+      $set: {
+        stage: 'VERIFIED',
+        caMark,
+        caPassed,
+        esaMark,
+        esaPassed,
+        finalMark,
+        proposedResultCode,
+        verifiedAt: new Date(),
+        verifiedByUserId: principal.userId,
+      },
+      $unset: { boardAuthorizationId: '' },
+    },
+    { new: true },
+  );
+  if (!claimed) {
+    throw new ConflictError('This attempt changed. Reload and try again.');
+  }
+  await invalidateAuthorizations(attempt._id, `Marks corrected: ${reason}`);
+  await recordCaAudit({
+    actorUserId: principal.userId,
+    action: 'assessment.attempt.correct-marks',
+    entityType: 'AssessmentAttempt',
+    entityId: attempt._id,
+    departmentId: attempt.departmentId,
+    metadata: { reason, before, after, previousStage: attempt.stage },
+  });
+  return mapAdminAttempt(claimed);
+}
+
 /** Administrator sends a submitted attempt back to the lecturer. A reason is required. */
 export async function returnAttempt(principal, attemptId, body = {}) {
   const attempt = await loadAdminAttempt(principal, attemptId);
@@ -166,17 +240,18 @@ export async function returnAttempt(principal, attemptId, body = {}) {
   if (!reason) {
     throw new ValidationError('A reason is required');
   }
-  if (attempt.stage !== 'SUBMITTED') {
-    throw new ConflictError('Only a submitted attempt can be returned');
+  if (!['SUBMITTED', 'VERIFIED', 'BOARD_AUTHORIZED'].includes(attempt.stage)) {
+    throw new ConflictError('Only an unpublished attempt can be returned');
   }
   const claimed = await AssessmentAttempt.findOneAndUpdate(
-    { _id: attempt._id, stage: 'SUBMITTED' },
-    { $set: { stage: 'RETURNED', returnReason: reason } },
+    { _id: attempt._id, stage: attempt.stage },
+    { $set: { stage: 'RETURNED', returnReason: reason }, $unset: { boardAuthorizationId: '' } },
     { new: true },
   );
   if (!claimed) {
     throw new ConflictError('This attempt changed. Reload and try again.');
   }
+  await invalidateAuthorizations(attempt._id, `Returned to lecturer: ${reason}`);
   await recordCaAudit({
     actorUserId: principal.userId,
     action: 'assessment.attempt.return',
@@ -244,11 +319,19 @@ export async function recordBoardAuthorization(principal, attemptId, body = {}) 
   return { authorizationId: String(authorization._id), attempt: mapAdminAttempt(current) };
 }
 
+async function invalidateAuthorizations(attemptId, reason) {
+  await BoardAuthorization.updateMany(
+    { coveredAttemptIds: attemptId, invalidatedAt: null },
+    { $set: { invalidatedAt: new Date(), invalidatedReason: reason } },
+  );
+}
+
 async function findAuthorization(attempt, scope, resultCode) {
   return BoardAuthorization.findOne({
     departmentId: attempt.departmentId,
     scope,
     coveredAttemptIds: attempt._id,
+    invalidatedAt: null,
     ...(resultCode ? { authorizedResultCode: resultCode } : {}),
   }).sort({ createdAt: -1 });
 }

@@ -25,6 +25,7 @@ export function createRouter() {
 
   router.get('/admin/attempts', requireDepartmentAdmin(), controller.listAdminAttempts);
   router.post('/attempts/:attemptId/verify', requireDepartmentAdmin(), requireCsrf, controller.verifyAttempt);
+  router.post('/attempts/:attemptId/correct-marks', requireDepartmentAdmin(), requireCsrf, controller.correctMarks);
   router.post('/attempts/:attemptId/return', requireDepartmentAdmin(), requireCsrf, controller.returnAttempt);
   router.post('/attempts/:attemptId/board-authorization', requireDepartmentAdmin(), requireCsrf, controller.recordBoardAuthorization);
   router.post('/attempts/:attemptId/publish', requireDepartmentAdmin(), requireCsrf, controller.publishAttempt);

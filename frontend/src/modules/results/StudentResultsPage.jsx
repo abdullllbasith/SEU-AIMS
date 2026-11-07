@@ -99,8 +99,7 @@ export function StudentResultsPage() {
             title={periodTitle(period)}
             kicker={`${period.results.length} result${period.results.length === 1 ? '' : 's'}${period.current ? ' · current semester' : ''}`}
           >
-            <ResultCards rows={period.results} />
-            <div className="table-scroll">
+            <div className="table-scroll result-table-scroll">
               <ResultTable rows={period.results} />
             </div>
           </Panel>
@@ -135,25 +134,6 @@ function periodTitle(period) {
   );
 }
 
-function ResultCards({ rows }) {
-  if (!rows.length) {
-    return null;
-  }
-  return (
-    <ul className="result-cards">
-      {rows.map((row) => (
-        <li key={row.id} className="result-card">
-          <p className="result-card__code">{row.subjectCode}</p>
-          <p className={resultMarkClass(row)}>{resultLabel(row)}</p>
-          <p className="stack-item__meta">
-            {row.updatedAt ? new Date(row.updatedAt).toLocaleDateString() : ''}
-          </p>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function ResultTable({ rows }) {
   if (!rows.length) {
     return null;
@@ -171,7 +151,8 @@ function ResultTable({ rows }) {
         {rows.map((row) => (
           <tr key={row.id}>
             <td>
-              <span className="result-subject">{row.subjectCode}</span>
+              <span className="result-subject">{row.subjectName || row.subjectCode}</span>
+              {row.subjectName ? <span className="result-subject__code">{row.subjectCode}</span> : null}
             </td>
             <td>
               <span className={resultMarkClass(row)}>{resultLabel(row)}</span>

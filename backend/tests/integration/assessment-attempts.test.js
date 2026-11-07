@@ -354,3 +354,25 @@ test('lecturer submit notifies admins; admin publish notifies the student', asyn
   assert.equal(toStudent.length, 1, 'student gets one in-app notice on publish');
   assert.match(toStudent[0].body, /published/);
 });
+
+test('admin corrects verified marks; Board records are invalidated; publish needs them again', async () => {
+  const w = await setup();
+  const attempt = await lecturerApi.openAttempt(w.lecturer, { linkId: String(w.link._id) });
+  await lecturerApi.saveMarks(w.lecturer, attempt.id, { caMark: 40 });
+  await lecturerApi.submitAttempt(w.lecturer, attempt.id);
+  await adminApi.verifyAttempt(w.admin, attempt.id, { esaMark: 40 });
+  await adminApi.recordBoardAuthorization(w.admin, attempt.id, {
+    scope: 'GRADE_PUBLICATION',
+    reference: 'FB/2026/20',
+    meetingDate: '2026-07-04',
+  });
+  await assert.rejects(adminApi.correctAttemptMarks(w.admin, attempt.id, { caMark: 50 }), /reason/);
+  await assert.rejects(adminApi.correctAttemptMarks(w.admin, attempt.id, { caMark: 150, reason: 'typo' }), /0 to 100/);
+  const fixed = await adminApi.correctAttemptMarks(w.admin, attempt.id, { caMark: 50, esaMark: 60, reason: 'Sheet typo' });
+  assert.equal(fixed.stage, 'VERIFIED', 'correction drops Board authorized');
+  assert.equal(fixed.caMark, 50);
+  assert.equal(fixed.esaMark, 60);
+  assert.equal(fixed.proposedResultCode, 'B-');
+  await assert.rejects(adminApi.publishAttempt(w.admin, attempt.id), /Board authorized/);
+  await assert.rejects(adminApi.correctAttemptMarks(w.lecturer, attempt.id, { caMark: 60, reason: 'x' }), /Forbidden/);
+});

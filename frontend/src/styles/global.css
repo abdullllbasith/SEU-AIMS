@@ -9119,3 +9119,22 @@ a.study-agent__source-title {
 }
 
 
+
+/* Student results: the table is the only view, so show every row (no inner scroll) and
+   keep the subject name and its code on two lines in the first column. */
+.result-table-scroll {
+  max-height: none;
+  overflow-y: visible;
+}
+
+.result-subject {
+  display: block;
+}
+
+.result-subject__code {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.75rem;
+  font-weight: var(--weight-medium);
+  color: var(--slate-500);
+}

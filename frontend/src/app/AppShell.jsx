@@ -241,6 +241,7 @@ export function AppShell({ children }) {
   const shellClass = [
     'app-shell',
     'app-shell--app',
+    user.role === ROLES.DEPARTMENT_ADMINISTRATOR ? 'app-shell--admin' : '',
     menuOpen ? 'is-nav-open' : '',
     railCollapsed ? 'is-rail-collapsed' : '',
   ]

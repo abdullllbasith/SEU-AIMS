@@ -12,6 +12,7 @@ export const assessmentApi = {
   adminAttempts: () => apiRequest('/assessment/admin/attempts'),
   verify: (id, esaMark) => post(`/assessment/attempts/${id}/verify`, esaMark === '' ? {} : { esaMark }),
   returnAttempt: (id, reason) => post(`/assessment/attempts/${id}/return`, { reason }),
+  correctMarks: (id, body) => post(`/assessment/attempts/${id}/correct-marks`, body),
   recordBoard: (id, body) => post(`/assessment/attempts/${id}/board-authorization`, body),
   publish: (id, body = {}) => post(`/assessment/attempts/${id}/publish`, body),
 };

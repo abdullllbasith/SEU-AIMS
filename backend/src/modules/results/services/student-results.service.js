@@ -1,6 +1,6 @@
 import { AcademicResult } from '../models/academic-result.model.js';
 import { ResultRevision } from '../models/result-revision.model.js';
-import { AcademicYear, Semester, findStudentContextByUserId } from '../../academic-foundation/index.js';
+import { AcademicYear, Semester, Subject, findStudentContextByUserId } from '../../academic-foundation/index.js';
 import { ROLES } from '../../../shared/constants/roles.js';
 import { ForbiddenError } from '../../../shared/errors/app-error.js';
 import { mapStudentResult } from '../mappers/results.mappers.js';
@@ -56,12 +56,22 @@ export async function getOwnResults(principal, query = {}) {
   const yearById = new Map(years.map((year) => [String(year._id), year]));
   const semesterById = new Map(semesters.map((semester) => [String(semester._id), semester]));
 
+  // Subject names for display. Codes are unique per department, so scope to the student's department when known.
+  const subjectCodes = [...new Set(results.map((item) => item.subjectCode).filter(Boolean))];
+  const subjectFilter = { code: { $in: subjectCodes } };
+  if (context?.departmentId) {
+    subjectFilter.departmentId = context.departmentId;
+  }
+  const subjects = subjectCodes.length ? await Subject.find(subjectFilter).select('code name').lean() : [];
+  const subjectNameByCode = new Map(subjects.map((subject) => [subject.code, subject.name]));
+
   const attach = (items) =>
     items.map((item) => {
       const year = yearById.get(String(item.studentAcademicYearId || ''));
       const semester = semesterById.get(String(item.studentSemesterId || ''));
       return {
         ...mapStudentResult(item),
+        subjectName: subjectNameByCode.get(item.subjectCode) || '',
         academicYearName: year?.name || '',
         academicYearSequence: year?.sequence ?? null,
         semesterName: semester?.name || '',

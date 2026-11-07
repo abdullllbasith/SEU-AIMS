@@ -26,6 +26,9 @@ const boardAuthorizationSchema = new mongoose.Schema(
     coveredAttemptIds: { type: [objectId], default: [] },
     resultId: { type: objectId, ref: 'AcademicResult' },
     recordedByUserId: { type: objectId, ref: 'User', required: true },
+    /** Set when the marks it was given for change. The row stays; it no longer counts for publishing. */
+    invalidatedAt: { type: Date, default: null },
+    invalidatedReason: { type: String, trim: true, default: '' },
   },
   persistenceOptions,
 );

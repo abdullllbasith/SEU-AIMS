@@ -58,7 +58,7 @@ export function AdminAttemptsPanel() {
 
   return (
     <Panel title="CA recovery marks" kicker={`${open.length} open`}>
-      <p>
+      <p className="panel-lead">
         Verify the lecturer's CA mark with the ESA mark from the Examination unit sheet, record the Board reference, then
         publish. A grade above C replacing E(CA) also needs a recorded Board cap decision.
       </p>
@@ -129,6 +129,68 @@ export function AdminAttemptsPanel() {
                         >
                           Return
                         </ActionButton>
+                      </>
+                    ) : null}
+                    {a.stage === 'VERIFIED' || a.stage === 'BOARD_AUTHORIZED' ? (
+                      <>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          aria-label={`Corrected CA mark for ${a.registrationNumber}`}
+                          value={field(a.id, 'fixCa') || a.caMark || ''}
+                          onChange={(event) => setField(a.id, 'fixCa', event.target.value)}
+                        />
+                        {a.esaMark !== null && a.esaMark !== undefined ? (
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            aria-label={`Corrected ESA mark for ${a.registrationNumber}`}
+                            value={field(a.id, 'fixEsa') || a.esaMark || ''}
+                            onChange={(event) => setField(a.id, 'fixEsa', event.target.value)}
+                          />
+                        ) : null}
+                        <input
+                          placeholder="Correction reason"
+                          aria-label={`Correction reason for ${a.registrationNumber}`}
+                          value={field(a.id, 'fixReason')}
+                          onChange={(event) => setField(a.id, 'fixReason', event.target.value)}
+                        />
+                        <ActionButton
+                          busy={busy === `fix:${a.id}`}
+                          busyLabel="Saving…"
+                          disabled={Boolean(busy) || !field(a.id, 'fixReason').trim()}
+                          onClick={() =>
+                            run(`fix:${a.id}`, () =>
+                              assessmentApi.correctMarks(a.id, {
+                                caMark: Number(field(a.id, 'fixCa') || a.caMark),
+                                ...(a.esaMark !== null && a.esaMark !== undefined
+                                  ? { esaMark: Number(field(a.id, 'fixEsa') || a.esaMark) }
+                                  : {}),
+                                reason: field(a.id, 'fixReason').trim(),
+                              }),
+                            )
+                          }
+                        >
+                          Save corrected marks
+                        </ActionButton>
+                        <ActionButton
+                          busy={busy === `return:${a.id}`}
+                          busyLabel="Returning…"
+                          disabled={Boolean(busy) || !field(a.id, 'reason').trim()}
+                          onClick={() => run(`return:${a.id}`, () => assessmentApi.returnAttempt(a.id, field(a.id, 'reason')))}
+                        >
+                          Return to lecturer
+                        </ActionButton>
+                        <input
+                          placeholder="Return reason"
+                          aria-label={`Return reason for ${a.registrationNumber}`}
+                          value={field(a.id, 'reason')}
+                          onChange={(event) => setField(a.id, 'reason', event.target.value)}
+                        />
                       </>
                     ) : null}
                     {a.stage === 'VERIFIED' ? (

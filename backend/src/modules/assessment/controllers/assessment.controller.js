@@ -30,6 +30,9 @@ export function createAssessmentController() {
     verifyAttempt: asyncHandler(async (req, res) => {
       sendSuccess(res, await adminService.verifyAttempt(req.principal, req.params.attemptId, req.body || {}));
     }),
+    correctMarks: asyncHandler(async (req, res) => {
+      sendSuccess(res, await adminService.correctAttemptMarks(req.principal, req.params.attemptId, req.body || {}));
+    }),
     returnAttempt: asyncHandler(async (req, res) => {
       sendSuccess(res, await adminService.returnAttempt(req.principal, req.params.attemptId, req.body || {}));
     }),
