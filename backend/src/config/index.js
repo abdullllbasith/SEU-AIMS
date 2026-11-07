@@ -151,6 +151,8 @@ export function loadConfig() {
     features: {
       /** LEGACY keeps today's repeat cap, SHADOW logs the differences, ENFORCED applies the unified cap. */
       gradeCapMode: rolloutMode('GRADE_CAP_MODE'),
+      /** LEGACY lets lecturers approve import-sourced CA reviews; ENFORCED is administrator only. */
+      resultPublicationMode: rolloutMode('RESULT_PUBLICATION_MODE'),
       /** Routes for assessment configs, attempts, absence claims and corrections. 404 when false. */
       assessmentMarksEnabled: optional('ASSESSMENT_MARKS_ENABLED', 'false').toLowerCase() === 'true',
     },

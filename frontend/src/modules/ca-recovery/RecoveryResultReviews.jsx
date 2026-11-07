@@ -29,6 +29,9 @@ export function RecoveryResultReviews({ items = [], pending = '', onDecide }) {
                   <td>{item.subjectCode}</td>
                   <td>{item.rawResultCode}</td>
                   <td>
+                    {item.canDecide === false ? <span>Administrator decides</span> : null}
+                    {item.canDecide === false ? null : (
+                    <>
                     <ActionButton
                       busy={pending === `APPROVE:${item.id}`}
                       busyLabel="Approving…"
@@ -45,6 +48,8 @@ export function RecoveryResultReviews({ items = [], pending = '', onDecide }) {
                     >
                       Reject
                     </ActionButton>
+                    </>
+                    )}
                   </td>
                 </tr>
               ))}

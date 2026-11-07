@@ -17,6 +17,8 @@ export const OFFICIAL_RESULT_CHANGE_KINDS = Object.freeze({
   IMPORT_COMMIT: 'IMPORT_COMMIT',
   IMPORT_SOURCED_REVIEW: 'IMPORT_SOURCED_REVIEW',
   ATTEMPT_PUBLISH: 'ATTEMPT_PUBLISH',
+  /** Administrative fix of an already published value (for example undoing a publication made in error). */
+  CORRECTION: 'CORRECTION',
 });
 
 /** Fields a caller may set on the official row. Anything else is refused. */

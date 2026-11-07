@@ -29,6 +29,7 @@ Never put real values in git. Names only. Canonical template: [`.env.example`](.
 | `AUDIT_RETENTION_DAYS` | `0` = do not auto-delete | no |
 | `GRADE_CAP_MODE` | Repeat-grade cap rollout: `LEGACY` (default, today's behaviour), `SHADOW` (logs differences only), `ENFORCED` (unified cap, needs department confirmation). Invalid values fall back to `LEGACY` | no |
 | `ASSESSMENT_MARKS_ENABLED` | `true` turns on assessment attempt, absence-claim and correction routes. Default `false`; routes return 404 | no |
+| `RESULT_PUBLICATION_MODE` | `LEGACY` (default) lets a lecturer approve an import-sourced CA review. `ENFORCED` refuses lecturer approval (administrator only). `SHADOW` is reserved. Invalid values fall back to `LEGACY` | no |
 | `TZ` | Default `Asia/Colombo` | no |
 | `STUDY_ROOM_*` | Chat rate/size caps (optional overrides) | no |
 

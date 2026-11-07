@@ -17,6 +17,12 @@ import { recordAudit as persistAudit } from '../../audit-security/services/recor
 import { ROLES } from '../../../shared/constants/roles.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
 import { requireObjectId } from '../../results/utils/http.js';
+import { loadConfig } from '../../../config/index.js';
+
+/** In ENFORCED mode only an administrator can publish an official grade (plan 3.1, phase 5). */
+function lecturerDecisionBlocked(principal) {
+  return principal?.role === ROLES.LECTURER && loadConfig().features.resultPublicationMode === 'ENFORCED';
+}
 
 function mapReview(doc) {
   return {
@@ -165,7 +171,8 @@ export async function listRecoveryResultReviews(principal) {
     }));
   }
   const items = await CaRecoveryResultReview.find(filter).sort({ createdAt: 1 }).limit(50);
-  return { items: items.map(mapReview) };
+  const canDecide = !lecturerDecisionBlocked(principal);
+  return { items: items.map((item) => ({ ...mapReview(item), canDecide })) };
 }
 
 export async function decideRecoveryResultReview(principal, reviewId, body = {}) {
@@ -183,6 +190,9 @@ export async function decideRecoveryResultReview(principal, reviewId, body = {})
     throw new NotFoundError('Academic result not found');
   }
   await assertReviewer(principal, result);
+  if (lecturerDecisionBlocked(principal)) {
+    throw new ForbiddenError('Lecturers can no longer approve official CA results. Ask the department administrator.');
+  }
   if (review.status !== 'PENDING') {
     throw new ConflictError('This CA recovery review is already decided');
   }
