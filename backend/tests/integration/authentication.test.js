@@ -278,3 +278,102 @@ dbTest('administrators can set a new password for a student in their department'
     .send({ password: 'short' });
   assert.equal(short.status, 400);
 });
+
+async function adminSession(email, password = 'correcthorse') {
+  const { agent, csrfToken } = await csrfAgent();
+  const login = await agent
+    .post('/api/auth/login')
+    .set('X-CSRF-Token', csrfToken)
+    .send({ identifier: email, password });
+  assert.equal(login.status, 200);
+  return { agent, csrf: login.body.data.csrfToken };
+}
+
+dbTest('admin management: create returns a one-time temporary password that works', async () => {
+  const dept = await Department.create({ code: 'ICT', name: 'Department of ICT' });
+  await createUser({ role: ROLES.DEPARTMENT_ADMINISTRATOR, email: 'root@seu.ac.lk', departmentId: dept._id });
+  const { agent, csrf } = await adminSession('root@seu.ac.lk');
+
+  const created = await agent
+    .post('/api/auth/admins')
+    .set('X-CSRF-Token', csrf)
+    .send({ email: 'New.Admin@seu.ac.lk', displayName: 'New Admin' });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.data.user.role, ROLES.DEPARTMENT_ADMINISTRATOR);
+  assert.equal(created.body.data.user.email, 'new.admin@seu.ac.lk');
+  assert.equal(created.body.data.user.departmentId, String(dept._id));
+  assert.ok(created.body.data.temporaryPassword.length >= 16);
+  assert.equal(created.body.data.user.passwordHash, undefined);
+
+  const dup = await agent
+    .post('/api/auth/admins')
+    .set('X-CSRF-Token', csrf)
+    .send({ email: 'new.admin@seu.ac.lk', displayName: 'Again' });
+  assert.equal(dup.status, 409);
+
+  const listed = await agent.get('/api/auth/admins');
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.data.items.length, 2);
+  assert.equal(listed.body.data.items.find((a) => a.email === 'root@seu.ac.lk').isSelf, true);
+
+  await adminSession('new.admin@seu.ac.lk', created.body.data.temporaryPassword);
+});
+
+dbTest('admin management: reset password revokes the old password; self reset is blocked', async () => {
+  const dept = await Department.create({ code: 'ICT', name: 'Department of ICT' });
+  const root = await createUser({ role: ROLES.DEPARTMENT_ADMINISTRATOR, email: 'root@seu.ac.lk', departmentId: dept._id });
+  const peer = await createUser({ role: ROLES.DEPARTMENT_ADMINISTRATOR, email: 'peer@seu.ac.lk', departmentId: dept._id });
+  const { agent, csrf } = await adminSession('root@seu.ac.lk');
+
+  const self = await agent.post(`/api/auth/admins/${root._id}/reset-password`).set('X-CSRF-Token', csrf);
+  assert.equal(self.status, 400);
+
+  const reset = await agent.post(`/api/auth/admins/${peer._id}/reset-password`).set('X-CSRF-Token', csrf);
+  assert.equal(reset.status, 200);
+  const { agent: a2, csrfToken } = await csrfAgent();
+  const oldLogin = await a2
+    .post('/api/auth/login')
+    .set('X-CSRF-Token', csrfToken)
+    .send({ identifier: 'peer@seu.ac.lk', password: 'correcthorse' });
+  assert.equal(oldLogin.status, 401);
+  await adminSession('peer@seu.ac.lk', reset.body.data.temporaryPassword);
+});
+
+dbTest('admin management: status safeguards and department isolation', async () => {
+  const dept = await Department.create({ code: 'ICT', name: 'Department of ICT' });
+  const other = await Department.create({ code: 'ENG', name: 'English' });
+  const root = await createUser({ role: ROLES.DEPARTMENT_ADMINISTRATOR, email: 'root@seu.ac.lk', departmentId: dept._id });
+  const peer = await createUser({ role: ROLES.DEPARTMENT_ADMINISTRATOR, email: 'peer@seu.ac.lk', departmentId: dept._id });
+  const outsider = await createUser({ role: ROLES.DEPARTMENT_ADMINISTRATOR, email: 'out@seu.ac.lk', departmentId: other._id });
+  const student = await createUser({ role: ROLES.STUDENT, email: 's@seu.ac.lk', departmentId: dept._id });
+  const { agent, csrf } = await adminSession('root@seu.ac.lk');
+  const patch = (id, accountStatus) =>
+    agent.patch(`/api/auth/admins/${id}/status`).set('X-CSRF-Token', csrf).send({ accountStatus });
+
+  assert.equal((await patch(root._id, 'SUSPENDED')).status, 400); // self
+  assert.equal((await patch(outsider._id, 'SUSPENDED')).status, 404); // other department
+  assert.equal((await patch(student._id, 'SUSPENDED')).status, 404); // not an admin
+  assert.equal((await agent.post(`/api/auth/admins/${outsider._id}/reset-password`).set('X-CSRF-Token', csrf)).status, 404);
+
+  assert.equal((await patch(peer._id, 'SUSPENDED')).status, 200);
+  assert.equal((await User.findById(peer._id)).accountStatus, 'SUSPENDED');
+  assert.equal((await patch(peer._id, 'ACTIVE')).status, 200);
+
+  // A peer can suspend root; the acting admin is always active, so one active admin always remains.
+  const { agent: pa, csrf: pc } = await adminSession('peer@seu.ac.lk');
+  assert.equal(
+    (await pa.patch(`/api/auth/admins/${root._id}/status`).set('X-CSRF-Token', pc).send({ accountStatus: 'SUSPENDED' })).status,
+    200,
+  );
+});
+
+dbTest('admin management: students and lecturers cannot use admin endpoints', async () => {
+  const dept = await Department.create({ code: 'ICT', name: 'Department of ICT' });
+  await createUser({ role: ROLES.STUDENT, email: 's@seu.ac.lk', departmentId: dept._id });
+  const { agent, csrf } = await adminSession('s@seu.ac.lk');
+  assert.equal((await agent.get('/api/auth/admins')).status, 403);
+  assert.equal(
+    (await agent.post('/api/auth/admins').set('X-CSRF-Token', csrf).send({ email: 'x@seu.ac.lk', displayName: 'X' })).status,
+    403,
+  );
+});

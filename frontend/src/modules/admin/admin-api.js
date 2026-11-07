@@ -12,6 +12,19 @@ const qs = (params = {}) => {
 };
 
 export const adminApi = {
+  admins: () => apiRequest('/auth/admins'),
+  createAdmin: ({ email, displayName }) =>
+    apiRequest('/auth/admins', {
+      method: 'POST',
+      body: JSON.stringify({ email, displayName }),
+    }),
+  setAdminStatus: (userId, accountStatus) =>
+    apiRequest(`/auth/admins/${userId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ accountStatus }),
+    }),
+  resetAdminPassword: (userId) =>
+    apiRequest(`/auth/admins/${userId}/reset-password`, { method: 'POST', body: JSON.stringify({}) }),
   dashboard: () => apiRequest('/admin/dashboard'),
   students: (params) => apiRequest(`/admin/students${qs(params)}`),
   student: (userId) => apiRequest(`/admin/students/${userId}`),

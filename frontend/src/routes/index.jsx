@@ -17,6 +17,7 @@ import { AdminStudyRoomModerationPage } from '../modules/admin/AdminStudyRoomMod
 import { AdminObservabilityPage } from '../modules/admin/AdminObservabilityPage.jsx';
 import { AdminDashboardPage } from '../modules/admin/AdminDashboardPage.jsx';
 import { AdminPeoplePage } from '../modules/admin/AdminPeoplePage.jsx';
+import { AdminAdministratorsPage } from '../modules/admin/AdminAdministratorsPage.jsx';
 import { AdminStudentDetailPage } from '../modules/admin/AdminStudentDetailPage.jsx';
 import { AdminLecturerDetailPage } from '../modules/admin/AdminLecturerDetailPage.jsx';
 import { AdminOfferingHealthPage } from '../modules/admin/AdminOfferingHealthPage.jsx';
@@ -153,6 +154,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
             <AcademicAdminPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/administrators"
+        element={
+          <ProtectedRoute roles={[ROLES.DEPARTMENT_ADMINISTRATOR]}>
+            <AdminAdministratorsPage />
           </ProtectedRoute>
         }
       />
