@@ -59,7 +59,14 @@ const assessmentAttemptSchema = new mongoose.Schema(
     assessmentConfigId: { type: objectId, ref: 'OfferingAssessmentConfig' },
     assessmentConfigVersion: { type: Number },
     configSnapshot: { type: [configSnapshotSchema], default: [] },
+    /**
+     * ESA mark from the Examination unit sheet, entered by the administrator at verification.
+     * The lecturer never sets it.
+     */
+    esaMark: { type: Number, default: null, min: 0, max: 100 },
+    finalMark: { type: Number, default: null },
     caPassed: { type: Boolean, default: null },
+    esaPassed: { type: Boolean, default: null },
     /** Result code the system proposes from the CA outcome. The Board may authorize a different one. */
     proposedResultCode: { type: String, trim: true, default: '' },
     submittedAt: Date,
