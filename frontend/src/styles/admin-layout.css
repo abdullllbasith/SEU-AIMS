@@ -1,0 +1,225 @@
+/* ==========================================================================
+   Admin layout layer
+   Scoped to .app-shell--admin (set in AppShell for DEPARTMENT_ADMINISTRATOR).
+   Loaded after global.css. Uses the existing tokens; no new colours.
+   Rules: one page column, equal edges, forms in a grid, equal-height rows,
+   one primary action per view.
+   ========================================================================== */
+
+.app-shell--admin {
+  --admin-page-max: 92rem;
+  --admin-gutter: 1.4rem;
+}
+
+/* Same breakpoint global.css uses for the page gutter. */
+@media (max-width: 900px) {
+  .app-shell--admin {
+    --admin-gutter: 1.15rem;
+  }
+}
+
+/* 1. Topbar shares the page column, so search and bell sit on the content edges. */
+.app-shell--admin .app-topbar {
+  padding-inline: max(
+    var(--admin-gutter),
+    calc((100% - var(--admin-page-max)) / 2 + var(--admin-gutter))
+  );
+}
+
+/* 2. Header actions are secondary. Primary blue is kept for submit buttons. */
+.app-shell--admin .page-header__actions button {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+
+.app-shell--admin .page-header__actions button:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.app-shell--admin .page-header__actions button.is-loading::after,
+.app-shell--admin .page-header__actions button.is-busy::after {
+  background: var(--brand-600);
+}
+
+/* 3. Forms lay out in a grid instead of one full-width column. */
+.app-shell--admin form.settings-form,
+.app-shell--admin form.settings-form--wide,
+.app-shell--admin form.window-form,
+.app-shell--admin .admin-crud--stacked form.settings-form {
+  max-width: none;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  align-items: start;
+  gap: 1rem 1.25rem;
+}
+
+.app-shell--admin form.settings-form > :is(button, .form-error, .panel-actions, .panel-lead, fieldset, p, h3),
+.app-shell--admin form.settings-form > label:has(textarea),
+.app-shell--admin form.window-form > :is(button, .form-error, .panel-actions, fieldset, p, h3),
+.app-shell--admin form.window-form > label:has(textarea) {
+  grid-column: 1 / -1;
+}
+
+.app-shell--admin form.settings-form > button,
+.app-shell--admin form.window-form > button {
+  justify-self: start;
+}
+
+/* 4. Panels in a row share one height; the grid gap is the only spacing. */
+.app-shell--admin .dashboard-grid {
+  align-items: stretch;
+}
+
+.app-shell--admin .dashboard-grid > * {
+  margin-bottom: 0;
+}
+
+.app-shell--admin .ops-console-grid,
+.app-shell--admin .admin-home__grid {
+  align-items: stretch;
+}
+
+.app-shell--admin .admin-home__grid > .panel,
+.app-shell--admin .admin-home__grid > .admin-home__stack {
+  height: 100%;
+}
+
+/* 5. Tile grids never leave an orphan: an odd last tile takes the full row. */
+.app-shell--admin .ops-console-grid .record-dl--inline {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.app-shell--admin .overview-stats-grid > :last-child:nth-child(odd),
+.app-shell--admin .ops-console-grid .record-dl--inline > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* 6. Shortcut tiles: 3 / 2 / 1 columns so the last row is never ragged. */
+.app-shell--admin .shortcut-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .app-shell--admin .shortcut-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .app-shell--admin .shortcut-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 7. Tables show every row. The global 21.5rem cap clipped rows mid-line;
+   horizontal scroll stays for narrow screens. */
+.app-shell--admin .table-scroll,
+.app-shell--admin .admin-crud .table-scroll {
+  max-height: none;
+  overflow-y: visible;
+}
+
+/* 8. Record lists use the width: 1 / 2 / 3 columns instead of one thin row per record. */
+.app-shell--admin .entity-list {
+  grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+}
+
+/* 9. A button group followed by a form keeps a clear gap. */
+.app-shell--admin .panel-actions + form,
+.app-shell--admin .panel-actions + .settings-form {
+  margin-top: 1.25rem;
+}
+
+/* 10. Action cells stay real table cells. Global CSS made the <td> a flex box,
+   which detached it from the row and left borders and headers misaligned. */
+.app-shell--admin .admin-crud .data-table :is(td, th).data-table__actions {
+  display: table-cell;
+  width: 1%;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.app-shell--admin .admin-crud .data-table :is(td, th).data-table__actions > * {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.app-shell--admin .admin-crud .data-table :is(td, th).data-table__actions > * + * {
+  margin-left: 0.5rem;
+}
+
+/* 11. Form controls fit their grid cell. A long <option> made the select wider
+   than its column and it ran under the next field. */
+.app-shell--admin form.settings-form > label,
+.app-shell--admin form.window-form > label {
+  min-width: 0;
+}
+
+.app-shell--admin form.settings-form :is(input, select, textarea),
+.app-shell--admin form.window-form :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* 12. One vertical rhythm on record pages: the page gap alone spaces blocks,
+   and panels in a row share a height. */
+.app-shell--admin .record-page > .stat-row,
+.app-shell--admin .record-page > .batch-detail__grid {
+  margin-bottom: 0;
+}
+
+.app-shell--admin .batch-detail__grid {
+  gap: 1.65rem;
+  align-items: stretch;
+}
+
+/* 13. Buttons sitting side by side in a plain table cell get a gap. */
+.app-shell--admin .data-table td:not(.data-table__actions) > :is(button, a.btn, .btn) + :is(button, a, .btn) {
+  margin-left: 0.45rem;
+}
+
+/* 14. Phones: data tables with labelled cells become stacked cards.
+   Only tables whose cells carry data-label opt in. */
+@media (max-width: 640px) {
+  .app-shell--admin .data-table[data-stack] thead {
+    display: none;
+  }
+
+  .app-shell--admin .data-table[data-stack],
+  .app-shell--admin .data-table[data-stack] tbody {
+    display: block;
+    min-width: 0;
+  }
+
+  .app-shell--admin .data-table[data-stack] tr {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .app-shell--admin .data-table[data-stack] td {
+    display: grid;
+    grid-template-columns: 9rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.2rem 0.75rem;
+    border: 0;
+    white-space: normal;
+  }
+
+  .app-shell--admin .data-table[data-stack] td::before {
+    content: attr(data-label);
+    font-size: 0.7rem;
+    font-weight: var(--weight-strong);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--slate-500);
+  }
+}

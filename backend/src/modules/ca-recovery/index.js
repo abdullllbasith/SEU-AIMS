@@ -39,6 +39,8 @@ export {
 export { processEcaDetectJob } from './services/eca-detect.service.js';
 export { generateApplicationPdf } from './services/pdf.service.js';
 export { CaExamNotice } from './models/ca-exam-notice.model.js';
+export { requireManagedOffering } from './services/exam-notice.service.js';
+export { recordCaAudit } from './services/notify.js';
 export { listOwnApplications, listEligibleConditions } from './services/application.service.js';
 export { listApprovedForLecturer, listSchedules } from './services/schedule.service.js';
 export { syncApplicationStatusFromSubjects, deriveApplicationStatus } from './services/application-status.service.js';

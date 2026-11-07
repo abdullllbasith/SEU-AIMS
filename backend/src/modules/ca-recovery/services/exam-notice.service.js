@@ -36,7 +36,7 @@ function assertLecturer(principal) {
  * The lecturer must have an active assignment on this exact offering, be a verified lecturer,
  * and the offering must be ACTIVE and in the lecturer's department.
  */
-async function requireManagedOffering(principal, subjectOfferingId) {
+export async function requireManagedOffering(principal, subjectOfferingId) {
   assertLecturer(principal);
   requireObjectId(subjectOfferingId, 'subject offering');
   const [assignment, offering, lecturer] = await Promise.all([

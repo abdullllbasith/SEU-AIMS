@@ -90,6 +90,7 @@ describe('Study Agent attachments and quick actions', () => {
 
   const sendButton = () => container.querySelector('.study-agent__composer button[type="submit"]');
   const buttonWithText = (text) => [...container.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
+  const buttonByLabel = (label) => [...container.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === label);
 
   async function type(text) {
     const textarea = container.querySelector('#study-agent-input');
@@ -309,23 +310,23 @@ describe('Study Agent attachments and quick actions', () => {
     await renderChat();
     expect(buttonWithText('Simpler')).toBeUndefined();
     expect(buttonWithText('In Tamil')).toBeUndefined();
-    expect(buttonWithText('Research online').disabled).toBe(false);
+    expect(buttonByLabel('Search the web').disabled).toBe(false);
   });
 
   it('turns on research for the next message only', async () => {
     studyAgentApi.sendMessage.mockResolvedValue(reply('Latest SQL changes'));
     await renderChat();
     await act(async () => {
-      buttonWithText('Research online').click();
+      buttonByLabel('Search the web').click();
     });
-    expect(buttonWithText('Research online').getAttribute('aria-pressed')).toBe('true');
+    expect(buttonByLabel('Search the web').getAttribute('aria-pressed')).toBe('true');
     await type('Latest SQL changes');
     await act(async () => {
       sendButton().click();
     });
     await settle();
     expect(studyAgentApi.sendMessage).toHaveBeenCalledWith('s1', { content: 'Latest SQL changes', intent: 'research' });
-    expect(buttonWithText('Research online').getAttribute('aria-pressed')).toBe('false');
+    expect(buttonByLabel('Search the web').getAttribute('aria-pressed')).toBe('false');
   });
 
   it('shows no subject label for a free-study session', async () => {

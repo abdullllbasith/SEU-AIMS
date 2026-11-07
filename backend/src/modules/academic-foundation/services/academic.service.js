@@ -1743,6 +1743,11 @@ export async function listMembers(principal, query) {
   if (query.q) {
     Object.assign(filter, textFilter(query, ['email', 'displayName']));
   }
+  if (query.withoutAcademicContext === 'true') {
+    const attached = await StudentAcademicContext.distinct('userId', { departmentId });
+    filter._id = { $nin: attached };
+    filter.role = ROLES.STUDENT;
+  }
   const [items, total] = await Promise.all([
     User.find(filter).sort({ email: 1 }).skip(skip).limit(limit),
     User.countDocuments(filter),

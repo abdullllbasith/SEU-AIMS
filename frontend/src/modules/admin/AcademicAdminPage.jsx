@@ -344,7 +344,7 @@ export function AcademicAdminPage() {
                 pageSize: 20,
                 ...cleanFilters(studentViewRef.current.filters),
               }),
-              academicApi.members({ role: 'STUDENT', pageSize: 50 }),
+              academicApi.members({ role: 'STUDENT', withoutAcademicContext: 'true', pageSize: 50 }),
             ])
           : [];
       return {
@@ -1261,7 +1261,7 @@ export function AcademicAdminPage() {
               <EmptyState>No students match this search or filter.</EmptyState>
             ) : (
               <div className="table-scroll">
-                <table className="data-table">
+                <table className="data-table" data-stack>
                   <thead>
                     <tr>
                       <th>Registration number</th>
@@ -1277,12 +1277,12 @@ export function AcademicAdminPage() {
                   <tbody>
                     {students.items.map((row) => (
                       <tr key={row.id}>
-                        <td>{row.registrationNumber}</td>
-                        <td>{row.displayName || row.email || '—'}</td>
-                        <td>{cellValue('batchId', row.batchId, lookups)}</td>
-                        <td>{cellValue('currentAcademicYearId', row.currentAcademicYearId, lookups)}</td>
-                        <td>{cellValue('currentSemesterId', row.currentSemesterId, lookups)}</td>
-                        <td>
+                        <td data-label="Registration number">{row.registrationNumber}</td>
+                        <td data-label="Student">{row.displayName || row.email || '—'}</td>
+                        <td data-label="Batch">{cellValue('batchId', row.batchId, lookups)}</td>
+                        <td data-label="Year">{cellValue('currentAcademicYearId', row.currentAcademicYearId, lookups)}</td>
+                        <td data-label="Semester">{cellValue('currentSemesterId', row.currentSemesterId, lookups)}</td>
+                        <td data-label="Specialization">
                           <select
                             aria-label={`Specialization for ${row.registrationNumber}`}
                             value={row.specialization || ''}
@@ -1299,10 +1299,10 @@ export function AcademicAdminPage() {
                             <option value="NST">NST</option>
                           </select>
                         </td>
-                        <td>
+                        <td data-label="Status">
                           <span className={statusPillClass(row.status)}>{row.status}</span>
                         </td>
-                        <td className="data-table__actions">
+                        <td className="data-table__actions" data-label="Actions">
                           <Link to={`/admin/people/students/${row.userId}`}>Account</Link>
                           {row.status === 'ACTIVE' ? (
                             <button

@@ -94,7 +94,7 @@ export async function getResultVersions(principal, resultId) {
       id: String(revision._id),
       previousResultCode: revision.previousResultCode || '',
       newResultCode: revision.newResultCode,
-      importId: String(revision.importId),
+      importId: revision.importId ? String(revision.importId) : null,
       createdAt: revision.createdAt,
     })),
   };

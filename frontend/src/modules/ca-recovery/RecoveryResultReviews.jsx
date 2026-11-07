@@ -5,7 +5,7 @@ import { EmptyState } from '../../ui/EmptyState.jsx';
 export function RecoveryResultReviews({ items = [], pending = '', onDecide }) {
   return (
     <Panel title="CA recovery results" kicker={`${items.length} pending`}>
-      <p>
+      <p className="panel-lead">
         These grades were imported for an official E(CA) result. Approving records the imported grade without a C Pass
         cap. Rejecting leaves the official result as E(CA).
       </p>
@@ -29,6 +29,9 @@ export function RecoveryResultReviews({ items = [], pending = '', onDecide }) {
                   <td>{item.subjectCode}</td>
                   <td>{item.rawResultCode}</td>
                   <td>
+                    {item.canDecide === false ? <span>Administrator decides</span> : null}
+                    {item.canDecide === false ? null : (
+                    <>
                     <ActionButton
                       busy={pending === `APPROVE:${item.id}`}
                       busyLabel="Approving…"
@@ -45,6 +48,8 @@ export function RecoveryResultReviews({ items = [], pending = '', onDecide }) {
                     >
                       Reject
                     </ActionButton>
+                    </>
+                    )}
                   </td>
                 </tr>
               ))}

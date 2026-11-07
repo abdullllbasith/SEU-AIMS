@@ -24,4 +24,6 @@ export { ResultRevision } from './models/result-revision.model.js';
 export { findOfficialResult } from './repositories/academic-result.repository.js';
 export { processResultParse } from './services/import.service.js';
 export { getOwnResults } from './services/student-results.service.js';
-export { DICT_GRADE_POINTS } from './constants.js';
+export { DICT_GRADE_POINTS, ECA_RESULT_CODE } from './constants.js';
+export { applyOfficialResultChange, OFFICIAL_RESULT_CHANGE_KINDS } from './services/official-result-writer.js';
+export { evaluateRepeatCap, CAP_TREATMENTS } from './services/grade-cap.js';

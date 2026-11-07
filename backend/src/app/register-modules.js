@@ -5,6 +5,7 @@ import { createStudyRoomModule } from '../modules/study-room/index.js';
 import { createResultsModule } from '../modules/results/index.js';
 import { createGpaCgpaModule } from '../modules/gpa-cgpa/index.js';
 import { createCaRecoveryModule } from '../modules/ca-recovery/index.js';
+import { createAssessmentModule } from '../modules/assessment/index.js';
 import { createNoticesCalendarModule } from '../modules/notices-calendar/index.js';
 import { createNotificationsModule } from '../modules/notifications/index.js';
 import { createStudentExperienceModule } from '../modules/student-experience/index.js';
@@ -26,6 +27,7 @@ export function registerModules(app, { config, logger, infrastructure }) {
     createResultsModule(),
     createGpaCgpaModule(),
     createCaRecoveryModule(),
+    createAssessmentModule(),
     createNoticesCalendarModule(),
     createNotificationsModule(),
     createStudentExperienceModule(),

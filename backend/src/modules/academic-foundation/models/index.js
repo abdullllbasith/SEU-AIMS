@@ -9,3 +9,4 @@ export { LecturerAssignment } from './lecturer-assignment.model.js';
 export { StudentAcademicContext } from './student-academic-context.model.js';
 export { StudentAcademicHistory } from './student-academic-history.model.js';
 export { SubjectEnrollment } from './subject-enrollment.model.js';
+export { OfferingAssessmentConfig } from './offering-assessment-config.model.js';

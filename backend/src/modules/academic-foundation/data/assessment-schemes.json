@@ -1,0 +1,490 @@
+{
+  "source": "ICT_BICT_Handbook_Extract.md tables 3.9.3 to 3.9.8",
+  "schemes": {
+    "CIS11012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS11022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS11032": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS11042": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CIS11051": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CIS12012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS21012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS21022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS21031": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CIS22012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS22022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS22032": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS22042": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CIS31012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS31022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS31032": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS31041": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CIS31051": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CIS32012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS41012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS41022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CIS41032": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CMS11012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CMS11022": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CMS11031": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CMS11041": {
+      "status": "UNVERIFIED",
+      "ca": null,
+      "esa": null
+    },
+    "CMS12012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CMS12022": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CMS12031": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "CMS22012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "CMS31022": {
+      "status": "VERIFIED",
+      "ca": 60,
+      "esa": 40
+    },
+    "CMS41012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "MGT12012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "MGT12021": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST12012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST21012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST21022": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST31011": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST31022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST31032": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST31042": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST31051": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST31062": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST32012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST32021": {
+      "status": "VERIFIED",
+      "ca": 60,
+      "esa": 40
+    },
+    "NST32031": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST32042": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST32052": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST32061": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST32072": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST40046": {
+      "status": "VERIFIED",
+      "ca": 100,
+      "esa": null
+    },
+    "NST41011": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST41021": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST41032": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST41062": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST41071": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST41081": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "NST41092": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "NST42016": {
+      "status": "VERIFIED",
+      "ca": 100,
+      "esa": null
+    },
+    "SWT11012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT11021": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "SWT12012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT12022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT12031": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "SWT12041": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "SWT21012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT21022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT21032": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "SWT22012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT22022": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "SWT31012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT31022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT32011": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT32022": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT32031": {
+      "status": "VERIFIED",
+      "ca": 60,
+      "esa": 40
+    },
+    "SWT32042": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "SWT32051": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "SWT40016": {
+      "status": "VERIFIED",
+      "ca": 100,
+      "esa": null
+    },
+    "SWT41021": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT41032": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "SWT41042": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "SWT41051": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "SWT42016": {
+      "status": "VERIFIED",
+      "ca": 100,
+      "esa": null
+    },
+    "UCT21011": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "UCT21022": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "UCT22011": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "UCT22022": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "UCT31012": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "UCT31021": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "UCT32011": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "UCT32022": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "UCT32031": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "UCT32042": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "UCT41011": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "UCT41022": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    },
+    "UCT41031": {
+      "status": "VERIFIED",
+      "ca": 40,
+      "esa": 60
+    },
+    "UCT41042": {
+      "status": "VERIFIED",
+      "ca": 50,
+      "esa": 50
+    }
+  }
+}

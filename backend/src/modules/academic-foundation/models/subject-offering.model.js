@@ -10,6 +10,8 @@ const subjectOfferingSchema = new mongoose.Schema(
     academicYearId: { type: objectId, ref: 'AcademicYear', required: true },
     semesterId: { type: objectId, ref: 'Semester', required: true },
     status: { type: String, required: true, enum: ENTITY_STATUSES, default: 'ACTIVE' },
+    /** Active OfferingAssessmentConfig. Null until a config exists. Not read by current flows. */
+    activeAssessmentConfigId: { type: objectId, ref: 'OfferingAssessmentConfig', default: null },
   },
   persistenceOptions,
 );
