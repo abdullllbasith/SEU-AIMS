@@ -2,9 +2,11 @@ import { AssessmentAttempt } from '../models/assessment-attempt.model.js';
 import { BoardAuthorization } from '../models/board-authorization.model.js';
 import { CaApplicationSubject, IncompleteCa, recordCaAudit, requireManagedOffering } from '../../ca-recovery/index.js';
 import { AcademicResult } from '../../results/index.js';
-import { OfferingAssessmentConfig, getAssessmentScheme } from '../../academic-foundation/index.js';
+import { OfferingAssessmentConfig, Subject, getAssessmentScheme } from '../../academic-foundation/index.js';
+import { ECA_RESULT_CODE } from '../../results/index.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
 import { ROLES } from '../../../shared/constants/roles.js';
+import { notifyAdminsOfSubmission } from './notify.service.js';
 import { canOpenAttempt, summarizeAttempts } from '../rules/attempt-counting.js';
 import { validateComponentMarks } from '../rules/assessment-rules.js';
 import mongoose from 'mongoose';
@@ -131,6 +133,12 @@ export async function openAttempt(principal, { linkId }) {
     throw new ConflictError('The repeat limit has been reached. A recorded grace chance is required.');
   }
 
+  // A result still at E(CA) with no recorded sittings means the original CA was failed and not recorded
+  // in this workflow. This sitting is therefore a REPEAT of the CA component (handbook 5.6 v), not a fresh one.
+  const priorFailedCa = history.length === 0 && result.resultCode === ECA_RESULT_CODE;
+  const candidateStatus = priorFailedCa ? 'REPEAT' : decision.candidateStatus;
+  const countedAttemptNumber = priorFailedCa ? 2 : summarizeAttempts(history).countedSoFar + 1;
+
   let attempt;
   try {
     attempt = await AssessmentAttempt.create({
@@ -143,8 +151,8 @@ export async function openAttempt(principal, { linkId }) {
       subjectOfferingId: link.subjectOfferingId,
       component: 'CA',
       opportunityNumber: history.length + 1,
-      countedAttemptNumber: summarizeAttempts(history).countedSoFar + 1,
-      candidateStatus: decision.candidateStatus,
+      countedAttemptNumber,
+      candidateStatus,
       outcome: 'SAT',
       stage: 'DRAFT',
       assessmentConfigId: scheme.configId || undefined,
@@ -163,7 +171,11 @@ export async function openAttempt(principal, { linkId }) {
     entityType: 'AssessmentAttempt',
     entityId: attempt._id,
     departmentId: attempt.departmentId,
-    metadata: { opportunityNumber: attempt.opportunityNumber, candidateStatus: attempt.candidateStatus },
+    metadata: {
+      opportunityNumber: attempt.opportunityNumber,
+      candidateStatus: attempt.candidateStatus,
+      priorFailedCaNotRecorded: priorFailedCa,
+    },
   });
   return mapAttempt(attempt);
 }
@@ -189,7 +201,7 @@ export async function saveMarks(principal, attemptId, body = {}) {
 }
 
 /** Lecturer submits the saved CA mark for administrator verification. */
-export async function submitAttempt(principal, attemptId) {
+export async function submitAttempt(principal, attemptId, { infrastructure } = {}) {
   const attempt = await loadOwnAttempt(principal, attemptId);
   if (!['DRAFT', 'RETURNED'].includes(attempt.stage)) {
     throw new ConflictError('This attempt is already submitted');
@@ -222,6 +234,8 @@ export async function submitAttempt(principal, attemptId) {
     departmentId: claimed.departmentId,
     metadata: { opportunityNumber: claimed.opportunityNumber },
   });
+  const subject = await Subject.findById(claimed.subjectId).select('code');
+  await notifyAdminsOfSubmission({ attempt: claimed, subjectCode: subject?.code, infrastructure });
   return mapAttempt(claimed);
 }
 

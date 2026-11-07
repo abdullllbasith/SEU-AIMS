@@ -3,6 +3,10 @@ import { asyncHandler } from '../../../shared/http/async-handler.js';
 import * as attemptService from '../services/attempt.service.js';
 import * as adminService from '../services/admin-attempt.service.js';
 
+function infra(req) {
+  return req.app.get('infrastructure') || {};
+}
+
 export function createAssessmentController() {
   return {
     openAttempt: asyncHandler(async (req, res) => {
@@ -12,7 +16,10 @@ export function createAssessmentController() {
       sendSuccess(res, await attemptService.saveMarks(req.principal, req.params.attemptId, req.body || {}));
     }),
     submitAttempt: asyncHandler(async (req, res) => {
-      sendSuccess(res, await attemptService.submitAttempt(req.principal, req.params.attemptId));
+      sendSuccess(
+        res,
+        await attemptService.submitAttempt(req.principal, req.params.attemptId, { infrastructure: infra(req) }),
+      );
     }),
     listLecturerAttempts: asyncHandler(async (req, res) => {
       sendSuccess(res, await attemptService.listLecturerAttempts(req.principal, req.query));
@@ -32,7 +39,10 @@ export function createAssessmentController() {
       });
     }),
     publishAttempt: asyncHandler(async (req, res) => {
-      sendSuccess(res, await adminService.publishAttempt(req.principal, req.params.attemptId, req.body || {}));
+      sendSuccess(
+        res,
+        await adminService.publishAttempt(req.principal, req.params.attemptId, req.body || {}, { infrastructure: infra(req) }),
+      );
     }),
     recordAbsentAttempt: asyncHandler(async (req, res) => {
       sendSuccess(res, await adminService.recordAbsentAttempt(req.principal, req.params.linkId), { statusCode: 201 });

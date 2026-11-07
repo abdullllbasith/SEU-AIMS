@@ -24,6 +24,8 @@ export const BUILTIN_TITLES = Object.freeze({
   CA_EXAM_COMPLETED: 'CA examination completed: {{subjectCode}}',
   CA_EXAM_MISSED: 'CA examination missed: {{subjectCode}}',
   CA_LECTURER_APPROVED_STUDENT: 'Approved CA student: {{subjectCode}}',
+  CA_MARKS_SUBMITTED: 'CA recovery marks submitted: {{subjectCode}}',
+  CA_RESULT_PUBLISHED: 'CA recovery result published: {{subjectCode}}',
   RESULTS_UPDATED: 'Official results updated',
   NOTICE_PUBLISHED: '{{title}}',
   CALENDAR_REMINDER: 'Upcoming: {{eventTitle}}',

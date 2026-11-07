@@ -165,10 +165,13 @@ export function AdminAttemptsPanel() {
                     ) : null}
                     {a.stage === 'BOARD_AUTHORIZED' ? (
                       <>
+                        {a.capDecisionRequired && !a.capDecisionRecorded ? (
+                          <p>Required before publishing {a.proposedResultCode}: record the Board cap decision below.</p>
+                        ) : null}
                         <ActionButton
                           busy={busy === `publish:${a.id}`}
                           busyLabel="Publishing…"
-                          disabled={Boolean(busy)}
+                          disabled={Boolean(busy) || (a.capDecisionRequired && !a.capDecisionRecorded)}
                           onClick={() => run(`publish:${a.id}`, () => assessmentApi.publish(a.id))}
                         >
                           Publish {a.proposedResultCode}

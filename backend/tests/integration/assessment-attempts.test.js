@@ -199,6 +199,8 @@ test('override needs a Board override naming that exact code', async () => {
 test('stages cannot be skipped and roles are enforced', async () => {
   const w = await setup();
   const attempt = await lecturerApi.openAttempt(w.lecturer, { linkId: String(w.link._id) });
+  assert.equal(attempt.candidateStatus, 'REPEAT', 'E(CA) with no recorded sittings is a CA repeat');
+  assert.equal(attempt.countedAttemptNumber, 2);
   assert.equal((await lecturerApi.openAttempt(w.lecturer, { linkId: String(w.link._id) })).id, attempt.id, 'open is idempotent');
   await assert.rejects(lecturerApi.submitAttempt(w.lecturer, attempt.id), /Enter the CA mark/);
   await assert.rejects(lecturerApi.saveMarks(w.lecturer, attempt.id, { caMark: 50, ESA: 60 }), /Examination unit/);
@@ -325,4 +327,30 @@ test('routes answer 404 while ASSESSMENT_MARKS_ENABLED is off', () => {
       assert.equal(error.statusCode, 404);
     }
   }
+});
+
+test('lecturer submit notifies admins; admin publish notifies the student', async () => {
+  const { Notification } = await import('../../src/modules/notifications/models/notification.model.js');
+  const w = await setup();
+  const attempt = await lecturerApi.openAttempt(w.lecturer, { linkId: String(w.link._id) });
+  await lecturerApi.saveMarks(w.lecturer, attempt.id, { caMark: 45 });
+  await lecturerApi.submitAttempt(w.lecturer, attempt.id, { infrastructure: {} });
+  const toAdmin = await Notification.find({ type: 'CA_MARKS_SUBMITTED', recipientUserId: w.admin.userId });
+  assert.ok(toAdmin.length >= 1, 'admin notified on submit');
+  assert.equal(await Notification.countDocuments({ type: 'CA_MARKS_SUBMITTED', recipientUserId: w.student.userId }), 0);
+
+  await adminApi.verifyAttempt(w.admin, attempt.id, { esaMark: 45 });
+  await adminApi.recordBoardAuthorization(w.admin, attempt.id, {
+    scope: 'GRADE_PUBLICATION',
+    reference: 'FB/2026/09',
+    meetingDate: '2026-07-03',
+  });
+  await adminApi.publishAttempt(w.admin, attempt.id, {}, { infrastructure: {} });
+  const toStudent = await Notification.find({
+    type: 'CA_RESULT_PUBLISHED',
+    recipientUserId: w.student.userId,
+    channel: 'IN_APP',
+  });
+  assert.equal(toStudent.length, 1, 'student gets one in-app notice on publish');
+  assert.match(toStudent[0].body, /published/);
 });

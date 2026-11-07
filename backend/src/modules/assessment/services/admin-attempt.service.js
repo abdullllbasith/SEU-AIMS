@@ -18,14 +18,21 @@ import {
   evaluateRepeatCap,
 } from '../../results/index.js';
 import { recalculateStudentGpa } from '../../gpa-cgpa/index.js';
+import { Subject } from '../../academic-foundation/index.js';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
 import { ROLES } from '../../../shared/constants/roles.js';
 import { summarizeAttempts, canOpenAttempt } from '../rules/attempt-counting.js';
 import { computeFinalMark } from '../rules/final-mark.js';
 import { proposeResultCode } from '../rules/grade-proposal.js';
 import { mapAttempt } from './attempt.service.js';
+import { notifyStudentOfPublication } from './notify.service.js';
 
 const HOURS_48 = 48 * 60 * 60 * 1000;
+
+/** Grades above C need a Board cap decision before replacing E(CA). */
+function aboveCgrade(code) {
+  return (DICT_GRADE_POINTS[code] ?? 0) > DICT_GRADE_POINTS.C;
+}
 const DAYS_14 = 14 * 24 * 60 * 60 * 1000;
 
 function assertAdmin(principal) {
@@ -81,7 +88,19 @@ export async function listAdminAttempts(principal, { stage } = {}) {
     filter.stage = String(stage);
   }
   const attempts = await AssessmentAttempt.find(filter).sort({ createdAt: -1 }).limit(200);
-  return attempts.map(mapAdminAttempt);
+  const decisions = await BoardAuthorization.find({
+    departmentId: principal.departmentId || attempts[0]?.departmentId,
+    scope: 'CAP_DECISION',
+    coveredAttemptIds: { $in: attempts.map((a) => a._id) },
+  }).select('coveredAttemptIds authorizedResultCode');
+  const recorded = new Set(
+    decisions.flatMap((d) => d.coveredAttemptIds.map((id) => `${String(id)}:${d.authorizedResultCode}`)),
+  );
+  return attempts.map((attempt) => ({
+    ...mapAdminAttempt(attempt),
+    capDecisionRequired: aboveCgrade(attempt.proposedResultCode),
+    capDecisionRecorded: recorded.has(`${String(attempt._id)}:${attempt.proposedResultCode}`),
+  }));
 }
 
 /**
@@ -242,7 +261,7 @@ async function findAuthorization(attempt, scope, resultCode) {
  * - Publishing the same code the result already has changes no grade.
  * Idempotent: a published attempt returns as is.
  */
-export async function publishAttempt(principal, attemptId, body = {}) {
+export async function publishAttempt(principal, attemptId, body = {}, { infrastructure } = {}) {
   const attempt = await loadAdminAttempt(principal, attemptId);
   if (attempt.stage === 'PUBLISHED') {
     return mapAdminAttempt(attempt);
@@ -348,6 +367,13 @@ export async function publishAttempt(principal, attemptId, body = {}) {
       newResultCode: officialResultCode,
       authorizationId: authorizationId ? String(authorizationId) : null,
     },
+  });
+  const subject = await Subject.findById(claimed.subjectId).select('code');
+  await notifyStudentOfPublication({
+    attempt: claimed,
+    subjectCode: subject?.code,
+    resultCode: officialResultCode,
+    infrastructure,
   });
   return mapAdminAttempt(claimed);
 }

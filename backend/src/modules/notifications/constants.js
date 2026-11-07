@@ -36,6 +36,7 @@ export const TEMPLATE_ALLOWED_VARS = Object.freeze([
   'examTime',
   'registrationNumber',
   'offsetDays',
+  'resultCode',
 ]);
 
 /** Configurable mandatory types. Users cannot disable these channels via preferences. */
@@ -51,6 +52,8 @@ export const MANDATORY_NOTIFICATION_TYPES = Object.freeze([
   'CA_EXAM_CANCELLED',
   'CA_EXAM_COMPLETED',
   'CA_EXAM_MISSED',
+  'CA_MARKS_SUBMITTED',
+  'CA_RESULT_PUBLISHED',
   'RESULTS_UPDATED',
   'NOTICE_PUBLISHED',
 ]);
