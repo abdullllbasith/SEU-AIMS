@@ -18,7 +18,7 @@ import {
   normalizeSubjectCode,
 } from './normalize.js';
 import { actionForExistingResult, blockConflictingIdentities } from './classification.js';
-import { resolveRepeatOfficialGrade } from './repeat-grade.js';
+import { resolveRepeatGrade } from './grade-cap.js';
 import { mapImport, mapImportRow } from '../mappers/results.mappers.js';
 import { parsePagination, requireObjectId } from '../utils/http.js';
 import {
@@ -325,7 +325,7 @@ async function classifyRow({ importDoc, parsed, seen, lookup }) {
     const existing = lookup
       ? lookup.existing(registrationNumber, subjectCode)
       : await AcademicResult.findOne({ registrationNumber, subjectCode });
-    const decision = resolveRepeatOfficialGrade(existing?.resultCode, resultCode);
+    const decision = resolveRepeatGrade(existing?.resultCode, resultCode);
     officialResultCode = decision.officialResultCode;
     rawResultCode = decision.rawResultCode;
     gradeCapApplied = decision.gradeCapApplied;

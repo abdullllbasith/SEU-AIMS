@@ -65,3 +65,10 @@ Every change to an official grade goes through `applyOfficialResultChange` in `b
 `backend/tests/unit/official-result-writer-boundary.test.js` fails if any other source file creates, updates or deletes an `AcademicResult` or assigns `resultCode`. Period realignment may only touch period and offering fields.
 
 Not yet implemented: Board references, a shared grade-cap service, and the publication modes described in the approved plan. They are later phases and stay off until approved.
+
+## Assessment schemes, course terms and the unified repeat cap (Phase 2, all off by default)
+
+- `backend/src/modules/academic-foundation/data/assessment-schemes.json` holds CA/ESA weights for the 97 course codes in the BICT handbook tables 3.9.3 to 3.9.8: 52 at 40/60, 37 at 50/50, 3 at 60/40 (CMS31022, NST32021, SWT32031), 4 at 100 with no ESA (SWT40016, NST40046, SWT42016, NST42016). CMS11041 has a blank handbook cell and is `UNVERIFIED` with no weights. A test compares the file with the handbook extract.
+- `OfferingAssessmentConfig` (versioned per offering) and the optional course-terms fields on `CurriculumMapping` exist as schema only. Nothing reads them. GPA, CA recovery and imports behave as before. No migration or backfill has been run.
+- `GRADE_CAP_MODE` controls the shared cap in `results/services/grade-cap.js`. `LEGACY` (default) returns exactly the old repeat-grade decision. `SHADOW` returns the old decision and attaches `capShadowDiff` where the unified policy would differ. `ENFORCED` applies the unified policy and needs written department confirmation first.
+- Handbook-confirmed: E, D and C- upgrade to a maximum of C (section 5.6 ii, iii). Not confirmed: whether E(CA), E(ESA) and E(CA&ESA) count as E for that cap. They keep today's handling in every mode.

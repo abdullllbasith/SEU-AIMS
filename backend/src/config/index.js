@@ -18,6 +18,14 @@ function integer(name, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+/** Rollout stages shared by the result-policy flags. Anything unrecognized falls back to LEGACY. */
+export const ROLLOUT_MODES = Object.freeze(['LEGACY', 'SHADOW', 'ENFORCED']);
+
+function rolloutMode(name) {
+  const value = optional(name, 'LEGACY').toUpperCase();
+  return ROLLOUT_MODES.includes(value) ? value : 'LEGACY';
+}
+
 /**
  * Load configuration from the environment.
  * Does not invent academic policy. Does not embed secrets in source.
@@ -138,6 +146,11 @@ export function loadConfig() {
       historyMessages: integer('STAFF_AGENT_HISTORY_MESSAGES', 6),
       maxToolsPerMessage: integer('STAFF_AGENT_MAX_TOOLS', 3),
       toolResultCharBudget: integer('STAFF_AGENT_TOOL_CHAR_BUDGET', 6000),
+    },
+    /** Result-policy rollout flags. Every flag defaults to the current behaviour. */
+    features: {
+      /** LEGACY keeps today's repeat cap, SHADOW logs the differences, ENFORCED applies the unified cap. */
+      gradeCapMode: rolloutMode('GRADE_CAP_MODE'),
     },
     timezone: optional('TZ', 'Asia/Colombo'),
     notifications: {

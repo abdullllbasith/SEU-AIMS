@@ -25,6 +25,7 @@ export {
   Subject,
   CurriculumMapping,
   SubjectOffering,
+  OfferingAssessmentConfig,
   LecturerAssignment,
   StudentAcademicContext,
   StudentAcademicHistory,
@@ -41,4 +42,11 @@ export {
 export { isOfferingInStudentCurrentContext } from './policies/academic.policies.js';
 export { offeringMatchesStudentSpecialization } from './policies/specialization.policies.js';
 export { filterOfferingsForSpecialization, mappingsForOffering } from './services/student-specialization.service.js';
+export {
+  getAssessmentScheme,
+  listSchemeCodes,
+  validateAssessmentComponents,
+  COMPONENT_PASS_MARKS,
+  SCHEME_STATUSES,
+} from './services/assessment-schemes.js';
 export { getMyContext, getMyOfferings } from './services/academic.service.js';

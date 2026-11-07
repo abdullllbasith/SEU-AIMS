@@ -10,6 +10,19 @@ const curriculumMappingSchema = new mongoose.Schema(
     semesterId: { type: objectId, ref: 'Semester', required: true },
     specialization: { type: String, enum: [...SPECIALIZATIONS, null], default: null },
     status: { type: String, required: true, enum: ENTITY_STATUSES, default: 'ACTIVE' },
+    /**
+     * Course terms. All optional and unused by GPA until a later flag is approved.
+     * GPA eligibility stays on Subject.countsForGpa. These facts are kept apart on purpose:
+     * GPA credits, earned credits and degree credits are different numbers.
+     */
+    courseRole: { type: String, enum: ['CORE', 'ELECTIVE', 'ELECTIVE_PRACTICAL', null], default: null },
+    electiveGroupId: { type: String, trim: true, default: null },
+    pairsWithSubjectId: { type: objectId, ref: 'Subject', default: null },
+    gradingMode: { type: String, enum: ['GRADED', 'PASS_FAIL', null], default: null },
+    /** true, false, or null when unconfirmed. The handbook extract lists no auxiliary courses. */
+    isAuxiliary: { type: Boolean, default: null },
+    degreeCreditEligible: { type: Boolean, default: null },
+    degreeCredits: { type: Number, min: 0, default: null },
   },
   persistenceOptions,
 );

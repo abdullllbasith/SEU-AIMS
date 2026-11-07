@@ -27,6 +27,7 @@ Never put real values in git. Names only. Canonical template: [`.env.example`](.
 | `JSON_BODY_LIMIT` / `RATE_LIMIT_*` | HTTP limits | no |
 | `NOTIFICATION_RETRY_MAX` / `NOTIFICATION_DEFAULT_LOCALE` | Notifications | no |
 | `AUDIT_RETENTION_DAYS` | `0` = do not auto-delete | no |
+| `GRADE_CAP_MODE` | Repeat-grade cap rollout: `LEGACY` (default, today's behaviour), `SHADOW` (logs differences only), `ENFORCED` (unified cap, needs department confirmation). Invalid values fall back to `LEGACY` | no |
 | `TZ` | Default `Asia/Colombo` | no |
 | `STUDY_ROOM_*` | Chat rate/size caps (optional overrides) | no |
 
