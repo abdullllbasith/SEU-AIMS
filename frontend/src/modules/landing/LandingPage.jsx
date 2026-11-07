@@ -162,13 +162,6 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div className="landing__nav-links">
-            <a href="#overview">Overview</a>
-            <a href="#departments">Departments</a>
-            <a href="#modules">Academic Modules</a>
-            <a href="#roles">Portals</a>
-          </div>
-
           <div className="landing__nav-actions">
             <Link className="landing__login" to="/login">
               Sign In

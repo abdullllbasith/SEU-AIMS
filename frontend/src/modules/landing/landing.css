@@ -163,24 +163,6 @@
   color: var(--brand-300);
 }
 
-.landing__nav-links {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.landing__nav-links a:not(.landing__login) {
-  color: rgba(255, 255, 255, 0.82);
-  text-decoration: none;
-  font-size: 0.88rem;
-  font-weight: var(--weight-medium);
-  transition: color 0.15s ease;
-}
-
-.landing__nav-links a:not(.landing__login):hover {
-  color: #ffffff;
-}
-
 .landing__login {
   display: inline-flex;
   align-items: center;
