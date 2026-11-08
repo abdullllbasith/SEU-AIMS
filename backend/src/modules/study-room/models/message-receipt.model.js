@@ -7,6 +7,8 @@ const messageReceiptSchema = new mongoose.Schema(
     userId: { type: objectId, ref: 'User', required: true },
     lastReadMessageId: { type: objectId, ref: 'Message' },
     lastReadAt: Date,
+    // Per-user clear: this user no longer sees messages sent at or before this time.
+    clearedAt: Date,
   },
   persistenceOptions,
 );

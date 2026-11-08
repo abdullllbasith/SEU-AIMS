@@ -31,6 +31,7 @@ export function createRouter() {
   router.put('/conversations/:conversationId/key-envelopes', students, requireCsrf, controller.putEnvelopes);
   router.get('/conversations/:conversationId/messages', students, controller.listMessages);
   router.post('/conversations/:conversationId/messages', students, requireCsrf, controller.sendMessage);
+  router.post('/conversations/:conversationId/clear', students, requireCsrf, controller.clearConversation);
   router.patch('/conversations/:conversationId/read', students, requireCsrf, controller.markRead);
   router.patch('/conversations/:conversationId/messages/:messageId', students, requireCsrf, controller.editMessage);
   router.delete('/conversations/:conversationId/messages/:messageId', students, requireCsrf, controller.deleteMessage);

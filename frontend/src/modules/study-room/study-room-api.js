@@ -27,6 +27,8 @@ export const studyRoomApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  clearConversation: (id) =>
+    apiRequest(`/study-room/conversations/${id}/clear`, { method: 'POST', body: JSON.stringify({}) }),
   markRead: (id, lastReadMessageId) =>
     apiRequest(`/study-room/conversations/${id}/read`, { method: 'PATCH', body: JSON.stringify({ lastReadMessageId }) }),
   folders: () => apiRequest('/study-room/folders'),

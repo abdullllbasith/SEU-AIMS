@@ -40,6 +40,11 @@ function assertCipherPayload(body, maxChars) {
   return { ciphertext, nonce, keyVersion, protocolVersion };
 }
 
+async function getClearedAt(userId, conversationId) {
+  const receipt = await MessageReceipt.findOne({ conversationId, userId }).select('clearedAt');
+  return receipt?.clearedAt || null;
+}
+
 async function loadAuthorizedConversation(principal, conversationId, context) {
   requireObjectId(conversationId, 'conversation');
   const conversation = await Conversation.findById(conversationId);
@@ -101,7 +106,11 @@ export async function listConversations(principal) {
   const peerIds = privateChats
     .map((chat) => chat.participantUserIds.find((id) => String(id) !== String(principal.userId)))
     .filter(Boolean);
-  const [users, contexts, recentMessages] = await Promise.all([
+  const clearedByConversation = await clearedAtByConversation(
+    principal.userId,
+    privateChats.map((chat) => chat._id),
+  );
+  const [users, contexts, recentMessagesAll] = await Promise.all([
     peerIds.length ? User.find({ _id: { $in: peerIds } }).select('displayName') : [],
     peerIds.length
       ? StudentAcademicContext.find({ userId: { $in: peerIds }, status: 'ACTIVE' }).select('userId registrationNumber')
@@ -115,6 +124,10 @@ export async function listConversations(principal) {
           .select('conversationId senderUserId encryptedPayload sentAt')
       : [],
   ]);
+  const recentMessages = recentMessagesAll.filter((message) => {
+    const clearedAt = clearedByConversation.get(String(message.conversationId));
+    return !clearedAt || new Date(message.sentAt) > clearedAt;
+  });
   const unreadCounts = await countUnreadByConversation(
     principal.userId,
     privateChats.map((chat) => chat._id),
@@ -157,6 +170,18 @@ export async function listConversations(principal) {
   };
 }
 
+async function clearedAtByConversation(userId, conversationIds) {
+  if (!conversationIds.length) {
+    return new Map();
+  }
+  const rows = await MessageReceipt.find({
+    userId,
+    conversationId: { $in: conversationIds },
+    clearedAt: { $ne: null },
+  }).select('conversationId clearedAt');
+  return new Map(rows.map((row) => [String(row.conversationId), row.clearedAt]));
+}
+
 const RESOURCE_ATTENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function countUnreadByConversation(userId, conversationIds) {
@@ -167,7 +192,7 @@ async function countUnreadByConversation(userId, conversationIds) {
   const receipts = await MessageReceipt.find({
     userId,
     conversationId: { $in: conversationIds },
-  }).select('conversationId lastReadMessageId');
+  }).select('conversationId lastReadMessageId clearedAt');
   const anchorIds = receipts.map((row) => row.lastReadMessageId).filter(Boolean);
   const anchors = anchorIds.length ? await Message.find({ _id: { $in: anchorIds } }).select('sentAt') : [];
   const anchorById = new Map(anchors.map((row) => [String(row._id), row]));
@@ -176,13 +201,13 @@ async function countUnreadByConversation(userId, conversationIds) {
     conversationIds.map(async (id) => {
       const receipt = receiptByConversation.get(String(id));
       const anchor = receipt?.lastReadMessageId ? anchorById.get(String(receipt.lastReadMessageId)) : null;
-      counts.set(String(id), await Message.countDocuments(unreadFilter(id, userId, anchor)));
+      counts.set(String(id), await Message.countDocuments(unreadFilter(id, userId, anchor, receipt?.clearedAt)));
     }),
   );
   return counts;
 }
 
-function unreadFilter(conversationId, userId, anchor) {
+function unreadFilter(conversationId, userId, anchor, clearedAt) {
   const filter = {
     conversationId,
     senderUserId: { $ne: userId },
@@ -193,6 +218,9 @@ function unreadFilter(conversationId, userId, anchor) {
       { sentAt: { $gt: anchor.sentAt } },
       { sentAt: anchor.sentAt, _id: { $gt: anchor._id } },
     ];
+  }
+  if (clearedAt) {
+    filter.sentAt = { $gt: clearedAt };
   }
   return filter;
 }
@@ -209,7 +237,7 @@ export async function attentionCounts(principal, query = {}) {
     ? await MessageReceipt.find({
         userId: principal.userId,
         conversationId: { $in: conversations.map((row) => row._id) },
-      }).select('conversationId lastReadMessageId')
+      }).select('conversationId lastReadMessageId clearedAt')
     : [];
   const anchorIds = receipts.map((row) => row.lastReadMessageId).filter(Boolean);
   const anchors = anchorIds.length ? await Message.find({ _id: { $in: anchorIds } }).select('sentAt') : [];
@@ -223,7 +251,9 @@ export async function attentionCounts(principal, query = {}) {
       const anchor = receipt?.lastReadMessageId
         ? anchorById.get(String(receipt.lastReadMessageId))
         : null;
-      const count = await Message.countDocuments(unreadFilter(conversation._id, principal.userId, anchor));
+      const count = await Message.countDocuments(
+        unreadFilter(conversation._id, principal.userId, anchor, receipt?.clearedAt),
+      );
       if (conversation.type === 'BATCH') {
         common += count;
       } else {
@@ -452,6 +482,10 @@ export async function listMessages(principal, conversationId, query, { config })
   const limit = parseHistoryLimit(query, config.studyRoom?.historyPageSize || 50, 30);
   const before = parseCursor(query);
   const filter = { conversationId: conversation._id };
+  const clearedAt = await getClearedAt(principal.userId, conversation._id);
+  if (clearedAt) {
+    filter.sentAt = { $gt: clearedAt };
+  }
   if (before) {
     const cursorDoc = await Message.findById(before);
     if (cursorDoc && String(cursorDoc.conversationId) === String(conversation._id)) {
@@ -662,6 +696,18 @@ export async function markRead(principal, conversationId, body) {
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
   return { lastReadMessageId: String(receipt.lastReadMessageId), lastReadAt: receipt.lastReadAt };
+}
+
+export async function clearConversation(principal, conversationId) {
+  const { context } = await requireStudentScope(principal);
+  const conversation = await loadAuthorizedConversation(principal, conversationId, context);
+  const clearedAt = new Date();
+  await MessageReceipt.findOneAndUpdate(
+    { conversationId: conversation._id, userId: principal.userId },
+    { $set: { clearedAt } },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+  return { conversationId: String(conversation._id), clearedAt };
 }
 
 export async function tombstoneMessage(principal, conversationId, messageId) {
