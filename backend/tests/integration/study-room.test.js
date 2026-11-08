@@ -314,6 +314,57 @@ dbTest('private chat is limited to participants; other batch students are concea
   assert.equal(crossBatch.status, 403);
 });
 
+dbTest('clearing a chat hides history for that student only and new messages arrive fresh', async () => {
+  const { studentA, studentB } = await seed();
+  const a = await login('a@example.test');
+  const b = await login('b@example.test');
+  const alice = await generateIdentity();
+  const bob = await generateIdentity();
+  await registerKey(a, alice);
+  await registerKey(b, bob);
+  const created = await a.agent
+    .post('/api/study-room/conversations')
+    .set('X-CSRF-Token', a.csrfToken)
+    .send({ participantUserId: String(studentB._id) });
+  const conversationId = created.body.data.id;
+  const participantKey = [String(studentA._id), String(studentB._id)].sort().join(':');
+  const key = await derivePrivateKey(alice.privateKey, bob.publicKey, conversationId, participantKey);
+  const send = async (who, id, text) =>
+    who.agent
+      .post(`/api/study-room/conversations/${conversationId}/messages`)
+      .set('X-CSRF-Token', who.csrfToken)
+      .send({ clientMessageId: id, encryptedPayload: await encryptText(key, text) });
+  assert.equal((await send(a, 'clear_msg_a1', 'from-a')).status, 201);
+  assert.equal((await send(b, 'clear_msg_b1', 'from-b')).status, 201);
+
+  const cleared = await a.agent
+    .post(`/api/study-room/conversations/${conversationId}/clear`)
+    .set('X-CSRF-Token', a.csrfToken)
+    .send({});
+  assert.equal(cleared.status, 200);
+
+  const aAfter = await a.agent.get(`/api/study-room/conversations/${conversationId}/messages`);
+  assert.equal(aAfter.body.data.items.length, 0);
+  const bAfter = await b.agent.get(`/api/study-room/conversations/${conversationId}/messages`);
+  assert.equal(bAfter.body.data.items.length, 2);
+  assert.equal(await Message.countDocuments({ conversationId }), 2);
+
+  const aInbox = await a.agent.get('/api/study-room/conversations');
+  const aChat = aInbox.body.data.items.find((item) => item.id === conversationId);
+  assert.equal(aChat.lastMessage, null);
+  assert.equal(aChat.unreadCount, 0);
+
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal((await send(b, 'clear_msg_b2', 'fresh-from-b')).status, 201);
+  const aFresh = await a.agent.get(`/api/study-room/conversations/${conversationId}/messages`);
+  assert.equal(aFresh.body.data.items.length, 1);
+  assert.equal(await decryptText(key, aFresh.body.data.items[0].encryptedPayload), 'fresh-from-b');
+  const aInboxFresh = await a.agent.get('/api/study-room/conversations');
+  assert.equal(aInboxFresh.body.data.items.find((item) => item.id === conversationId).unreadCount, 1);
+  const bFull = await b.agent.get(`/api/study-room/conversations/${conversationId}/messages`);
+  assert.equal(bFull.body.data.items.length, 3);
+});
+
 dbTest('shared folder upload stays unavailable until scan+moderation allow it', async () => {
   await seed();
   const student = await login('a@example.test');

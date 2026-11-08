@@ -59,6 +59,9 @@ export function createStudyRoomController() {
       );
       sendSuccess(res, receipt);
     }),
+    clearConversation: asyncHandler(async (req, res) => {
+      sendSuccess(res, await chatService.clearConversation(req.principal, req.params.conversationId));
+    }),
     deleteMessage: asyncHandler(async (req, res) => {
       sendSuccess(
         res,

@@ -489,6 +489,7 @@ export function StudyRoomPage() {
   const tabHintPlayedRef = useRef(false);
   const [identity, setIdentity] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [clearBusy, setClearBusy] = useState(false);
   const [draft, setDraft] = useState('');
   const [sendState, setSendState] = useState('idle');
   const [socketState, setSocketState] = useState('disconnected');
@@ -1040,7 +1041,39 @@ export function StudyRoomPage() {
     }
   }
 
-  const decrypted = useMemo(() => messages, [messages]);
+  // Clears this chat for the current student only. The server stores a per-user cut-off, so other
+  // students' history is untouched and only messages sent afterwards appear again.
+  async function clearChat() {
+    if (!conversationId || clearBusy) {
+      return;
+    }
+    const scope = tab === 'private' ? 'this private chat' : 'the common batch chat';
+    if (!window.confirm(`Clear ${scope} for you? Other students keep their messages. Only new messages will appear.`)) {
+      return;
+    }
+    setClearBusy(true);
+    setError('');
+    try {
+      await studyRoomApi.clearConversation(conversationId);
+      setMessages([]);
+      setPending([]);
+      setInbox((current) =>
+        current.map((item) =>
+          item.id === conversationId
+            ? { ...item, preview: '', lastMessage: null, unreadCount: 0 }
+            : item,
+        ),
+      );
+      refreshStudyRoomAttention(meId).catch(() => {});
+    } catch (caught) {
+      setError(caught.message || 'Unable to clear this chat');
+    } finally {
+      setClearBusy(false);
+    }
+  }
+
+  // Deleted (tombstoned) messages are hidden, so a cleared chat shows the empty state.
+  const decrypted = useMemo(() => messages.filter((item) => !item.deletedAt), [messages]);
 
   useEffect(() => {
     if (tab !== 'private') {
@@ -1593,6 +1626,14 @@ export function StudyRoomPage() {
                   <span className="chat-shell__count">
                     {decrypted.length} message{decrypted.length === 1 ? '' : 's'}
                   </span>
+                  <button
+                    type="button"
+                    className="chat-shell__clear"
+                    onClick={clearChat}
+                    disabled={clearBusy || !threadReady || decrypted.length === 0}
+                  >
+                    {clearBusy ? 'Clearing…' : 'Clear chat'}
+                  </button>
                 </div>
 
                 <div className="study-room__thread" aria-live="polite">
