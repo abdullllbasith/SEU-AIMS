@@ -36,7 +36,12 @@ flowchart LR
   AV["ClamAV scanner"]
   FS[("Persistent disk<br/>stored files")]
   N["Email / WhatsApp adapters<br/>no-op unless configured"]
+  LB["Load balancer + several API instances<br/>(proposal only, not deployed)"]
+  OS[("Object storage<br/>(proposal only, not implemented)")]
   B -- "HTTPS, same origin /api" --> API
+  B -.-> LB
+  LB -.-> API
+  OS -.-> FS
   API -- Mongoose --> DB
   API -. optional .-> R
   API -- enqueue job --> W
@@ -67,6 +72,15 @@ erDiagram
   SUBJECT_OFFERING ||--o{ LECTURER_ASSIGNMENT : assigned
   USER ||--o{ LECTURER_ASSIGNMENT : lecturer
   USER ||--o{ ACADEMIC_RESULT : student
+  USER ||--o{ INCOMPLETE_CA : student
+  USER ||--o{ CA_APPLICATION : student
+  USER ||--o{ NOTIFICATION : recipient
+  USER ||--o{ NOTICE : publisher
+  USER ||--o{ CALENDAR_EVENT : creator
+  ACADEMIC_RESULT ||--o{ INCOMPLETE_CA : raises
+  SUBJECT_OFFERING ||--o{ CALENDAR_EVENT : optional
+  BATCH ||--o{ SHARED_FOLDER : has
+  SHARED_FOLDER ||--o{ SHARED_RESOURCE : holds
   BATCH ||--o{ CONVERSATION : batch_chat
   CONVERSATION ||--o{ MESSAGE : holds
   USER ||--o{ MESSAGE : sender
@@ -131,6 +145,37 @@ erDiagram
     ObjectId departmentId FK
     ObjectId batchId FK
     string currentKeyVersion
+  }
+  INCOMPLETE_CA {
+    ObjectId studentUserId FK
+    ObjectId subjectId FK
+    ObjectId academicResultId FK
+  }
+  CA_APPLICATION {
+    ObjectId studentUserId FK
+    ObjectId windowId FK
+    ObjectId pdfFileId FK
+  }
+  CALENDAR_EVENT {
+    ObjectId createdByUserId FK
+    ObjectId departmentId FK
+    ObjectId batchId FK
+  }
+  NOTICE {
+    ObjectId departmentId FK
+    ObjectId publisherUserId FK
+  }
+  NOTIFICATION {
+    ObjectId recipientUserId FK
+    ObjectId departmentId FK
+  }
+  SHARED_FOLDER {
+    ObjectId batchId FK
+    ObjectId createdByUserId FK
+  }
+  SHARED_RESOURCE {
+    ObjectId folderId FK
+    ObjectId fileId FK
   }
   MESSAGE {
     ObjectId conversationId FK
